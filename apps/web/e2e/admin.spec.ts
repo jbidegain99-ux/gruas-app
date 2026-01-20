@@ -12,24 +12,24 @@ test.describe('Landing Page', () => {
     await expect(page.locator('text=El Salvador')).toBeVisible();
   });
 
-  test('has login and register buttons', async ({ page }) => {
+  test('has login and admin portal buttons', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: /iniciar sesión/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /registrarse/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /iniciar sesion/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /admin portal/i })).toBeVisible();
   });
 
   test('can navigate to login page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /iniciar sesión/i }).click();
+    await page.getByRole('link', { name: /iniciar sesion/i }).click();
     await expect(page).toHaveURL('/login');
     await expect(page.locator('h1')).toContainText('Iniciar Sesion');
   });
 
-  test('can navigate to register page', async ({ page }) => {
+  test('can navigate to admin portal', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /registrarse/i }).click();
-    await expect(page).toHaveURL('/register');
-    await expect(page.locator('h1')).toContainText('Crear Cuenta');
+    await page.getByRole('link', { name: /admin portal/i }).click();
+    // Should redirect to login since not authenticated
+    await expect(page).toHaveURL(/login/);
   });
 });
 
@@ -37,24 +37,24 @@ test.describe('Authentication', () => {
   test('login page has all required fields', async ({ page }) => {
     await page.goto('/login');
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/contraseña/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /iniciar sesión/i })).toBeVisible();
+    await expect(page.getByLabel(/contrasena/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /iniciar sesion/i })).toBeVisible();
   });
 
   test('register page has all required fields', async ({ page }) => {
     await page.goto('/register');
     await expect(page.getByLabel(/nombre completo/i)).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/teléfono/i)).toBeVisible();
-    await expect(page.getByLabel(/contraseña/i)).toBeVisible();
+    await expect(page.getByLabel(/telefono/i)).toBeVisible();
+    await expect(page.getByLabel(/contrasena/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /crear cuenta/i })).toBeVisible();
   });
 
   test('shows error on invalid login', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel(/email/i).fill('invalid@email.com');
-    await page.getByLabel(/contraseña/i).fill('wrongpassword');
-    await page.getByRole('button', { name: /iniciar sesión/i }).click();
+    await page.getByLabel(/contrasena/i).fill('wrongpassword');
+    await page.getByRole('button', { name: /iniciar sesion/i }).click();
 
     // Should show error or stay on login page
     await expect(page).toHaveURL(/login/);
@@ -62,12 +62,12 @@ test.describe('Authentication', () => {
 
   test('has link to register from login', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('link', { name: /crear una cuenta/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /registrate/i })).toBeVisible();
   });
 
   test('has link to login from register', async ({ page }) => {
     await page.goto('/register');
-    await expect(page.getByRole('link', { name: /iniciar sesión/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /inicia sesion/i })).toBeVisible();
   });
 });
 
@@ -112,8 +112,8 @@ test.describe.skip('Admin Portal (authenticated)', () => {
     // Login as admin
     await page.goto('/login');
     await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/contraseña/i).fill(ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /iniciar sesión/i }).click();
+    await page.getByLabel(/contrasena/i).fill(ADMIN_PASSWORD);
+    await page.getByRole('button', { name: /iniciar sesion/i }).click();
     await page.waitForURL('/admin');
   });
 
