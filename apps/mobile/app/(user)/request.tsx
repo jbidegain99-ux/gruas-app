@@ -1,29 +1,691 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '@/lib/supabase';
+
+type TowType = 'light' | 'heavy';
+
+const INCIDENT_TYPES = [
+  'Avería mecánica',
+  'Accidente de tránsito',
+  'Vehículo varado',
+  'Llantas ponchadas',
+  'Sin combustible',
+  'Batería descargada',
+  'Llaves dentro del vehículo',
+  'Otro',
+];
+
+type PricingRule = {
+  base_exit_fee: number;
+  included_km: number;
+  price_per_km_light: number;
+  price_per_km_heavy: number;
+};
 
 export default function RequestService() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Solicitar Grúa</Text>
-      <Text style={styles.subtitle}>Formulario de solicitud (por implementar)</Text>
+  const router = useRouter();
+  const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Location state
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [dropoffAddress, setDropoffAddress] = useState('');
+  const [gettingLocation, setGettingLocation] = useState(false);
+
+  // Service details
+  const [towType, setTowType] = useState<TowType>('light');
+  const [incidentType, setIncidentType] = useState('');
+  const [vehicleDescription, setVehicleDescription] = useState('');
+  const [notes, setNotes] = useState('');
+
+  // Photo
+  const [photo, setPhoto] = useState<string | null>(null);
+
+  // Pricing
+  const [pricing, setPricing] = useState<PricingRule | null>(null);
+  const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+  const [estimatedDistance, setEstimatedDistance] = useState<number | null>(null);
+
+  // Fetch active pricing rule
+  useEffect(() => {
+    const fetchPricing = async () => {
+      const { data } = await supabase
+        .from('pricing_rules')
+        .select('base_exit_fee, included_km, price_per_km_light, price_per_km_heavy')
+        .eq('is_active', true)
+        .single();
+
+      if (data) {
+        setPricing(data);
+      }
+    };
+    fetchPricing();
+  }, []);
+
+  const getCurrentLocation = async () => {
+    setGettingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permisos', 'Se requiere acceso a la ubicación para continuar');
+        setGettingLocation(false);
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+      setPickupCoords(coords);
+
+      // Reverse geocode to get address
+      const [addressResult] = await Location.reverseGeocodeAsync({
+        latitude: coords.lat,
+        longitude: coords.lng,
+      });
+
+      if (addressResult) {
+        const address = [
+          addressResult.street,
+          addressResult.city,
+          addressResult.region,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        setPickupAddress(address || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo obtener la ubicación');
+    }
+    setGettingLocation(false);
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permisos', 'Se requiere acceso a la galería');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhoto(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permisos', 'Se requiere acceso a la cámara');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhoto(result.assets[0].uri);
+    }
+  };
+
+  const calculatePrice = () => {
+    if (!pricing) return;
+
+    // For demo, use a random distance between 5-50 km
+    const distance = Math.round(5 + Math.random() * 45);
+    setEstimatedDistance(distance);
+
+    const pricePerKm = towType === 'light' ? pricing.price_per_km_light : pricing.price_per_km_heavy;
+    const extraKm = Math.max(0, distance - pricing.included_km);
+    const total = pricing.base_exit_fee + extraKm * pricePerKm;
+
+    setEstimatedPrice(Math.round(total * 100) / 100);
+  };
+
+  const handleSubmit = async () => {
+    if (!pickupAddress || !dropoffAddress || !incidentType) {
+      Alert.alert('Error', 'Por favor completa todos los campos requeridos');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      // Create the service request
+      const { data, error } = await supabase.rpc('create_service_request', {
+        p_tow_type: towType,
+        p_incident_type: incidentType,
+        p_pickup_lat: pickupCoords?.lat || 13.6929, // Default to San Salvador
+        p_pickup_lng: pickupCoords?.lng || -89.2182,
+        p_pickup_address: pickupAddress,
+        p_dropoff_address: dropoffAddress,
+        p_vehicle_description: vehicleDescription || null,
+        p_notes: notes || null,
+      });
+
+      if (error) {
+        console.error('Error creating request:', error);
+        Alert.alert('Error', error.message);
+        setSubmitting(false);
+        return;
+      }
+
+      Alert.alert(
+        'Solicitud Enviada',
+        `Tu solicitud ha sido registrada. Un operador será asignado pronto.\n\nID: ${data.request_id?.substring(0, 8)}...`,
+        [
+          {
+            text: 'Ver Estado',
+            onPress: () => router.replace('/(user)'),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'No se pudo enviar la solicitud');
+    }
+
+    setSubmitting(false);
+  };
+
+  const renderStep1 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Ubicación de Recogida</Text>
+
+      <TouchableOpacity
+        style={styles.locationButton}
+        onPress={getCurrentLocation}
+        disabled={gettingLocation}
+      >
+        {gettingLocation ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.locationButtonText}>Usar mi ubicación actual</Text>
+        )}
+      </TouchableOpacity>
+
+      <Text style={styles.orText}>o ingresa manualmente:</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Dirección de recogida"
+        value={pickupAddress}
+        onChangeText={setPickupAddress}
+        multiline
+      />
+
+      <Text style={styles.label}>Dirección de destino</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="¿A dónde llevar el vehículo?"
+        value={dropoffAddress}
+        onChangeText={setDropoffAddress}
+        multiline
+      />
+
+      <TouchableOpacity
+        style={[styles.nextButton, (!pickupAddress || !dropoffAddress) && styles.buttonDisabled]}
+        onPress={() => setStep(2)}
+        disabled={!pickupAddress || !dropoffAddress}
+      >
+        <Text style={styles.nextButtonText}>Siguiente</Text>
+      </TouchableOpacity>
     </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Tipo de Servicio</Text>
+
+      <Text style={styles.label}>Tipo de Grúa</Text>
+      <View style={styles.toggleContainer}>
+        <TouchableOpacity
+          style={[styles.toggleButton, towType === 'light' && styles.toggleActive]}
+          onPress={() => setTowType('light')}
+        >
+          <Text style={[styles.toggleText, towType === 'light' && styles.toggleTextActive]}>
+            Liviana
+          </Text>
+          <Text style={styles.toggleSubtext}>Autos, camionetas</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleButton, towType === 'heavy' && styles.toggleActive]}
+          onPress={() => setTowType('heavy')}
+        >
+          <Text style={[styles.toggleText, towType === 'heavy' && styles.toggleTextActive]}>
+            Pesada
+          </Text>
+          <Text style={styles.toggleSubtext}>Camiones, buses</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.label}>Tipo de Incidente</Text>
+      <View style={styles.incidentGrid}>
+        {INCIDENT_TYPES.map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[styles.incidentButton, incidentType === type && styles.incidentActive]}
+            onPress={() => setIncidentType(type)}
+          >
+            <Text
+              style={[styles.incidentText, incidentType === type && styles.incidentTextActive]}
+            >
+              {type}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.navButtons}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
+          <Text style={styles.backButtonText}>Atrás</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.nextButton, !incidentType && styles.buttonDisabled]}
+          onPress={() => {
+            calculatePrice();
+            setStep(3);
+          }}
+          disabled={!incidentType}
+        >
+          <Text style={styles.nextButtonText}>Siguiente</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Detalles del Vehículo</Text>
+
+      <Text style={styles.label}>Descripción del Vehículo (opcional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej: Toyota Corolla 2020, color blanco"
+        value={vehicleDescription}
+        onChangeText={setVehicleDescription}
+      />
+
+      <Text style={styles.label}>Notas Adicionales (opcional)</Text>
+      <TextInput
+        style={[styles.input, styles.textArea]}
+        placeholder="Información adicional para el operador..."
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+        numberOfLines={3}
+      />
+
+      <Text style={styles.label}>Foto del Vehículo (opcional)</Text>
+      <View style={styles.photoButtons}>
+        <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
+          <Text style={styles.photoButtonText}>Tomar Foto</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+          <Text style={styles.photoButtonText}>Galería</Text>
+        </TouchableOpacity>
+      </View>
+
+      {photo && (
+        <Image source={{ uri: photo }} style={styles.photoPreview} resizeMode="cover" />
+      )}
+
+      <View style={styles.navButtons}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
+          <Text style={styles.backButtonText}>Atrás</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(4)}>
+          <Text style={styles.nextButtonText}>Ver Resumen</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep4 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
+
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Recogida:</Text>
+          <Text style={styles.summaryValue}>{pickupAddress}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Destino:</Text>
+          <Text style={styles.summaryValue}>{dropoffAddress}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Tipo de Grúa:</Text>
+          <Text style={styles.summaryValue}>{towType === 'light' ? 'Liviana' : 'Pesada'}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Incidente:</Text>
+          <Text style={styles.summaryValue}>{incidentType}</Text>
+        </View>
+        {vehicleDescription && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Vehículo:</Text>
+            <Text style={styles.summaryValue}>{vehicleDescription}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.priceCard}>
+        <Text style={styles.priceLabel}>Precio Estimado</Text>
+        <Text style={styles.priceValue}>
+          {estimatedPrice ? `$${estimatedPrice.toFixed(2)}` : 'Calculando...'}
+        </Text>
+        {estimatedDistance && (
+          <Text style={styles.priceNote}>
+            Distancia estimada: {estimatedDistance} km
+          </Text>
+        )}
+        <Text style={styles.priceDisclaimer}>
+          El precio final puede variar según la distancia real recorrida.
+        </Text>
+      </View>
+
+      <View style={styles.navButtons}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(3)}>
+          <Text style={styles.backButtonText}>Atrás</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.submitButton, submitting && styles.buttonDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitButtonText}>Confirmar Solicitud</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Progress indicator */}
+      <View style={styles.progressContainer}>
+        {[1, 2, 3, 4].map((s) => (
+          <View
+            key={s}
+            style={[styles.progressDot, s <= step && styles.progressDotActive]}
+          />
+        ))}
+      </View>
+
+      {step === 1 && renderStep1()}
+      {step === 2 && renderStep2()}
+      {step === 3 && renderStep3()}
+      {step === 4 && renderStep4()}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
     backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 24,
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 24,
+  },
+  progressDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#e5e7eb',
+  },
+  progressDotActive: {
+    backgroundColor: '#2563eb',
+  },
+  stepContainer: {
+    gap: 16,
+  },
+  stepTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 8,
+    color: '#111827',
   },
-  subtitle: {
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 14,
     fontSize: 16,
-    color: '#666',
+    backgroundColor: '#f9fafb',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  locationButton: {
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  orText: {
+    textAlign: 'center',
+    color: '#6b7280',
+    marginVertical: 8,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  toggleButton: {
+    flex: 1,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  toggleActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  toggleTextActive: {
+    color: '#2563eb',
+  },
+  toggleSubtext: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  incidentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  incidentButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 20,
+    backgroundColor: '#f9fafb',
+  },
+  incidentActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  incidentText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  incidentTextActive: {
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  photoButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  photoButton: {
+    flex: 1,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  photoButtonText: {
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  navButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  backButton: {
+    flex: 1,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nextButton: {
+    flex: 2,
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  nextButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  summaryCard: {
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  summaryRow: {
+    gap: 4,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  priceCard: {
+    backgroundColor: '#eff6ff',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: '#1e40af',
+    fontWeight: '500',
+  },
+  priceValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#1e40af',
+    marginVertical: 8,
+  },
+  priceNote: {
+    fontSize: 14,
+    color: '#3b82f6',
+  },
+  priceDisclaimer: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  submitButton: {
+    flex: 2,
+    backgroundColor: '#16a34a',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

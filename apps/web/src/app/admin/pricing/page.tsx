@@ -22,6 +22,7 @@ export default function PricingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activating, setActivating] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRules = async () => {
@@ -39,14 +40,20 @@ export default function PricingPage() {
   const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleActivate = async (rule: PricingRule) => {
+    setActivating(rule.id);
     const supabase = createClient();
 
-    // Deactivate all rules first
-    await supabase.from('pricing_rules').update({ is_active: false }).neq('id', '');
+    // Use RPC for atomic activation (deactivates others, activates this one)
+    const { error } = await supabase.rpc('set_active_pricing_rule', {
+      p_rule_id: rule.id
+    });
 
-    // Activate the selected rule
-    await supabase.from('pricing_rules').update({ is_active: true }).eq('id', rule.id);
+    if (error) {
+      console.error('Error activating rule:', error);
+      alert('Error al activar la regla: ' + error.message);
+    }
 
+    setActivating(null);
     refetch();
   };
 
@@ -215,9 +222,10 @@ export default function PricingPage() {
                       ) : (
                         <button
                           onClick={() => handleActivate(rule)}
-                          className="rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-400"
+                          disabled={activating === rule.id}
+                          className="rounded-lg border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-400"
                         >
-                          Activar
+                          {activating === rule.id ? 'Activando...' : 'Activar'}
                         </button>
                       )}
                     </td>

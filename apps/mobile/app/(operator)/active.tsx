@@ -1,29 +1,821 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+  TextInput,
+  Linking,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+
+type ActiveService = {
+  id: string;
+  status: string;
+  tow_type: string;
+  incident_type: string;
+  pickup_address: string;
+  pickup_lat: number;
+  pickup_lng: number;
+  dropoff_address: string;
+  dropoff_lat: number | null;
+  dropoff_lng: number | null;
+  total_price: number | null;
+  vehicle_description: string | null;
+  notes: string | null;
+  verification_pin: string | null;
+  verification_pin_hash: string | null;
+  user_name: string | null;
+  user_phone: string | null;
+  created_at: string;
+};
+
+const STATUS_STEPS = [
+  { key: 'assigned', label: 'Asignado', nextAction: 'En Camino' },
+  { key: 'en_route', label: 'En Camino', nextAction: 'Llegué' },
+  { key: 'active', label: 'Servicio Activo', nextAction: 'Completar' },
+  { key: 'completed', label: 'Completado', nextAction: null },
+];
 
 export default function ActiveService() {
+  const router = useRouter();
+  const [service, setService] = useState<ActiveService | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [showPinVerification, setShowPinVerification] = useState(false);
+
+  const fetchActiveService = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: services } = await supabase
+      .from('service_requests')
+      .select(`
+        id,
+        status,
+        tow_type,
+        incident_type,
+        pickup_address,
+        pickup_lat,
+        pickup_lng,
+        dropoff_address,
+        dropoff_lat,
+        dropoff_lng,
+        total_price,
+        vehicle_description,
+        notes,
+        verification_pin,
+        verification_pin_hash,
+        created_at,
+        profiles!service_requests_user_id_fkey (full_name, phone)
+      `)
+      .eq('operator_id', user.id)
+      .in('status', ['assigned', 'en_route', 'active'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (services && services.length > 0) {
+      const svc = services[0];
+      setService({
+        id: svc.id,
+        status: svc.status,
+        tow_type: svc.tow_type,
+        incident_type: svc.incident_type,
+        pickup_address: svc.pickup_address,
+        pickup_lat: svc.pickup_lat,
+        pickup_lng: svc.pickup_lng,
+        dropoff_address: svc.dropoff_address,
+        dropoff_lat: svc.dropoff_lat,
+        dropoff_lng: svc.dropoff_lng,
+        total_price: svc.total_price,
+        vehicle_description: svc.vehicle_description,
+        notes: svc.notes,
+        verification_pin: svc.verification_pin,
+        verification_pin_hash: svc.verification_pin_hash,
+        created_at: svc.created_at,
+        user_name: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.full_name || null,
+        user_phone: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.phone || null,
+      });
+    } else {
+      setService(null);
+    }
+
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchActiveService();
+
+    const channel = supabase
+      .channel('active-service')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'service_requests',
+        },
+        () => {
+          fetchActiveService();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchActiveService]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchActiveService();
+    setRefreshing(false);
+  };
+
+  const updateStatus = async (newStatus: string) => {
+    if (!service) return;
+
+    setUpdating(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Error', 'Debes iniciar sesión');
+      setUpdating(false);
+      return;
+    }
+
+    const updateData: Record<string, unknown> = { status: newStatus };
+
+    if (newStatus === 'completed') {
+      updateData.completed_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('service_requests')
+      .update(updateData)
+      .eq('id', service.id);
+
+    if (error) {
+      Alert.alert('Error', 'No se pudo actualizar el estado');
+      setUpdating(false);
+      return;
+    }
+
+    // Log event
+    await supabase.from('request_events').insert({
+      request_id: service.id,
+      event_type: newStatus === 'en_route' ? 'en_route' : newStatus === 'active' ? 'arrived' : 'service_completed',
+      created_by: user.id,
+    });
+
+    setUpdating(false);
+    await fetchActiveService();
+
+    if (newStatus === 'completed') {
+      Alert.alert('Servicio Completado', 'El servicio ha sido completado exitosamente.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(operator)'),
+        },
+      ]);
+    }
+  };
+
+  const handleStartEnRoute = () => {
+    Alert.alert(
+      'Iniciar Traslado',
+      'Confirma que vas en camino al lugar de recogida.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Confirmar', onPress: () => updateStatus('en_route') },
+      ]
+    );
+  };
+
+  const handleArrived = () => {
+    // Show PIN verification modal
+    setShowPinVerification(true);
+    setPinInput('');
+  };
+
+  const verifyPinAndArrive = async () => {
+    if (!service || pinInput.length !== 4) {
+      Alert.alert('Error', 'Ingresa el PIN de 4 dígitos');
+      return;
+    }
+
+    // In production, we would verify against the hash
+    // For MVP, we compare directly with the plain PIN (stored for demo purposes)
+    if (pinInput !== service.verification_pin) {
+      Alert.alert('PIN Incorrecto', 'El PIN no coincide. Verifica con el cliente.');
+      return;
+    }
+
+    setShowPinVerification(false);
+    await updateStatus('active');
+    Alert.alert('Verificado', 'PIN correcto. El servicio está ahora activo.');
+  };
+
+  const handleComplete = () => {
+    Alert.alert(
+      'Completar Servicio',
+      '¿Confirmas que el vehículo ha sido entregado en el destino?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Completar', onPress: () => updateStatus('completed') },
+      ]
+    );
+  };
+
+  const openMaps = (lat: number, lng: number, label: string) => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    Linking.openURL(url);
+  };
+
+  const callUser = () => {
+    if (service?.user_phone) {
+      Linking.openURL(`tel:${service.user_phone}`);
+    } else {
+      Alert.alert('Sin teléfono', 'El cliente no tiene teléfono registrado');
+    }
+  };
+
+  const getCurrentStep = () => {
+    if (!service) return 0;
+    return STATUS_STEPS.findIndex((s) => s.key === service.status);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#16a34a" />
+      </View>
+    );
+  }
+
+  if (!service) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>📋</Text>
+        <Text style={styles.emptyTitle}>Sin servicio activo</Text>
+        <Text style={styles.emptyText}>
+          Acepta una solicitud para comenzar un servicio.
+        </Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.replace('/(operator)')}
+        >
+          <Text style={styles.backButtonText}>Ver Solicitudes</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const currentStep = getCurrentStep();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Servicio Activo</Text>
-      <Text style={styles.subtitle}>No hay servicio activo</Text>
-    </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      {/* Progress Steps */}
+      <View style={styles.progressContainer}>
+        {STATUS_STEPS.slice(0, 3).map((step, index) => (
+          <View key={step.key} style={styles.progressStep}>
+            <View
+              style={[
+                styles.progressDot,
+                index <= currentStep && styles.progressDotActive,
+              ]}
+            >
+              {index < currentStep && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text
+              style={[
+                styles.progressLabel,
+                index <= currentStep && styles.progressLabelActive,
+              ]}
+            >
+              {step.label}
+            </Text>
+            {index < 2 && (
+              <View
+                style={[
+                  styles.progressLine,
+                  index < currentStep && styles.progressLineActive,
+                ]}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+
+      {/* Service Details Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.incidentType}>{service.incident_type}</Text>
+          <View style={styles.towTypeBadge}>
+            <Text style={styles.towTypeText}>
+              {service.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Addresses */}
+        <View style={styles.addressSection}>
+          <TouchableOpacity
+            style={styles.addressRow}
+            onPress={() => openMaps(service.pickup_lat, service.pickup_lng, 'Recogida')}
+          >
+            <View style={styles.addressDot} />
+            <View style={styles.addressContent}>
+              <Text style={styles.addressLabel}>Recogida</Text>
+              <Text style={styles.addressText}>{service.pickup_address}</Text>
+              <Text style={styles.navigationHint}>Toca para navegar</Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.addressLine} />
+
+          <TouchableOpacity
+            style={styles.addressRow}
+            onPress={() =>
+              service.dropoff_lat && service.dropoff_lng
+                ? openMaps(service.dropoff_lat, service.dropoff_lng, 'Destino')
+                : null
+            }
+          >
+            <View style={[styles.addressDot, styles.destinationDot]} />
+            <View style={styles.addressContent}>
+              <Text style={styles.addressLabel}>Destino</Text>
+              <Text style={styles.addressText}>{service.dropoff_address}</Text>
+              {service.dropoff_lat && (
+                <Text style={styles.navigationHint}>Toca para navegar</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Vehicle Info */}
+        {service.vehicle_description && (
+          <View style={styles.infoSection}>
+            <Text style={styles.infoLabel}>Vehículo</Text>
+            <Text style={styles.infoText}>{service.vehicle_description}</Text>
+          </View>
+        )}
+
+        {service.notes && (
+          <View style={styles.infoSection}>
+            <Text style={styles.infoLabel}>Notas</Text>
+            <Text style={styles.infoText}>{service.notes}</Text>
+          </View>
+        )}
+
+        {/* Client Info */}
+        <View style={styles.clientSection}>
+          <View style={styles.clientInfo}>
+            <Text style={styles.clientLabel}>Cliente</Text>
+            <Text style={styles.clientName}>{service.user_name || 'Sin nombre'}</Text>
+          </View>
+          <TouchableOpacity style={styles.callButton} onPress={callUser}>
+            <Text style={styles.callButtonText}>Llamar</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Price */}
+        {service.total_price && (
+          <View style={styles.priceSection}>
+            <Text style={styles.priceLabel}>Precio Estimado</Text>
+            <Text style={styles.priceValue}>${service.total_price.toFixed(2)}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionSection}>
+        {service.status === 'assigned' && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.enRouteButton]}
+            onPress={handleStartEnRoute}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.actionButtonText}>Voy en Camino</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {service.status === 'en_route' && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.arrivedButton]}
+            onPress={handleArrived}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.actionButtonText}>Ya Llegué (Verificar PIN)</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {service.status === 'active' && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.completeButton]}
+            onPress={handleComplete}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.actionButtonText}>Completar Servicio</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* PIN Verification Modal */}
+      {showPinVerification && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Verificar PIN</Text>
+            <Text style={styles.modalDescription}>
+              Solicita el PIN de 4 dígitos al cliente para verificar tu llegada.
+            </Text>
+
+            <TextInput
+              style={styles.pinInput}
+              value={pinInput}
+              onChangeText={setPinInput}
+              keyboardType="number-pad"
+              maxLength={4}
+              placeholder="----"
+              placeholderTextColor="#9ca3af"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowPinVerification(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={verifyPinAndArrive}
+              >
+                <Text style={styles.modalConfirmText}>Verificar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#f9fafb',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  progressStep: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressDotActive: {
+    backgroundColor: '#16a34a',
+  },
+  checkmark: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  progressLabel: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  progressLabelActive: {
+    color: '#16a34a',
+    fontWeight: '600',
+  },
+  progressLine: {
+    position: 'absolute',
+    top: 15,
+    right: -25,
+    width: 50,
+    height: 2,
+    backgroundColor: '#e5e7eb',
+  },
+  progressLineActive: {
+    backgroundColor: '#16a34a',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  incidentType: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    flex: 1,
+  },
+  towTypeBadge: {
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  towTypeText: {
+    color: '#16a34a',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  addressSection: {
+    marginBottom: 20,
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addressDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#16a34a',
+    marginTop: 4,
+  },
+  destinationDot: {
+    backgroundColor: '#dc2626',
+  },
+  addressContent: {
+    flex: 1,
+  },
+  addressLabel: {
+    fontSize: 11,
+    color: '#9ca3af',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#374151',
+    marginTop: 2,
+  },
+  navigationHint: {
+    fontSize: 11,
+    color: '#2563eb',
+    marginTop: 4,
+  },
+  addressLine: {
+    width: 2,
+    height: 24,
+    backgroundColor: '#e5e7eb',
+    marginLeft: 5,
+    marginVertical: 4,
+  },
+  infoSection: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    marginTop: 12,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#111827',
+    marginTop: 4,
+  },
+  clientSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    marginTop: 16,
+  },
+  clientInfo: {},
+  clientLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  clientName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginTop: 2,
+  },
+  callButton: {
+    backgroundColor: '#eff6ff',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  callButtonText: {
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  priceSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    marginTop: 16,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  priceValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  actionSection: {
+    gap: 12,
+  },
+  actionButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  enRouteButton: {
+    backgroundColor: '#7c3aed',
+  },
+  arrivedButton: {
+    backgroundColor: '#2563eb',
+  },
+  completeButton: {
+    backgroundColor: '#16a34a',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 24,
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#111827',
+    textAlign: 'center',
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  modalDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  pinInput: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 16,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalCancelText: {
+    color: '#374151',
+    fontWeight: '600',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
