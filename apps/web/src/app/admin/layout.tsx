@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { LogoutButton } from '@/components/LogoutButton';
 
 export default async function AdminLayout({
   children,
@@ -148,7 +149,7 @@ export default async function AdminLayout({
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 border-t border-zinc-200 p-4 dark:border-zinc-800">
-          <div className="flex items-center gap-3">
+          <div className="mb-3 flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-sm font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
               {profile?.full_name?.charAt(0).toUpperCase() || 'A'}
             </div>
@@ -161,6 +162,7 @@ export default async function AdminLayout({
               </p>
             </div>
           </div>
+          <LogoutButton className="w-full justify-center" />
         </div>
       </aside>
 

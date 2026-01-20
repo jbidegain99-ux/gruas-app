@@ -250,7 +250,7 @@ function EditUserModal({
     const { error: rpcError } = await supabase.rpc('admin_update_user_role', {
       p_user_id: user.id,
       p_new_role: role,
-      p_provider_id: role === 'OPERATOR' ? providerId || null : null,
+      p_provider_id: role === 'OPERATOR' && providerId ? providerId : null,
     });
 
     if (rpcError) {

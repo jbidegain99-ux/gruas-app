@@ -46,6 +46,9 @@ function LoginForm() {
         router.push('/admin');
       } else if (profile?.role === 'MOP') {
         router.push('/mop');
+      } else if (profile?.role === 'USER' || profile?.role === 'OPERATOR') {
+        // Redirect mobile-first roles to info page
+        router.push('/mobile-info');
       } else {
         router.push(redirect);
       }
