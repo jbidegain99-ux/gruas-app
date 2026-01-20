@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 type PricingRule = {
@@ -21,20 +21,22 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
-
-  const fetchRules = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('pricing_rules')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setRules(data || []);
-    setLoading(false);
-  }, []);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    const fetchRules = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('pricing_rules')
+        .select('*')
+        .order('created_at', { ascending: false });
+      setRules(data || []);
+      setLoading(false);
+    };
     fetchRules();
-  }, [fetchRules]);
+  }, [refreshKey]);
+
+  const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleActivate = async (rule: PricingRule) => {
     const supabase = createClient();
@@ -45,7 +47,7 @@ export default function PricingPage() {
     // Activate the selected rule
     await supabase.from('pricing_rules').update({ is_active: true }).eq('id', rule.id);
 
-    fetchRules();
+    refetch();
   };
 
   const handleDelete = async (id: string) => {
@@ -53,7 +55,7 @@ export default function PricingPage() {
 
     const supabase = createClient();
     await supabase.from('pricing_rules').delete().eq('id', id);
-    fetchRules();
+    refetch();
   };
 
   const activeRule = rules.find((r) => r.is_active);
@@ -135,7 +137,7 @@ export default function PricingPage() {
           onSave={() => {
             setShowForm(false);
             setEditingRule(null);
-            fetchRules();
+            refetch();
           }}
         />
       )}

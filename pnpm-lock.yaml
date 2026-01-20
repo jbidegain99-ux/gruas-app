@@ -68,6 +68,12 @@ importers:
       '@babel/core':
         specifier: ^7.25.0
         version: 7.28.6
+      '@eslint/js':
+        specifier: ^9.0.0
+        version: 9.39.2
+      '@types/node':
+        specifier: ^20
+        version: 20.19.30
       '@types/react':
         specifier: ~18.3.0
         version: 18.3.27
@@ -77,6 +83,9 @@ importers:
       typescript:
         specifier: ~5.3.0
         version: 5.3.3
+      typescript-eslint:
+        specifier: ^8.0.0
+        version: 8.53.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.3.3)
 
   apps/web:
     dependencies:
@@ -165,9 +174,18 @@ importers:
 
   packages/shared:
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.0.0
+        version: 9.39.2
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.2(jiti@2.6.1)
       typescript:
         specifier: ^5
         version: 5.3.3
+      typescript-eslint:
+        specifier: ^8.0.0
+        version: 8.53.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.3.3)
 
 packages:
 
@@ -1129,7 +1147,7 @@ packages:
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
-    engines: {node: '>=0.10.0'}
+    engines: {'0': node >=0.10.0}
 
   '@expo/cli@0.22.27':
     resolution: {integrity: sha512-MZ3s68+OFQZWljAiCdwL+dL+xZudpkmhq0A2Qb4+p6MNp386WJyAYineXtiLJVww/8ohIfUxOL10vnaPdDVl4w==}

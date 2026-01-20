@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 type Provider = {
@@ -19,27 +19,29 @@ export default function ProvidersPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
-
-  const fetchProviders = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('providers')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setProviders(data || []);
-    setLoading(false);
-  }, []);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    const fetchProviders = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('providers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      setProviders(data || []);
+      setLoading(false);
+    };
     fetchProviders();
-  }, [fetchProviders]);
+  }, [refreshKey]);
+
+  const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Esta seguro de eliminar este proveedor?')) return;
 
     const supabase = createClient();
     await supabase.from('providers').delete().eq('id', id);
-    fetchProviders();
+    refetch();
   };
 
   const handleToggleActive = async (provider: Provider) => {
@@ -48,7 +50,7 @@ export default function ProvidersPage() {
       .from('providers')
       .update({ is_active: !provider.is_active })
       .eq('id', provider.id);
-    fetchProviders();
+    refetch();
   };
 
   return (
@@ -83,7 +85,7 @@ export default function ProvidersPage() {
           onSave={() => {
             setShowForm(false);
             setEditingProvider(null);
-            fetchProviders();
+            refetch();
           }}
         />
       )}
