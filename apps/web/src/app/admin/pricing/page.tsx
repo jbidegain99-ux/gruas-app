@@ -23,14 +23,23 @@ export default function PricingPage() {
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activating, setActivating] = useState<string | null>(null);
+  const [normalizing, setNormalizing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRules = async () => {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('pricing_rules')
         .select('*')
         .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        setError(`Error al cargar reglas: ${fetchError.message}`);
+      } else {
+        setError(null);
+      }
+
       setRules(data || []);
       setLoading(false);
     };
@@ -39,21 +48,72 @@ export default function PricingPage() {
 
   const refetch = () => setRefreshKey((k) => k + 1);
 
+  // Count active rules
+  const activeRules = rules.filter((r) => r.is_active);
+  const hasMultipleActive = activeRules.length > 1;
+
   const handleActivate = async (rule: PricingRule) => {
     setActivating(rule.id);
+    setError(null);
     const supabase = createClient();
 
-    // Use RPC for atomic activation (deactivates others, activates this one)
-    const { error } = await supabase.rpc('set_active_pricing_rule', {
+    // Try using RPC first
+    const { error: rpcError } = await supabase.rpc('set_active_pricing_rule', {
       p_rule_id: rule.id
     });
 
-    if (error) {
-      console.error('Error activating rule:', error);
-      alert('Error al activar la regla: ' + error.message);
+    if (rpcError) {
+      // If RPC doesn't exist, try manual update
+      if (rpcError.message.includes('function') && rpcError.message.includes('does not exist')) {
+        console.log('RPC not found, using manual update');
+        // Deactivate all
+        await supabase.from('pricing_rules').update({ is_active: false }).eq('is_active', true);
+        // Activate this one
+        const { error: updateError } = await supabase.from('pricing_rules').update({ is_active: true }).eq('id', rule.id);
+
+        if (updateError) {
+          setError(`Error al activar: ${updateError.message}`);
+        }
+      } else {
+        setError(`Error al activar: ${rpcError.message}`);
+      }
     }
 
     setActivating(null);
+    refetch();
+  };
+
+  const handleNormalize = async () => {
+    if (!confirm('Esto dejara solo la regla mas reciente como activa. Continuar?')) return;
+
+    setNormalizing(true);
+    setError(null);
+    const supabase = createClient();
+
+    // Get the most recent active rule
+    const mostRecent = activeRules.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
+
+    if (!mostRecent) {
+      setError('No hay reglas activas para normalizar');
+      setNormalizing(false);
+      return;
+    }
+
+    // Deactivate all except the most recent
+    const toDeactivate = activeRules.filter((r) => r.id !== mostRecent.id).map((r) => r.id);
+
+    const { error: updateError } = await supabase
+      .from('pricing_rules')
+      .update({ is_active: false })
+      .in('id', toDeactivate);
+
+    if (updateError) {
+      setError(`Error al normalizar: ${updateError.message}`);
+    }
+
+    setNormalizing(false);
     refetch();
   };
 
@@ -89,8 +149,46 @@ export default function PricingPage() {
         </button>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
+          <div className="flex items-center gap-3">
+            <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Multiple Active Warning */}
+      {hasMultipleActive && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-medium text-amber-800 dark:text-amber-200">
+                Inconsistencia Detectada: {activeRules.length} reglas activas
+              </p>
+              <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                Solo debe haber 1 regla activa. Haz clic en &quot;Normalizar&quot; para corregir esto automaticamente.
+              </p>
+              <button
+                onClick={handleNormalize}
+                disabled={normalizing}
+                className="mt-3 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {normalizing ? 'Normalizando...' : 'Normalizar (mantener la mas reciente)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Rule Display */}
-      {activeRule && (
+      {activeRule && !hasMultipleActive && (
         <div className="mb-8 rounded-lg border-2 border-green-500 bg-green-50 p-6 dark:border-green-700 dark:bg-green-950">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white">

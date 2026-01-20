@@ -63,6 +63,7 @@ const EVENT_LABELS: Record<string, string> = {
 export default function MopRequestsPage() {
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [auditTrail, setAuditTrail] = useState<AuditEvent[]>([]);
@@ -71,7 +72,9 @@ export default function MopRequestsPage() {
   useEffect(() => {
     const fetchRequests = async () => {
       const supabase = createClient();
+      setError(null);
 
+      // Fetch service_requests WITHOUT JOINs to avoid RLS issues
       let query = supabase
         .from('service_requests')
         .select(`
@@ -85,9 +88,9 @@ export default function MopRequestsPage() {
           distance_km,
           created_at,
           completed_at,
-          profiles!service_requests_user_id_fkey (full_name, email),
-          providers (name),
-          operator:profiles!service_requests_operator_id_fkey (full_name)
+          user_id,
+          operator_id,
+          provider_id
         `)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -96,9 +99,57 @@ export default function MopRequestsPage() {
         query = query.eq('status', statusFilter);
       }
 
-      const { data } = await query;
+      const { data, error: fetchError } = await query;
 
-      const mappedRequests = (data || []).map((r) => ({
+      if (fetchError) {
+        console.error('Error fetching requests:', fetchError);
+        setError(`Error al cargar solicitudes: ${fetchError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setRequests([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch related data separately to avoid RLS JOIN issues
+      const userIds = [...new Set(data.map((r) => r.user_id).filter(Boolean))] as string[];
+      const operatorIds = [...new Set(data.map((r) => r.operator_id).filter(Boolean))] as string[];
+      const providerIds = [...new Set(data.map((r) => r.provider_id).filter(Boolean))] as string[];
+
+      // Fetch profiles for users and operators
+      const allProfileIds = [...new Set([...userIds, ...operatorIds])];
+      let profileMap = new Map<string, { full_name: string; email: string }>();
+
+      if (allProfileIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', allProfileIds);
+
+        if (profilesData) {
+          profileMap = new Map(
+            profilesData.map((p) => [p.id, { full_name: p.full_name || '', email: p.email || '' }])
+          );
+        }
+      }
+
+      // Fetch providers
+      let providerMap = new Map<string, string>();
+      if (providerIds.length > 0) {
+        const { data: providersData } = await supabase
+          .from('providers')
+          .select('id, name')
+          .in('id', providerIds);
+
+        if (providersData) {
+          providerMap = new Map(providersData.map((p) => [p.id, p.name]));
+        }
+      }
+
+      const mappedRequests = data.map((r) => ({
         id: r.id,
         status: r.status,
         tow_type: r.tow_type,
@@ -109,10 +160,10 @@ export default function MopRequestsPage() {
         distance_km: r.distance_km,
         created_at: r.created_at,
         completed_at: r.completed_at,
-        user_name: (r.profiles as unknown as { full_name: string; email: string } | null)?.full_name || null,
-        user_email: (r.profiles as unknown as { full_name: string; email: string } | null)?.email || null,
-        provider_name: (r.providers as unknown as { name: string } | null)?.name || null,
-        operator_name: (r.operator as unknown as { full_name: string } | null)?.full_name || null,
+        user_name: r.user_id ? profileMap.get(r.user_id)?.full_name || null : null,
+        user_email: r.user_id ? profileMap.get(r.user_id)?.email || null : null,
+        provider_name: r.provider_id ? providerMap.get(r.provider_id) || null : null,
+        operator_name: r.operator_id ? profileMap.get(r.operator_id)?.full_name || null : null,
       })) as ServiceRequest[];
 
       setRequests(mappedRequests);
@@ -125,12 +176,54 @@ export default function MopRequestsPage() {
     setLoadingAudit(true);
     const supabase = createClient();
 
-    // Use RPC to get audit trail with user names
-    const { data } = await supabase.rpc('get_request_audit_trail', {
+    // Try RPC first, fallback to direct query
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_request_audit_trail', {
       p_request_id: requestId,
     });
 
-    setAuditTrail((data as AuditEvent[]) || []);
+    if (rpcError) {
+      console.log('RPC not available, using direct query:', rpcError.message);
+      // Fallback: query request_events directly
+      const { data: eventsData } = await supabase
+        .from('request_events')
+        .select('id, event_type, payload, actor_id, actor_role, created_at')
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true });
+
+      // Get actor names if we have events
+      if (eventsData && eventsData.length > 0) {
+        const actorIds = [...new Set(eventsData.map((e) => e.actor_id).filter(Boolean))] as string[];
+
+        let actorMap = new Map<string, string>();
+        if (actorIds.length > 0) {
+          const { data: actorsData } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', actorIds);
+
+          if (actorsData) {
+            actorMap = new Map(actorsData.map((a) => [a.id, a.full_name || '']));
+          }
+        }
+
+        const mappedEvents = eventsData.map((e) => ({
+          id: e.id,
+          event_type: e.event_type,
+          payload: e.payload || {},
+          actor_id: e.actor_id,
+          actor_role: e.actor_role,
+          actor_name: e.actor_id ? actorMap.get(e.actor_id) || null : null,
+          created_at: e.created_at,
+        })) as AuditEvent[];
+
+        setAuditTrail(mappedEvents);
+      } else {
+        setAuditTrail([]);
+      }
+    } else {
+      setAuditTrail((rpcData as AuditEvent[]) || []);
+    }
+
     setLoadingAudit(false);
   };
 
@@ -149,6 +242,18 @@ export default function MopRequestsPage() {
           Historial y auditoria de servicios de grua
         </p>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
+          <div className="flex items-center gap-3">
+            <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Status Filters */}
       <div className="mb-6 flex flex-wrap gap-2">

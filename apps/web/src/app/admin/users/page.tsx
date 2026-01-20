@@ -39,43 +39,74 @@ export default function UsersPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
+      setError(null);
 
-      // Fetch profiles with provider names
-      const { data: profilesData } = await supabase
+      // First, fetch profiles WITHOUT join to avoid RLS issues
+      // The email column may not exist if migration 00014 wasn't run
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          id,
-          email,
-          full_name,
-          phone,
-          role,
-          provider_id,
-          created_at,
-          providers:provider_id (name)
-        `)
+        .select('id, full_name, phone, role, provider_id, created_at')
         .order('created_at', { ascending: false });
 
-      // Fetch providers for the dropdown
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        setError(`Error al cargar usuarios: ${profilesError.message}. Verifica que la migration de RLS este aplicada en /admin/system-check`);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch providers for the dropdown and for mapping names
       const { data: providersData } = await supabase
         .from('providers')
         .select('id, name')
-        .eq('is_active', true)
         .order('name');
 
+      // Create a map of provider names
+      const providerMap = new Map(
+        (providersData || []).map((p) => [p.id, p.name])
+      );
+
+      // Try to get email column - may not exist
+      let emailMap = new Map<string, string>();
+      try {
+        const { data: emailData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .not('email', 'is', null);
+
+        if (emailData) {
+          emailMap = new Map(emailData.map((e) => [e.id, e.email || '']));
+        }
+      } catch {
+        // Email column doesn't exist - that's ok
+        console.log('Email column not available');
+      }
+
       const mappedProfiles = (profilesData || []).map((p) => ({
-        ...p,
-        provider_name: (p.providers as unknown as { name: string } | null)?.name || null,
-        providers: undefined,
+        id: p.id,
+        full_name: p.full_name,
+        phone: p.phone,
+        role: p.role as UserRole,
+        provider_id: p.provider_id,
+        created_at: p.created_at,
+        email: emailMap.get(p.id) || '',
+        provider_name: p.provider_id ? providerMap.get(p.provider_id) || null : null,
       })) as Profile[];
 
+      // Filter to only active providers for dropdown
+      const activeProviders = (providersData || []).filter(
+        (p) => providerMap.has(p.id)
+      );
+
       setProfiles(mappedProfiles);
-      setProviders(providersData || []);
+      setProviders(activeProviders);
       setLoading(false);
     };
     fetchData();
@@ -105,6 +136,27 @@ export default function UsersPage() {
           </p>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="font-medium text-red-800 dark:text-red-200">Error</p>
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+              <a
+                href="/admin/system-check"
+                className="mt-2 inline-block text-sm font-medium text-red-700 underline hover:text-red-800 dark:text-red-300"
+              >
+                Ir a System Check
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
