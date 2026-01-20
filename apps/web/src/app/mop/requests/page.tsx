@@ -23,9 +23,10 @@ type ServiceRequest = {
 type AuditEvent = {
   id: string;
   event_type: string;
-  metadata: Record<string, unknown>;
-  created_by: string | null;
-  created_by_name: string | null;
+  payload: Record<string, unknown>;
+  actor_id: string | null;
+  actor_role: string | null;
+  actor_name: string | null;
   created_at: string;
 };
 
@@ -416,11 +417,12 @@ function RequestDetailModal({
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {new Date(event.created_at).toLocaleString('es-SV')}
-                        {event.created_by_name && ` - ${event.created_by_name}`}
+                        {event.actor_name && ` - ${event.actor_name}`}
+                        {event.actor_role && ` (${event.actor_role})`}
                       </p>
-                      {event.metadata && Object.keys(event.metadata).length > 0 && (
+                      {event.payload && Object.keys(event.payload).length > 0 && (
                         <pre className="mt-2 overflow-x-auto rounded bg-zinc-100 p-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                          {JSON.stringify(event.metadata, null, 2)}
+                          {JSON.stringify(event.payload, null, 2)}
                         </pre>
                       )}
                     </div>

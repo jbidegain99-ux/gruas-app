@@ -6,14 +6,23 @@ This document provides comprehensive testing instructions for the Gruas App plat
 
 ## Test Accounts
 
-Create these test users in Supabase for testing:
+Production test users:
 
 | Role | Email | Password | Notes |
 |------|-------|----------|-------|
-| ADMIN | admin@test.com | testpassword123 | Full system access |
-| MOP | mop@test.com | testpassword123 | Audit/oversight access |
-| OPERATOR | operator@test.com | testpassword123 | Assign to a provider |
-| USER | user@test.com | testpassword123 | Standard user |
+| ADMIN | admin@gruassv.com | Test1234 | Full system access |
+| MOP | mop@gruassv.com | Test1234 | Audit/oversight access |
+| OPERATOR | operador@gruassv.com | Test1234 | Assign to a provider |
+| USER | cliente@gruassv.com | Test1234 | Standard user |
+
+## Environment Variables
+
+Required `.env.local` file for apps/web:
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key  # Optional, for admin operations
+```
 
 ## Web Application Testing
 
@@ -35,8 +44,12 @@ Create these test users in Supabase for testing:
 - [ ] Successful login redirects based on role:
   - ADMIN → /admin
   - MOP → /mop
-  - USER → /
-  - OPERATOR → /
+  - USER → /mobile-info (explains mobile app)
+  - OPERATOR → /mobile-info (explains mobile app)
+- [ ] /mobile-info page shows:
+  - User's name and role
+  - Instructions to download mobile app
+  - Logout button
 
 #### Register (/register)
 - [ ] All fields visible: Name, Email, Phone, Password
@@ -52,6 +65,8 @@ Create these test users in Supabase for testing:
 - [ ] Shows key statistics (total users, active requests, etc.)
 - [ ] Sidebar navigation works
 - [ ] User info displayed in sidebar
+- [ ] Logout button visible at bottom of sidebar
+- [ ] Logout button works (redirects to /login)
 
 #### Providers (/admin/providers)
 - [ ] Table displays all providers
@@ -101,6 +116,8 @@ Create these test users in Supabase for testing:
 #### Dashboard
 - [ ] Basic stats visible
 - [ ] Green branding (emerald)
+- [ ] Logout button visible at bottom of sidebar
+- [ ] Logout button works (redirects to /login)
 
 #### Requests (/mop/requests)
 - [ ] Table displays all service requests
@@ -302,6 +319,13 @@ Test files:
 
 ## Common Issues & Troubleshooting
 
+### Users page shows 0 users / MOP can't see requests
+**Root cause:** Recursive RLS policies on profiles table.
+
+**Solution:** Run migration `00014_fix_recursive_rls.sql` which:
+1. Creates helper functions (`is_admin()`, `is_mop()`, `is_operator()`) using SECURITY DEFINER
+2. Updates all RLS policies to use these functions instead of recursive subqueries
+
 ### Login returns 406 error
 - Profile doesn't exist for user
 - Run trigger to auto-create profiles on signup
@@ -310,6 +334,7 @@ Test files:
 ### Pricing activation fails
 - Check RLS policies allow admin updates
 - Verify user has ADMIN role in profiles table
+- Ensure `set_active_pricing_rule` RPC exists
 
 ### Mobile location permission denied
 - Must accept location permission
