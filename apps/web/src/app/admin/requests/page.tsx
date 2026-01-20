@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 type ServiceRequest = {
@@ -23,37 +23,39 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
-
-  const fetchRequests = useCallback(async () => {
-    const supabase = createClient();
-    let query = supabase
-      .from('service_requests')
-      .select(`
-        *,
-        profiles!service_requests_user_id_fkey(full_name),
-        operator:profiles!service_requests_operator_id_fkey(full_name)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter);
-    }
-
-    const { data } = await query.limit(50);
-    setRequests(data || []);
-    setLoading(false);
-  }, [statusFilter]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    const fetchRequests = async () => {
+      const supabase = createClient();
+      let query = supabase
+        .from('service_requests')
+        .select(`
+          *,
+          profiles!service_requests_user_id_fkey(full_name),
+          operator:profiles!service_requests_operator_id_fkey(full_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data } = await query.limit(50);
+      setRequests(data || []);
+      setLoading(false);
+    };
     fetchRequests();
-  }, [fetchRequests]);
+  }, [statusFilter, refreshKey]);
+
+  const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleCancelRequest = async (requestId: string) => {
     if (!confirm('Esta seguro de cancelar esta solicitud?')) return;
 
     const supabase = createClient();
     await supabase.rpc('admin_cancel_request', { p_request_id: requestId });
-    fetchRequests();
+    refetch();
     setSelectedRequest(null);
   };
 
