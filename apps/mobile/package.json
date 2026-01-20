@@ -13,6 +13,7 @@
     "export": "expo export"
   },
   "dependencies": {
+    "@babel/runtime": "^7.28.6",
     "@expo/metro-runtime": "^6.1.2",
     "@gruas-app/shared": "workspace:*",
     "@react-navigation/native": "^7.0.0",
