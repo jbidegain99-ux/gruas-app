@@ -11,7 +11,8 @@ type ServiceRequest = {
   pickup_address: string;
   dropoff_address: string;
   total_price: number | null;
-  distance_km: number | null;
+  distance_operator_to_pickup_km: number | null;
+  distance_pickup_to_dropoff_km: number | null;
   created_at: string;
   completed_at: string | null;
   user_name: string | null;
@@ -82,7 +83,8 @@ export default function MopRequestsPage() {
           pickup_address,
           dropoff_address,
           total_price,
-          distance_km,
+          distance_operator_to_pickup_km,
+          distance_pickup_to_dropoff_km,
           created_at,
           completed_at,
           profiles!service_requests_user_id_fkey (full_name, email),
@@ -106,7 +108,8 @@ export default function MopRequestsPage() {
         pickup_address: r.pickup_address,
         dropoff_address: r.dropoff_address,
         total_price: r.total_price,
-        distance_km: r.distance_km,
+        distance_operator_to_pickup_km: r.distance_operator_to_pickup_km,
+        distance_pickup_to_dropoff_km: r.distance_pickup_to_dropoff_km,
         created_at: r.created_at,
         completed_at: r.completed_at,
         user_name: (r.profiles as unknown as { full_name: string; email: string } | null)?.full_name || null,
@@ -363,10 +366,18 @@ function RequestDetailModal({
               <p className="text-sm text-zinc-900 dark:text-white">{request.dropoff_address}</p>
             </div>
             <div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Distancia</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Distancia Total</p>
               <p className="text-sm text-zinc-900 dark:text-white">
-                {request.distance_km ? `${request.distance_km.toFixed(1)} km` : '-'}
+                {(request.distance_operator_to_pickup_km || request.distance_pickup_to_dropoff_km)
+                  ? `${((request.distance_operator_to_pickup_km || 0) + (request.distance_pickup_to_dropoff_km || 0)).toFixed(1)} km`
+                  : '-'}
               </p>
+              {(request.distance_operator_to_pickup_km || request.distance_pickup_to_dropoff_km) && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  (Op→Recogida: {request.distance_operator_to_pickup_km?.toFixed(1) || '0'} km +
+                  Recogida→Destino: {request.distance_pickup_to_dropoff_km?.toFixed(1) || '0'} km)
+                </p>
+              )}
             </div>
             <div>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">Precio Total</p>

@@ -20,9 +20,11 @@ type AvailableRequest = {
   pickup_lat: number;
   pickup_lng: number;
   dropoff_address: string;
+  dropoff_lat: number;
+  dropoff_lng: number;
   created_at: string;
   user_name: string | null;
-  distance_km: number | null;
+  user_phone: string | null;
 };
 
 export default function OperatorRequests() {

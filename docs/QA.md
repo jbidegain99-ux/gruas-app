@@ -349,6 +349,40 @@ Test files:
 - PIN is stored in verification_pin column
 - Check operator is entering correct PIN from user
 
+### MOP /mop/requests shows error "column distance_km does not exist"
+**Root cause:** Code was querying a non-existent column `distance_km` directly from `service_requests` table.
+
+**Schema reality:**
+- `service_requests` table has TWO separate distance columns:
+  - `distance_operator_to_pickup_km` - Distance from operator location to pickup point
+  - `distance_pickup_to_dropoff_km` - Distance from pickup to dropoff (actual tow distance)
+- There is NO `distance_km` column
+
+**Solution (Fixed in PR):**
+1. Updated `/mop/requests/page.tsx` to query the two real columns
+2. UI now shows total distance (sum of both) with breakdown
+3. Aligned TypeScript types with actual DB schema
+
+**Verification steps:**
+```sql
+-- Verify columns in service_requests table
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'service_requests'
+  AND column_name LIKE '%distance%'
+ORDER BY ordinal_position;
+
+-- Expected output:
+-- distance_operator_to_pickup_km | numeric
+-- distance_pickup_to_dropoff_km  | numeric
+```
+
+**Frontend verification:**
+1. Login as MOP user (mop@gruassv.com)
+2. Navigate to /mop/requests
+3. Page should load without errors
+4. Distance column shows total with optional breakdown
+
 ## Performance Checklist
 
 - [ ] Page loads under 3 seconds
