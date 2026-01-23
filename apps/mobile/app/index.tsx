@@ -2,6 +2,12 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
 
 export default function Home() {
+  // Flatten style arrays to prevent "CSSStyleDeclaration" crash on web
+  // When using Link asChild, expo-router (via Radix Slot) forwards styles to DOM
+  // DOM cannot handle style arrays, only objects
+  const secondaryButtonStyle = StyleSheet.flatten([styles.button, styles.secondaryButton]);
+  const secondaryTextStyle = StyleSheet.flatten([styles.buttonText, styles.secondaryButtonText]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Gruas App</Text>
@@ -15,8 +21,8 @@ export default function Home() {
         </Link>
 
         <Link href="/(auth)/register" asChild>
-          <TouchableOpacity style={[styles.button, styles.secondaryButton]}>
-            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Registrarse</Text>
+          <TouchableOpacity style={secondaryButtonStyle}>
+            <Text style={secondaryTextStyle}>Registrarse</Text>
           </TouchableOpacity>
         </Link>
       </View>

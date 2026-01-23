@@ -53,9 +53,32 @@ Esto asegura versiones compatibles con el SDK actual.
 
 ### Error conocido: "Failed to set indexed property on CSSStyleDeclaration"
 
-**Causa:** `react-native-web` versión 0.21+ tiene una API de estilos incompatible con Expo SDK 52.
+**Causas posibles:**
 
-**Solución:** Asegurar que `react-native-web` sea versión `~0.19.13`.
+1. **Versión incorrecta de react-native-web:** Versión 0.21+ es incompatible con Expo SDK 52.
+   - **Solución:** Asegurar que `react-native-web` sea versión `~0.19.13`.
+
+2. **Style arrays en Link asChild:** Cuando usas `<Link asChild>` con un child que tiene `style={[...]}` (array), el estilo se forwardea al DOM sin flatten.
+   - **Solución:** Siempre usar `StyleSheet.flatten()` en estilos que puedan llegar a DOM:
+
+```tsx
+// ❌ MAL - causa crash en web
+<Link href="/page" asChild>
+  <TouchableOpacity style={[styles.a, styles.b]}>
+    ...
+  </TouchableOpacity>
+</Link>
+
+// ✅ BIEN - flatten antes de pasar
+const flatStyle = StyleSheet.flatten([styles.a, styles.b]);
+<Link href="/page" asChild>
+  <TouchableOpacity style={flatStyle}>
+    ...
+  </TouchableOpacity>
+</Link>
+```
+
+**Regla general:** Si usas `Slot`, `asChild`, o `Link asChild` en web, SIEMPRE flatten los style arrays.
 
 ## Estructura
 
