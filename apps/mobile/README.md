@@ -26,10 +26,11 @@ pnpm start
 pnpm start      # Inicia Expo bundler
 pnpm android    # Abre en Android
 pnpm ios        # Abre en iOS
-pnpm web        # Abre en navegador web
 pnpm lint       # Ejecuta ESLint
 pnpm typecheck  # Ejecuta TypeScript check
 ```
+
+> **Nota:** Web está deshabilitado. Esta app está diseñada para dispositivos móviles (iOS/Android) únicamente. Para el portal web, usar `apps/web`.
 
 ## Versiones de Dependencias (Expo SDK 52)
 
