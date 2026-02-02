@@ -70,10 +70,12 @@ export default function OperatorRequests() {
       return;
     }
 
-    // Fetch available requests using RPC
-    const { data: availableRequests } = await supabase.rpc('get_available_requests_for_operator', {
-      p_operator_id: user.id,
-    });
+    // Fetch available requests using RPC (uses auth.uid() internally)
+    const { data: availableRequests, error: rpcError } = await supabase.rpc('get_available_requests_for_operator');
+
+    if (rpcError) {
+      console.error('Error fetching available requests:', rpcError);
+    }
 
     if (availableRequests) {
       setRequests(availableRequests as AvailableRequest[]);
@@ -156,15 +158,9 @@ export default function OperatorRequests() {
       return;
     }
 
-    // Log the event
-    await supabase.from('request_events').insert({
-      request_id: requestId,
-      event_type: 'assigned',
-      created_by: user.id,
-      metadata: { operator_id: user.id, provider_id: profile.provider_id },
-    });
+    // Note: Audit event is logged automatically by DB trigger on status change
 
-    Alert.alert('Solicitud Aceptada', 'Has aceptado el servicio. Dirígete al lugar de recogida.', [
+    Alert.alert('Solicitud Aceptada', 'Has aceptado el servicio. Dirigete al lugar de recogida.', [
       {
         text: 'Ver Servicio',
         onPress: () => router.push('/(operator)/active'),
