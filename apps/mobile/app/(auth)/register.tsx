@@ -35,7 +35,14 @@ export default function Register() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      console.error('Registration error:', JSON.stringify(error, null, 2));
+      // Show more detailed error info for debugging
+      const errorDetails = error.message || 'Error desconocido al registrar';
+      const errorCode = (error as { code?: string }).code;
+      const fullMessage = errorCode
+        ? `${errorDetails}\n\nCódigo: ${errorCode}`
+        : errorDetails;
+      Alert.alert('Error de Registro', fullMessage);
       return;
     }
 
@@ -55,6 +62,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Nombre completo"
+        placeholderTextColor="#9ca3af"
         value={fullName}
         onChangeText={setFullName}
       />
@@ -62,6 +70,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor="#9ca3af"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -71,6 +80,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Teléfono"
+        placeholderTextColor="#9ca3af"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
@@ -79,6 +89,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
+        placeholderTextColor="#9ca3af"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
