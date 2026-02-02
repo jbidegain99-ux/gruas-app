@@ -1,5 +1,6 @@
 # Expo
 .expo/
+expo-env.d.ts
 dist/
 *.jks
 *.p8
