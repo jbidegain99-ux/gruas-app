@@ -35,7 +35,8 @@ export default function Register() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      console.error('Registration error:', error);
+      Alert.alert('Error', error.message || 'Error desconocido al registrar');
       return;
     }
 
@@ -55,6 +56,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Nombre completo"
+        placeholderTextColor="#9ca3af"
         value={fullName}
         onChangeText={setFullName}
       />
@@ -62,6 +64,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor="#9ca3af"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -71,6 +74,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Teléfono"
+        placeholderTextColor="#9ca3af"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
@@ -79,6 +83,7 @@ export default function Register() {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
+        placeholderTextColor="#9ca3af"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
