@@ -43,6 +43,7 @@ export default function RequestService() {
   // Location state
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [pickupAddress, setPickupAddress] = useState('');
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -181,6 +182,12 @@ export default function RequestService() {
         return;
       }
 
+      // Combine vehicle description with notes if provided
+      const combinedNotes = [
+        vehicleDescription ? `Vehículo: ${vehicleDescription}` : '',
+        notes || '',
+      ].filter(Boolean).join('\n') || null;
+
       // Create the service request
       const { data, error } = await supabase.rpc('create_service_request', {
         p_tow_type: towType,
@@ -188,21 +195,39 @@ export default function RequestService() {
         p_pickup_lat: pickupCoords?.lat || 13.6929, // Default to San Salvador
         p_pickup_lng: pickupCoords?.lng || -89.2182,
         p_pickup_address: pickupAddress,
+        p_dropoff_lat: dropoffCoords?.lat || 13.6929, // Default to San Salvador
+        p_dropoff_lng: dropoffCoords?.lng || -89.2182,
         p_dropoff_address: dropoffAddress,
-        p_vehicle_description: vehicleDescription || null,
-        p_notes: notes || null,
+        p_notes: combinedNotes,
       });
 
       if (error) {
-        console.error('Error creating request:', error);
-        Alert.alert('Error', error.message);
+        console.error('Error creating request:', JSON.stringify(error));
+        Alert.alert(
+          'Error al crear solicitud',
+          error.message || 'Ocurrió un error inesperado. Por favor intenta de nuevo.',
+          [{ text: 'Reintentar', style: 'default' }]
+        );
         setSubmitting(false);
         return;
       }
 
+      // Verify the response indicates success
+      if (!data || data.success !== true) {
+        console.error('Request creation failed:', JSON.stringify(data));
+        Alert.alert(
+          'Error',
+          'No se pudo crear la solicitud. Por favor intenta de nuevo.',
+          [{ text: 'Reintentar', style: 'default' }]
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      // Success - show confirmation with PIN
       Alert.alert(
         'Solicitud Enviada',
-        `Tu solicitud ha sido registrada. Un operador será asignado pronto.\n\nID: ${data.request_id?.substring(0, 8)}...`,
+        `Tu solicitud ha sido registrada.\n\nPIN de verificación: ${data.pin}\n\nGuarda este PIN. Lo necesitarás cuando llegue la grúa.`,
         [
           {
             text: 'Ver Estado',
@@ -210,12 +235,16 @@ export default function RequestService() {
           },
         ]
       );
+      setSubmitting(false);
     } catch (error) {
       console.error('Error:', error);
-      Alert.alert('Error', 'No se pudo enviar la solicitud');
+      Alert.alert(
+        'Error de conexión',
+        'No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.',
+        [{ text: 'Reintentar', style: 'default' }]
+      );
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const renderStep1 = () => (
