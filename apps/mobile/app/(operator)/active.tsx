@@ -47,6 +47,9 @@ export default function ActiveService() {
   const [updating, setUpdating] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [showPinVerification, setShowPinVerification] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchActiveService = useCallback(async () => {
     const {
@@ -239,6 +242,47 @@ export default function ActiveService() {
     );
   };
 
+  const openCancelModal = () => {
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  const handleCancelService = async () => {
+    if (!service) return;
+
+    if (!cancelReason.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un motivo de cancelacion');
+      return;
+    }
+
+    setCancelling(true);
+
+    const { data, error } = await supabase.rpc('cancel_service_request', {
+      p_request_id: service.id,
+      p_reason: cancelReason.trim(),
+    });
+
+    setCancelling(false);
+
+    if (error) {
+      Alert.alert('Error', error.message || 'No se pudo cancelar el servicio');
+      return;
+    }
+
+    if (data && !data.success) {
+      Alert.alert('Error', data.error || 'No se pudo cancelar el servicio');
+      return;
+    }
+
+    Alert.alert('Servicio Cancelado', 'El servicio ha sido cancelado.', [
+      {
+        text: 'OK',
+        onPress: () => router.replace('/(operator)'),
+      },
+    ]);
+    setShowCancelModal(false);
+  };
+
   const openMaps = (lat: number, lng: number, label: string) => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     Linking.openURL(url);
@@ -422,7 +466,7 @@ export default function ActiveService() {
             {updating ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.actionButtonText}>Ya Llegué (Verificar PIN)</Text>
+              <Text style={styles.actionButtonText}>Ya Llegue (Verificar PIN)</Text>
             )}
           </TouchableOpacity>
         )}
@@ -440,6 +484,17 @@ export default function ActiveService() {
             )}
           </TouchableOpacity>
         )}
+
+        {/* Cancel Button - available in assigned and en_route */}
+        {['assigned', 'en_route'].includes(service.status) && (
+          <TouchableOpacity
+            style={styles.cancelServiceButton}
+            onPress={openCancelModal}
+            disabled={updating}
+          >
+            <Text style={styles.cancelServiceButtonText}>Cancelar Servicio</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* PIN Verification Modal */}
@@ -448,7 +503,7 @@ export default function ActiveService() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Verificar PIN</Text>
             <Text style={styles.modalDescription}>
-              Solicita el PIN de 4 dígitos al cliente para verificar tu llegada.
+              Solicita el PIN de 4 digitos al cliente para verificar tu llegada.
             </Text>
 
             <TextInput
@@ -473,6 +528,50 @@ export default function ActiveService() {
                 onPress={verifyPinAndArrive}
               >
                 <Text style={styles.modalConfirmText}>Verificar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Cancel Service Modal */}
+      {showCancelModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Cancelar Servicio</Text>
+            <Text style={styles.modalDescription}>
+              Por favor indica el motivo de la cancelacion
+            </Text>
+
+            <TextInput
+              style={styles.cancelReasonInput}
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              placeholder="Escribe el motivo..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCancelModal(false)}
+                disabled={cancelling}
+              >
+                <Text style={styles.modalCancelText}>Volver</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelConfirmButton, cancelling && styles.buttonDisabled]}
+                onPress={handleCancelService}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Confirmar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -809,5 +908,38 @@ const styles = StyleSheet.create({
   modalConfirmText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  cancelServiceButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  cancelServiceButtonText: {
+    color: '#dc2626',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelReasonInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 80,
+    backgroundColor: '#f9fafb',
+    marginBottom: 20,
+  },
+  cancelConfirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });

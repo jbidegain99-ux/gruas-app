@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  TextInput,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
@@ -55,6 +57,9 @@ export default function History() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     const {
@@ -165,6 +170,44 @@ export default function History() {
   const openDetail = (request: ServiceRequest) => {
     setSelectedRequest(request);
     setDetailModalVisible(true);
+  };
+
+  const openCancelModal = () => {
+    setCancelReason('');
+    setCancelModalVisible(true);
+  };
+
+  const handleCancelRequest = async () => {
+    if (!selectedRequest) return;
+
+    if (!cancelReason.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un motivo de cancelacion');
+      return;
+    }
+
+    setCancelling(true);
+
+    const { data, error } = await supabase.rpc('cancel_service_request', {
+      p_request_id: selectedRequest.id,
+      p_reason: cancelReason.trim(),
+    });
+
+    setCancelling(false);
+
+    if (error) {
+      Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
+      return;
+    }
+
+    if (data && !data.success) {
+      Alert.alert('Error', data.error || 'No se pudo cancelar la solicitud');
+      return;
+    }
+
+    Alert.alert('Solicitud Cancelada', 'Tu solicitud ha sido cancelada exitosamente');
+    setCancelModalVisible(false);
+    setDetailModalVisible(false);
+    await fetchRequests();
   };
 
   const renderRequestCard = ({ item }: { item: ServiceRequest }) => {
@@ -340,11 +383,70 @@ export default function History() {
               <Text style={styles.idLabel}>ID de Solicitud</Text>
               <Text style={styles.idValue}>{selectedRequest.id}</Text>
             </View>
+
+            {/* Cancel Button for active requests */}
+            {['initiated', 'assigned', 'en_route'].includes(selectedRequest.status) && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={openCancelModal}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar Solicitud</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </Modal>
     );
   };
+
+  const renderCancelModal = () => (
+    <Modal
+      visible={cancelModalVisible}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => setCancelModalVisible(false)}
+    >
+      <View style={styles.cancelModalOverlay}>
+        <View style={styles.cancelModalContent}>
+          <Text style={styles.cancelModalTitle}>Cancelar Solicitud</Text>
+          <Text style={styles.cancelModalSubtitle}>
+            Por favor indica el motivo de la cancelacion
+          </Text>
+
+          <TextInput
+            style={styles.cancelReasonInput}
+            placeholder="Escribe el motivo..."
+            value={cancelReason}
+            onChangeText={setCancelReason}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+
+          <View style={styles.cancelModalButtons}>
+            <TouchableOpacity
+              style={styles.cancelModalButtonSecondary}
+              onPress={() => setCancelModalVisible(false)}
+              disabled={cancelling}
+            >
+              <Text style={styles.cancelModalButtonSecondaryText}>Volver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cancelModalButtonPrimary, cancelling && styles.buttonDisabled]}
+              onPress={handleCancelRequest}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.cancelModalButtonPrimaryText}>Confirmar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (loading) {
     return (
@@ -421,6 +523,7 @@ export default function History() {
       )}
 
       {renderDetailModal()}
+      {renderCancelModal()}
     </View>
   );
 }
@@ -742,5 +845,85 @@ const styles = StyleSheet.create({
     color: '#92400e',
     textAlign: 'center',
     marginTop: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#fee2e2',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 40,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  cancelButtonText: {
+    color: '#dc2626',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  cancelModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  cancelModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  cancelModalSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+  },
+  cancelReasonInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 100,
+    backgroundColor: '#f9fafb',
+    marginBottom: 20,
+  },
+  cancelModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelModalButtonSecondary: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+  },
+  cancelModalButtonSecondaryText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelModalButtonPrimary: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+  },
+  cancelModalButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });
