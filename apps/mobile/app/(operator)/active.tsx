@@ -26,10 +26,7 @@ type ActiveService = {
   dropoff_lat: number | null;
   dropoff_lng: number | null;
   total_price: number | null;
-  vehicle_description: string | null;
   notes: string | null;
-  verification_pin: string | null;
-  verification_pin_hash: string | null;
   user_name: string | null;
   user_phone: string | null;
   created_at: string;
@@ -72,10 +69,7 @@ export default function ActiveService() {
         dropoff_lat,
         dropoff_lng,
         total_price,
-        vehicle_description,
         notes,
-        verification_pin,
-        verification_pin_hash,
         created_at,
         profiles!service_requests_user_id_fkey (full_name, phone)
       `)
@@ -98,10 +92,7 @@ export default function ActiveService() {
         dropoff_lat: svc.dropoff_lat,
         dropoff_lng: svc.dropoff_lng,
         total_price: svc.total_price,
-        vehicle_description: svc.vehicle_description,
         notes: svc.notes,
-        verification_pin: svc.verification_pin,
-        verification_pin_hash: svc.verification_pin_hash,
         created_at: svc.created_at,
         user_name: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.full_name || null,
         user_phone: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.phone || null,
@@ -217,14 +208,22 @@ export default function ActiveService() {
       return;
     }
 
-    // In production, we would verify against the hash
-    // For MVP, we compare directly with the plain PIN (stored for demo purposes)
-    if (pinInput !== service.verification_pin) {
+    setUpdating(true);
+
+    // Verify PIN using server-side RPC
+    const { data, error } = await supabase.rpc('verify_request_pin', {
+      p_request_id: service.id,
+      p_pin: pinInput,
+    });
+
+    if (error || !data?.valid) {
+      setUpdating(false);
       Alert.alert('PIN Incorrecto', 'El PIN no coincide. Verifica con el cliente.');
       return;
     }
 
     setShowPinVerification(false);
+    setUpdating(false);
     await updateStatus('active');
     Alert.alert('Verificado', 'PIN correcto. El servicio está ahora activo.');
   };
@@ -370,14 +369,7 @@ export default function ActiveService() {
           </TouchableOpacity>
         </View>
 
-        {/* Vehicle Info */}
-        {service.vehicle_description && (
-          <View style={styles.infoSection}>
-            <Text style={styles.infoLabel}>Vehículo</Text>
-            <Text style={styles.infoText}>{service.vehicle_description}</Text>
-          </View>
-        )}
-
+        {/* Notes (may include vehicle description) */}
         {service.notes && (
           <View style={styles.infoSection}>
             <Text style={styles.infoLabel}>Notas</Text>

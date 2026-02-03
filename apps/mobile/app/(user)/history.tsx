@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
 type ServiceRequest = {
@@ -26,6 +27,7 @@ type ServiceRequest = {
   notes: string | null;
   operator_name: string | null;
   provider_name: string | null;
+  pin: string | null;
 };
 
 type FilterType = 'all' | 'active' | 'completed' | 'cancelled';
@@ -62,6 +64,17 @@ export default function History() {
     if (!user) {
       setLoading(false);
       return;
+    }
+
+    // Load saved PINs from local storage
+    let savedPins: Record<string, string> = {};
+    try {
+      const pinsData = await AsyncStorage.getItem('request_pins');
+      if (pinsData) {
+        savedPins = JSON.parse(pinsData);
+      }
+    } catch (e) {
+      console.error('Error loading PINs:', e);
     }
 
     const query = supabase
@@ -107,6 +120,7 @@ export default function History() {
         notes: req.notes,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
+        pin: savedPins[req.id] || null,
       }));
       setRequests(formattedRequests);
     }
@@ -273,6 +287,17 @@ export default function History() {
                     {selectedRequest.provider_name}
                   </Text>
                 )}
+              </View>
+            )}
+
+            {/* Show PIN for active requests */}
+            {selectedRequest.pin && ['initiated', 'assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
+              <View style={styles.pinSection}>
+                <Text style={styles.pinLabel}>PIN de Verificacion</Text>
+                <Text style={styles.pinValue}>{selectedRequest.pin}</Text>
+                <Text style={styles.pinNote}>
+                  Muestra este PIN al operador cuando llegue la grua
+                </Text>
               </View>
             )}
 
@@ -689,5 +714,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
     fontFamily: 'monospace',
+  },
+  pinSection: {
+    backgroundColor: '#fef3c7',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#f59e0b',
+  },
+  pinLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  pinValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#92400e',
+    letterSpacing: 8,
+  },
+  pinNote: {
+    fontSize: 12,
+    color: '#92400e',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
