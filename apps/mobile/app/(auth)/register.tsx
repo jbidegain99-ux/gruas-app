@@ -143,6 +143,15 @@ export default function Register() {
               {loading ? 'Registrando...' : 'Registrarse'}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => router.push('/(auth)/login')}
+          >
+            <Text style={styles.linkText}>
+              ¿Ya tienes cuenta? Inicia sesión
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -221,5 +230,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  linkText: {
+    color: '#2563eb',
+    fontSize: 14,
   },
 });

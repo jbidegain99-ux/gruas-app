@@ -92,6 +92,15 @@ export default function Login() {
               {loading ? 'Cargando...' : 'Iniciar Sesión'}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => router.push('/(auth)/register')}
+          >
+            <Text style={styles.linkText}>
+              ¿No tienes cuenta? Regístrate
+            </Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -139,5 +148,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  linkButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  linkText: {
+    color: '#2563eb',
+    fontSize: 14,
   },
 });
