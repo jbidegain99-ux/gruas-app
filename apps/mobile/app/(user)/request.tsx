@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
 type TowType = 'light' | 'heavy';
@@ -222,6 +223,16 @@ export default function RequestService() {
         );
         setSubmitting(false);
         return;
+      }
+
+      // Save PIN to local storage for later access
+      try {
+        const requestPins = await AsyncStorage.getItem('request_pins');
+        const pins = requestPins ? JSON.parse(requestPins) : {};
+        pins[data.request_id] = data.pin;
+        await AsyncStorage.setItem('request_pins', JSON.stringify(pins));
+      } catch (storageError) {
+        console.error('Error saving PIN:', storageError);
       }
 
       // Success - show confirmation with PIN
