@@ -26,9 +26,13 @@ interface UsePushNotificationsResult extends PushNotificationState {
   unregisterPushToken: () => Promise<void>;
 }
 
+// Check if running in Expo Go (push notifications not supported since SDK 53)
+const isExpoGo = Constants.appOwnership === 'expo';
+
 /**
  * Hook to manage push notifications with Expo
  * Handles permission requests, token registration, and notification handling
+ * Note: Push notifications are disabled in Expo Go since SDK 53
  */
 export function usePushNotifications(): UsePushNotificationsResult {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
@@ -41,10 +45,17 @@ export function usePushNotifications(): UsePushNotificationsResult {
   // Register for push notifications
   const registerForPushNotifications = useCallback(async (): Promise<string | null> => {
     try {
+      // Push notifications are not supported in Expo Go since SDK 53
+      if (isExpoGo) {
+        console.log('Push notifications no disponibles en Expo Go (SDK 53+). Usar development build para probar.');
+        // Don't set error - this is expected behavior in Expo Go
+        return null;
+      }
+
       // Must be a physical device
       if (!Device.isDevice) {
         console.log('Push notifications require a physical device');
-        setError('Las notificaciones requieren un dispositivo físico');
+        // Don't set error for simulators - just log
         return null;
       }
 
@@ -60,16 +71,16 @@ export function usePushNotifications(): UsePushNotificationsResult {
 
       if (finalStatus !== 'granted') {
         console.log('Push notification permission denied');
-        setError('Permiso de notificaciones denegado');
+        // Don't set error - user chose to deny
         return null;
       }
 
       // Get the Expo push token
       const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
-      if (!projectId) {
-        console.error('No project ID found for push notifications');
-        setError('Error de configuración de notificaciones');
+      if (!projectId || projectId === 'your-project-id') {
+        console.log('Push notifications: projectId no configurado. Configurar en app.json para producción.');
+        // Don't set error - expected during development
         return null;
       }
 
@@ -116,8 +127,9 @@ export function usePushNotifications(): UsePushNotificationsResult {
       setError(null);
       return token;
     } catch (err) {
-      console.error('Error registering for push notifications:', err);
-      setError('Error al registrar notificaciones');
+      // Log error but don't show to user - push notifications are optional
+      console.log('Push notifications registration skipped:', err);
+      // Don't set error state - this prevents red error screens
       return null;
     }
   }, []);
