@@ -476,3 +476,40 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   supabase functions deploy calculate-distance
   ```
 - [ ] Test manual con ruta San Salvador → Santa Tecla
+
+---
+
+## Task 2: Implementar envio de ubicacion GPS del operador
+
+### Estado: ✅ IMPLEMENTADO
+
+### Archivos Implementados
+
+| Archivo | Descripcion |
+|---------|-------------|
+| `apps/mobile/hooks/useOperatorLocationTracking.ts` | Hook que envia ubicacion GPS cada 15 segundos |
+| `apps/mobile/app/(operator)/active.tsx` | Modificado para usar el hook de tracking |
+
+### Funcionalidades Implementadas
+
+- [x] Hook `useOperatorLocationTracking` con expo-location
+- [x] Envio automatico cada 15 segundos cuando operador tiene servicio activo
+- [x] Usa `watchPositionAsync` con accuracy balanceada
+- [x] Llama a RPC `upsert_operator_location(p_lat, p_lng, p_heading, p_speed, p_accuracy)`
+- [x] Solicita permisos de ubicacion al iniciar tracking
+- [x] Maneja errores de permisos denegados
+- [x] Detiene tracking automaticamente al completar/cancelar servicio
+- [x] Marca operador como `is_online: false` al detener
+- [x] Maneja cambios de estado de la app (foreground/background)
+- [x] Build exitoso (expo export)
+
+### Verificacion
+
+**Cuando el operador tiene servicio activo (assigned/en_route/active):**
+- El hook inicia tracking automaticamente
+- Envia ubicacion cada 15 segundos o 50 metros de movimiento
+- La tabla `operator_locations` se actualiza con lat, lng, heading, speed, accuracy
+
+**Cuando el servicio se completa/cancela:**
+- El hook detiene tracking automaticamente
+- Marca `is_online = false` en `operator_locations`

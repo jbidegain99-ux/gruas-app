@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking';
 
 type ActiveService = {
   id: string;
@@ -50,6 +51,17 @@ export default function ActiveService() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+
+  // Track operator location when service is active
+  // This sends GPS updates every 15 seconds to operator_locations table
+  const isServiceActive = service !== null &&
+    ['assigned', 'en_route', 'active'].includes(service.status);
+
+  useOperatorLocationTracking({
+    isActive: isServiceActive,
+    intervalMs: 15000, // 15 seconds
+    distanceInterval: 50, // 50 meters minimum movement
+  });
 
   const fetchActiveService = useCallback(async () => {
     const {
