@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
+import { LocationPicker } from '@/components/LocationPicker';
 
 type TowType = 'light' | 'heavy';
 
@@ -48,6 +49,10 @@ export default function RequestService() {
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
+
+  // LocationPicker visibility
+  const [showPickupPicker, setShowPickupPicker] = useState(false);
+  const [showDestinationPicker, setShowDestinationPicker] = useState(false);
 
   // Service details
   const [towType, setTowType] = useState<TowType>('light');
@@ -325,38 +330,56 @@ export default function RequestService() {
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Ubicación de Recogida</Text>
+      <Text style={styles.stepTitle}>Ubicaciones</Text>
 
+      {/* Pickup Location Selector */}
+      <Text style={styles.label}>Punto de Recogida</Text>
       <TouchableOpacity
-        style={styles.locationButton}
+        style={styles.locationSelector}
+        onPress={() => setShowPickupPicker(true)}
+      >
+        <Text style={styles.locationSelectorIcon}>📍</Text>
+        <View style={styles.locationSelectorContent}>
+          <Text style={[
+            styles.locationSelectorText,
+            !pickupAddress && styles.locationSelectorPlaceholder
+          ]}>
+            {pickupAddress || 'Toca para seleccionar ubicación'}
+          </Text>
+        </View>
+        <Text style={styles.locationSelectorArrow}>›</Text>
+      </TouchableOpacity>
+
+      {/* Quick GPS button */}
+      <TouchableOpacity
+        style={styles.quickGpsButton}
         onPress={getCurrentLocation}
         disabled={gettingLocation}
       >
         {gettingLocation ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color="#2563eb" size="small" />
         ) : (
-          <Text style={styles.locationButtonText}>Usar mi ubicación actual</Text>
+          <Text style={styles.quickGpsText}>📡 Usar mi ubicación actual</Text>
         )}
       </TouchableOpacity>
 
-      <Text style={styles.orText}>o ingresa manualmente:</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Dirección de recogida"
-        value={pickupAddress}
-        onChangeText={setPickupAddress}
-        multiline
-      />
-
-      <Text style={styles.label}>Dirección de destino</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="¿A dónde llevar el vehículo?"
-        value={dropoffAddress}
-        onChangeText={setDropoffAddress}
-        multiline
-      />
+      {/* Destination Location Selector */}
+      <Text style={styles.label}>Destino</Text>
+      <TouchableOpacity
+        style={styles.locationSelector}
+        onPress={() => setShowDestinationPicker(true)}
+      >
+        <Text style={styles.locationSelectorIcon}>🏁</Text>
+        <View style={styles.locationSelectorContent}>
+          <Text style={[
+            styles.locationSelectorText,
+            !dropoffAddress && styles.locationSelectorPlaceholder
+          ]}>
+            {dropoffAddress || 'Toca para seleccionar destino'}
+          </Text>
+        </View>
+        <Text style={styles.locationSelectorArrow}>›</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.nextButton, (!pickupAddress || !dropoffAddress) && styles.buttonDisabled]}
@@ -365,6 +388,31 @@ export default function RequestService() {
       >
         <Text style={styles.nextButtonText}>Siguiente</Text>
       </TouchableOpacity>
+
+      {/* Location Picker Modals */}
+      <LocationPicker
+        visible={showPickupPicker}
+        title="Punto de Recogida"
+        initialLocation={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
+        onLocationSelected={(loc) => {
+          setPickupCoords({ lat: loc.latitude, lng: loc.longitude });
+          setPickupAddress(loc.address);
+          setShowPickupPicker(false);
+        }}
+        onClose={() => setShowPickupPicker(false)}
+      />
+
+      <LocationPicker
+        visible={showDestinationPicker}
+        title="Destino"
+        initialLocation={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
+        onLocationSelected={(loc) => {
+          setDropoffCoords({ lat: loc.latitude, lng: loc.longitude });
+          setDropoffAddress(loc.address);
+          setShowDestinationPicker(false);
+        }}
+        onClose={() => setShowDestinationPicker(false)}
+      />
     </View>
   );
 
@@ -647,6 +695,45 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  locationSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: '#f9fafb',
+  },
+  locationSelectorIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  locationSelectorContent: {
+    flex: 1,
+  },
+  locationSelectorText: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  locationSelectorPlaceholder: {
+    color: '#9ca3af',
+  },
+  locationSelectorArrow: {
+    fontSize: 24,
+    color: '#9ca3af',
+    marginLeft: 8,
+  },
+  quickGpsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  quickGpsText: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '500',
   },
   orText: {
     textAlign: 'center',
