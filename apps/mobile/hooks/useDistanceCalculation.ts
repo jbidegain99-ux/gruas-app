@@ -81,17 +81,27 @@ export function useDistanceCalculation(
     setError(null);
 
     try {
+      const payload = {
+        origin_lat: originCoords.lat,
+        origin_lng: originCoords.lng,
+        destination_lat: destCoords.lat,
+        destination_lng: destCoords.lng,
+      };
+
+      console.log('Calling calculate-distance with:', JSON.stringify(payload));
+
       const { data, error: fnError } = await supabase.functions.invoke('calculate-distance', {
-        body: {
-          origin_lat: originCoords.lat,
-          origin_lng: originCoords.lng,
-          destination_lat: destCoords.lat,
-          destination_lng: destCoords.lng,
-        },
+        body: payload,
       });
+
+      console.log('Edge function response:', JSON.stringify(data), 'Error:', fnError);
 
       if (fnError) {
         console.error('Edge function error:', fnError);
+        // Try to get error details
+        if (fnError.context) {
+          console.error('Error context:', JSON.stringify(fnError.context));
+        }
         setError('No se pudo calcular la distancia. Intenta de nuevo.');
         setLoading(false);
         return;
