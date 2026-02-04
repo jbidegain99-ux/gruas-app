@@ -1,6 +1,15 @@
+import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 export default function UserLayout() {
+  const { registerForPushNotifications } = usePushNotifications();
+
+  // Register for push notifications when user is authenticated
+  useEffect(() => {
+    registerForPushNotifications();
+  }, [registerForPushNotifications]);
+
   return (
     <Tabs>
       <Tabs.Screen
