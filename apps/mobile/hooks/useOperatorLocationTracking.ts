@@ -27,15 +27,15 @@ export function useOperatorLocationTracking({
 
   // Update location in Supabase
   const updateLocation = useCallback(async (location: Location.LocationObject) => {
-    const { latitude, longitude, heading, speed, accuracy } = location.coords;
+    const { latitude, longitude } = location.coords;
 
     try {
+      // Only send parameters that the RPC function expects: p_lat, p_lng, p_is_online
+      // If you need heading/speed/accuracy, update the RPC function in Supabase first
       const { error } = await supabase.rpc('upsert_operator_location', {
         p_lat: latitude,
         p_lng: longitude,
-        p_heading: heading ?? null,
-        p_speed: speed ? speed * 3.6 : null, // Convert m/s to km/h
-        p_accuracy: accuracy ?? null,
+        p_is_online: true,
       });
 
       if (error) {

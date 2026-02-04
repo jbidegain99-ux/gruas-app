@@ -96,6 +96,15 @@ export default function ActiveService() {
 
     if (services && services.length > 0) {
       const svc = services[0];
+
+      // Debug: Log coordinates received from database
+      console.log('=== SERVICE COORDINATES FROM DB ===');
+      console.log('Service ID:', svc.id);
+      console.log('Pickup: lat=', svc.pickup_lat, ', lng=', svc.pickup_lng);
+      console.log('Dropoff: lat=', svc.dropoff_lat, ', lng=', svc.dropoff_lng);
+      console.log('Pickup address:', svc.pickup_address);
+      console.log('Dropoff address:', svc.dropoff_address);
+
       setService({
         id: svc.id,
         status: svc.status,
@@ -298,6 +307,25 @@ export default function ActiveService() {
 
   // Enhanced navigation function with platform support
   const openNavigation = async (lat: number, lng: number, label: string) => {
+    // Debug: Log coordinates being used for navigation
+    console.log(`=== NAVIGATION DEBUG (${label}) ===`);
+    console.log('Lat:', lat, '| Type:', typeof lat);
+    console.log('Lng:', lng, '| Type:', typeof lng);
+
+    // Validate coordinates before opening navigation
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+      console.error('Invalid coordinates for navigation!');
+      Alert.alert('Error', 'Las coordenadas de navegación no son válidas.');
+      return;
+    }
+
+    // Validate coordinates are within valid ranges
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.error('Coordinates out of valid range!', { lat, lng });
+      Alert.alert('Error', 'Las coordenadas están fuera de rango válido.');
+      return;
+    }
+
     const options = [
       { text: 'Cancelar', style: 'cancel' as const },
       {
