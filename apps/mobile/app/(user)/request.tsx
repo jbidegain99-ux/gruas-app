@@ -15,6 +15,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
 
 type TowType = 'light' | 'heavy';
 
@@ -60,7 +61,18 @@ export default function RequestService() {
   // Pricing
   const [pricing, setPricing] = useState<PricingRule | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
-  const [estimatedDistance, setEstimatedDistance] = useState<number | null>(null);
+
+  // Distance calculation using Google Distance Matrix API
+  const {
+    distance: calculatedDistance,
+    distanceText,
+    duration: calculatedDuration,
+    durationText,
+    loading: distanceLoading,
+    error: distanceError,
+    isFallback: isDistanceFallback,
+    refetch: refetchDistance,
+  } = useDistanceCalculation(pickupCoords, dropoffCoords);
 
   // Fetch active pricing rule
   useEffect(() => {
@@ -150,19 +162,24 @@ export default function RequestService() {
     }
   };
 
+  // Calculate price based on real distance from Distance Matrix API
   const calculatePrice = () => {
-    if (!pricing) return;
+    if (!pricing || !calculatedDistance) return;
 
-    // For demo, use a random distance between 5-50 km
-    const distance = Math.round(5 + Math.random() * 45);
-    setEstimatedDistance(distance);
-
+    const distance = calculatedDistance;
     const pricePerKm = towType === 'light' ? pricing.price_per_km_light : pricing.price_per_km_heavy;
     const extraKm = Math.max(0, distance - pricing.included_km);
     const total = pricing.base_exit_fee + extraKm * pricePerKm;
 
     setEstimatedPrice(Math.round(total * 100) / 100);
   };
+
+  // Recalculate price when distance or tow type changes
+  useEffect(() => {
+    if (calculatedDistance && pricing) {
+      calculatePrice();
+    }
+  }, [calculatedDistance, towType, pricing]);
 
   const handleSubmit = async () => {
     if (!pickupAddress || !dropoffAddress || !incidentType) {
@@ -352,10 +369,7 @@ export default function RequestService() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.nextButton, !incidentType && styles.buttonDisabled]}
-          onPress={() => {
-            calculatePrice();
-            setStep(3);
-          }}
+          onPress={() => setStep(3)}
           disabled={!incidentType}
         >
           <Text style={styles.nextButtonText}>Siguiente</Text>
@@ -442,14 +456,44 @@ export default function RequestService() {
 
       <View style={styles.priceCard}>
         <Text style={styles.priceLabel}>Precio Estimado</Text>
-        <Text style={styles.priceValue}>
-          {estimatedPrice ? `$${estimatedPrice.toFixed(2)}` : 'Calculando...'}
-        </Text>
-        {estimatedDistance && (
-          <Text style={styles.priceNote}>
-            Distancia estimada: {estimatedDistance} km
-          </Text>
+
+        {distanceLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2563eb" />
+            <Text style={styles.loadingText}>Calculando distancia...</Text>
+          </View>
+        ) : distanceError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{distanceError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={refetchDistance}>
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.priceValue}>
+              {estimatedPrice ? `$${estimatedPrice.toFixed(2)}` : '--'}
+            </Text>
+            {calculatedDistance && (
+              <>
+                <Text style={styles.priceNote}>
+                  Distancia: {distanceText || `${calculatedDistance.toFixed(1)} km`}
+                </Text>
+                {calculatedDuration && (
+                  <Text style={styles.priceNote}>
+                    Tiempo estimado: {durationText || `${calculatedDuration} min`}
+                  </Text>
+                )}
+              </>
+            )}
+            {isDistanceFallback && (
+              <Text style={styles.fallbackNote}>
+                * Distancia aproximada (sin conexión a Google Maps)
+              </Text>
+            )}
+          </>
         )}
+
         <Text style={styles.priceDisclaimer}>
           El precio final puede variar según la distancia real recorrida.
         </Text>
@@ -460,9 +504,9 @@ export default function RequestService() {
           <Text style={styles.backButtonText}>Atrás</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.submitButton, submitting && styles.buttonDisabled]}
+          style={[styles.submitButton, (submitting || distanceLoading || !calculatedDistance) && styles.buttonDisabled]}
           onPress={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || distanceLoading || !calculatedDistance}
         >
           {submitting ? (
             <ActivityIndicator color="#fff" />
@@ -727,5 +771,41 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#dc2626',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#2563eb',
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fallbackNote: {
+    fontSize: 11,
+    color: '#f59e0b',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });

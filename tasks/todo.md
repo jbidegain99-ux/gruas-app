@@ -221,7 +221,7 @@ apps/web lint: Done
 
 ## Task 1: Integrar Distance Matrix API para calculo de precio real
 
-### Estado: 🔄 PLANIFICACION
+### Estado: ✅ IMPLEMENTADO
 
 ### Problema Actual
 ```typescript
@@ -445,13 +445,34 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 ---
 
-### CHECKLIST PRE-IMPLEMENTACION
+### Archivos Implementados
 
-- [ ] Confirmar que Google Maps API Key tiene Distance Matrix habilitada
-- [ ] Verificar que Supabase CLI esta instalado para deploy de Edge Functions
-- [ ] Confirmar estructura de archivos con el usuario
-- [ ] Decidir si implementar fallback Haversine o solo mostrar error
+| Archivo | Descripcion |
+|---------|-------------|
+| `supabase/functions/calculate-distance/index.ts` | Edge Function que llama a Google Distance Matrix API |
+| `apps/mobile/hooks/useDistanceCalculation.ts` | Hook React con debounce, cache y manejo de errores |
+| `apps/mobile/app/(user)/request.tsx` | Modificado para usar distancia real |
 
----
+### Funcionalidades Implementadas
 
-**ESPERANDO CONFIRMACION DEL PLAN ANTES DE IMPLEMENTAR**
+- [x] Edge Function con validacion de coordenadas (rango El Salvador)
+- [x] Llamada a Google Distance Matrix API con timeout de 10s
+- [x] Fallback Haversine cuando API no esta disponible
+- [x] Hook con debounce 500ms para evitar llamadas excesivas
+- [x] Cache en memoria para evitar re-calculos
+- [x] UI con loading, error y retry
+- [x] Indicador de distancia aproximada cuando usa fallback
+- [x] Boton de submit deshabilitado hasta tener distancia
+- [x] Build exitoso (expo export)
+
+### Pendiente para Produccion
+
+- [ ] Configurar GOOGLE_MAPS_API_KEY como secret en Supabase:
+  ```bash
+  supabase secrets set GOOGLE_MAPS_API_KEY=AIzaSyC8tCWhu6iyl8oUAGi2rR8W6p7g3PDTpBE
+  ```
+- [ ] Deploy de Edge Function:
+  ```bash
+  supabase functions deploy calculate-distance
+  ```
+- [ ] Test manual con ruta San Salvador → Santa Tecla
