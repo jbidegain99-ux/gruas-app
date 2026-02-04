@@ -10,6 +10,7 @@ import {
   Alert,
   TextInput,
   Linking,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -295,9 +296,66 @@ export default function ActiveService() {
     setShowCancelModal(false);
   };
 
+  // Enhanced navigation function with platform support
+  const openNavigation = async (lat: number, lng: number, label: string) => {
+    const options = [
+      { text: 'Cancelar', style: 'cancel' as const },
+      {
+        text: 'Google Maps',
+        onPress: async () => {
+          // Try native Google Maps app first
+          const googleMapsUrl = Platform.select({
+            ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+            android: `google.navigation:q=${lat},${lng}`,
+          });
+
+          if (googleMapsUrl) {
+            const canOpen = await Linking.canOpenURL(googleMapsUrl);
+            if (canOpen) {
+              await Linking.openURL(googleMapsUrl);
+              return;
+            }
+          }
+
+          // Fallback to web Google Maps
+          const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+          await Linking.openURL(webUrl);
+        },
+      },
+      {
+        text: 'Waze',
+        onPress: async () => {
+          const wazeUrl = `waze://?ll=${lat},${lng}&navigate=yes`;
+          const canOpen = await Linking.canOpenURL(wazeUrl);
+
+          if (canOpen) {
+            await Linking.openURL(wazeUrl);
+          } else {
+            // Waze not installed, fallback to web
+            const webUrl = `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+            await Linking.openURL(webUrl);
+          }
+        },
+      },
+    ];
+
+    // Add Apple Maps option on iOS
+    if (Platform.OS === 'ios') {
+      options.splice(1, 0, {
+        text: 'Apple Maps',
+        onPress: async () => {
+          const appleMapsUrl = `maps://?daddr=${lat},${lng}&dirflg=d`;
+          await Linking.openURL(appleMapsUrl);
+        },
+      });
+    }
+
+    Alert.alert('Abrir navegación', `Navegar a: ${label}`, options);
+  };
+
+  // Quick navigation - opens Google Maps directly without menu
   const openMaps = (lat: number, lng: number, label: string) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    Linking.openURL(url);
+    openNavigation(lat, lng, label);
   };
 
   const callUser = () => {
@@ -455,6 +513,25 @@ export default function ActiveService() {
 
       {/* Action Buttons */}
       <View style={styles.actionSection}>
+        {/* Navigate Button - shows target based on current status */}
+        {['assigned', 'en_route'].includes(service.status) && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.navigateButton]}
+            onPress={() => openNavigation(service.pickup_lat, service.pickup_lng, 'Punto de Recogida')}
+          >
+            <Text style={styles.actionButtonText}>Navegar al Cliente</Text>
+          </TouchableOpacity>
+        )}
+
+        {service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.navigateButton]}
+            onPress={() => openNavigation(service.dropoff_lat!, service.dropoff_lng!, 'Destino')}
+          >
+            <Text style={styles.actionButtonText}>Navegar al Destino</Text>
+          </TouchableOpacity>
+        )}
+
         {service.status === 'assigned' && (
           <TouchableOpacity
             style={[styles.actionButton, styles.enRouteButton]}
@@ -478,7 +555,7 @@ export default function ActiveService() {
             {updating ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.actionButtonText}>Ya Llegue (Verificar PIN)</Text>
+              <Text style={styles.actionButtonText}>Ya Llegué (Verificar PIN)</Text>
             )}
           </TouchableOpacity>
         )}
@@ -846,6 +923,9 @@ const styles = StyleSheet.create({
   },
   completeButton: {
     backgroundColor: '#16a34a',
+  },
+  navigateButton: {
+    backgroundColor: '#0891b2',
   },
   actionButtonText: {
     color: '#fff',

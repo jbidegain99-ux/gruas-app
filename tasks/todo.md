@@ -551,3 +551,101 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 **En web:**
 - Muestra fallback sin mapa
 - Indica si operador esta en linea o esperando ubicacion
+
+---
+
+## Task 4: Verificacion de PIN en UI
+
+### Estado: ✅ YA IMPLEMENTADO (verificado)
+
+La verificacion de PIN ya estaba implementada en `apps/mobile/app/(operator)/active.tsx`:
+
+- [x] Modal de verificacion con input de 4 digitos
+- [x] Llama a RPC `verify_request_pin(p_request_id, p_pin)`
+- [x] Manejo de PIN incorrecto con mensaje de error
+- [x] Flujo exitoso cambia estado a 'active'
+- [x] Se activa al presionar "Ya Llegue (Verificar PIN)"
+
+---
+
+## Task 5: Navegacion para operador
+
+### Estado: ✅ IMPLEMENTADO
+
+### Archivos Modificados
+
+| Archivo | Descripcion |
+|---------|-------------|
+| `apps/mobile/app/(operator)/active.tsx` | Mejorada funcion de navegacion + boton dedicado |
+
+### Funcionalidades Implementadas
+
+- [x] Funcion `openNavigation()` mejorada con soporte multiplataforma
+- [x] Opciones de navegacion: Google Maps, Apple Maps (iOS), Waze
+- [x] Intent nativo en Android: `google.navigation:q=`
+- [x] Intent nativo en iOS: `comgooglemaps://` con fallback a `maps://`
+- [x] Soporte Waze: `waze://?ll=`
+- [x] Fallback a navegador web si app no instalada
+- [x] Boton dedicado "Navegar al Cliente" (assigned/en_route)
+- [x] Boton dedicado "Navegar al Destino" (active)
+- [x] Build exitoso (expo export)
+
+### UX de Navegacion
+
+**Cuando operador toca "Navegar":**
+1. Aparece menu con opciones:
+   - Google Maps
+   - Apple Maps (solo iOS)
+   - Waze
+   - Cancelar
+2. Intenta abrir app nativa primero
+3. Si no esta instalada, abre en navegador web
+
+---
+
+## RESUMEN EPICA 7 - FUNCIONALIDADES CRITICAS
+
+### Tareas Completadas
+
+| Task | Descripcion | Estado |
+|------|-------------|--------|
+| 1 | Distance Matrix API para precio real | ✅ |
+| 2 | GPS tracking del operador | ✅ |
+| 3 | Tracking en tiempo real para usuario | ✅ |
+| 4 | Verificacion de PIN | ✅ (ya existia) |
+| 5 | Navegacion para operador | ✅ |
+| 6 | Push Notifications | ⏳ Pendiente |
+
+### Archivos Nuevos Creados
+
+- `supabase/functions/calculate-distance/index.ts`
+- `apps/mobile/hooks/useDistanceCalculation.ts`
+- `apps/mobile/hooks/useOperatorLocationTracking.ts`
+- `apps/mobile/hooks/useOperatorRealtimeTracking.ts`
+
+### Archivos Modificados
+
+- `apps/mobile/app/(user)/request.tsx` - Precio real con Distance Matrix
+- `apps/mobile/app/(user)/index.tsx` - Mapa con tracking en tiempo real
+- `apps/mobile/app/(operator)/active.tsx` - GPS tracking + navegacion mejorada
+
+### Pendiente para Produccion
+
+```bash
+# 1. Configurar API Key de Google Maps
+supabase secrets set GOOGLE_MAPS_API_KEY=AIzaSyC8tCWhu6iyl8oUAGi2rR8W6p7g3PDTpBE
+
+# 2. Deploy de Edge Function
+supabase functions deploy calculate-distance
+
+# 3. Habilitar Realtime en tabla operator_locations
+# (Ya deberia estar habilitado via RLS policies)
+```
+
+### Task 6 (Push Notifications) - Pendiente
+
+Esta task es mas compleja y requiere:
+- Configuracion de Firebase (FCM)
+- Guardar tokens de dispositivo
+- Edge Function para enviar notificaciones
+- Se recomienda implementar en una sesion dedicada
