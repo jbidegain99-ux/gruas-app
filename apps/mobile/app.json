@@ -60,6 +60,14 @@
         {
           "photosPermission": "Allow Gruas App to access your photos to upload vehicle documents."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF7B00",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {
