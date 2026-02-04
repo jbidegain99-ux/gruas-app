@@ -169,16 +169,20 @@ export function usePushNotifications(): UsePushNotificationsResult {
   // Set up notification listeners
   useEffect(() => {
     // Listener for notifications received while app is foregrounded
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-      setNotification(notification);
-    });
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      (receivedNotification: Notifications.Notification) => {
+        console.log('Notification received:', receivedNotification);
+        setNotification(receivedNotification);
+      }
+    );
 
     // Listener for when user taps on notification
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
-      handleNotificationResponse(response);
-    });
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      (response: Notifications.NotificationResponse) => {
+        console.log('Notification response:', response);
+        handleNotificationResponse(response);
+      }
+    );
 
     return () => {
       if (notificationListener.current) {

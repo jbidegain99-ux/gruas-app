@@ -14,8 +14,11 @@ import { supabase } from '@/lib/supabase';
 import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking';
 
 // Conditionally import react-native-maps (native only)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let MapView: React.ComponentType<any> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Marker: React.ComponentType<any> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PROVIDER_GOOGLE: any = null;
 
 if (Platform.OS !== 'web') {
