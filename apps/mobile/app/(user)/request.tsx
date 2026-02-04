@@ -129,6 +129,54 @@ export default function RequestService() {
     setGettingLocation(false);
   };
 
+  // Geocode address to coordinates
+  const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    if (!address || address.length < 5) return null;
+
+    try {
+      const results = await Location.geocodeAsync(address);
+      if (results && results.length > 0) {
+        return {
+          lat: results[0].latitude,
+          lng: results[0].longitude,
+        };
+      }
+    } catch (error) {
+      console.log('Geocoding error:', error);
+    }
+    return null;
+  };
+
+  // Geocode pickup address when it changes (if not already set via GPS)
+  useEffect(() => {
+    const geocodePickup = async () => {
+      if (pickupAddress && !pickupCoords) {
+        const coords = await geocodeAddress(pickupAddress);
+        if (coords) {
+          setPickupCoords(coords);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(geocodePickup, 1000); // Debounce 1s
+    return () => clearTimeout(timeoutId);
+  }, [pickupAddress, pickupCoords]);
+
+  // Geocode dropoff address when it changes
+  useEffect(() => {
+    const geocodeDropoff = async () => {
+      if (dropoffAddress && dropoffAddress.length >= 5) {
+        const coords = await geocodeAddress(dropoffAddress);
+        if (coords) {
+          setDropoffCoords(coords);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(geocodeDropoff, 1000); // Debounce 1s
+    return () => clearTimeout(timeoutId);
+  }, [dropoffAddress]);
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
