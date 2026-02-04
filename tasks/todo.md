@@ -513,3 +513,41 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 **Cuando el servicio se completa/cancela:**
 - El hook detiene tracking automaticamente
 - Marca `is_online = false` en `operator_locations`
+
+---
+
+## Task 3: Implementar tracking en tiempo real para el usuario
+
+### Estado: ✅ IMPLEMENTADO
+
+### Archivos Implementados
+
+| Archivo | Descripcion |
+|---------|-------------|
+| `apps/mobile/hooks/useOperatorRealtimeTracking.ts` | Hook que suscribe a cambios en ubicacion del operador |
+| `apps/mobile/app/(user)/index.tsx` | Modificado para mostrar mapa con ubicacion del operador |
+
+### Funcionalidades Implementadas
+
+- [x] Hook `useOperatorRealtimeTracking` con Supabase Realtime
+- [x] Suscripcion a cambios en `operator_locations` via postgres_changes
+- [x] Mapa con marcadores para:
+  - Ubicacion de recogida (verde)
+  - Ubicacion del operador en tiempo real (azul)
+- [x] Auto-ajuste del mapa para mostrar ambos marcadores
+- [x] Indicador de estado "Ubicacion en vivo" con timestamp
+- [x] Fallback para web (sin mapa, solo estado de tracking)
+- [x] Importacion condicional de react-native-maps (native only)
+- [x] Build exitoso (expo export)
+
+### Comportamiento
+
+**Cuando hay operador asignado (assigned/en_route/active):**
+- Usuario ve mapa con su ubicacion de recogida
+- Cuando operador envia ubicacion, aparece marcador azul
+- Mapa se ajusta para mostrar ambos puntos
+- Indicador muestra "Ubicacion en vivo" + tiempo desde ultima actualizacion
+
+**En web:**
+- Muestra fallback sin mapa
+- Indica si operador esta en linea o esperando ubicacion

@@ -7,9 +7,23 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking';
+
+// Conditionally import react-native-maps (native only)
+let MapView: React.ComponentType<any> | null = null;
+let Marker: React.ComponentType<any> | null = null;
+let PROVIDER_GOOGLE: any = null;
+
+if (Platform.OS !== 'web') {
+  const Maps = require('react-native-maps');
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+}
 
 type ActiveRequest = {
   id: string;
@@ -17,9 +31,12 @@ type ActiveRequest = {
   tow_type: string;
   incident_type: string;
   pickup_address: string;
+  pickup_lat: number;
+  pickup_lng: number;
   dropoff_address: string;
   total_price: number | null;
   created_at: string;
+  operator_id: string | null;
   operator_name: string | null;
   provider_name: string | null;
   verification_pin: string | null;
@@ -40,6 +57,16 @@ export default function UserHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userName, setUserName] = useState('');
+
+  // Track operator location in real-time when request has operator assigned
+  const operatorId = activeRequest?.operator_id || null;
+  const showTracking = activeRequest &&
+    ['assigned', 'en_route', 'active'].includes(activeRequest.status) &&
+    operatorId;
+
+  const { location: operatorLocation, lastUpdated } = useOperatorRealtimeTracking(
+    showTracking ? operatorId : null
+  );
 
   const fetchActiveRequest = useCallback(async () => {
     const {
@@ -68,10 +95,13 @@ export default function UserHome() {
         tow_type,
         incident_type,
         pickup_address,
+        pickup_lat,
+        pickup_lng,
         dropoff_address,
         total_price,
         created_at,
         verification_pin,
+        operator_id,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -88,10 +118,13 @@ export default function UserHome() {
         tow_type: req.tow_type,
         incident_type: req.incident_type,
         pickup_address: req.pickup_address,
+        pickup_lat: req.pickup_lat,
+        pickup_lng: req.pickup_lng,
         dropoff_address: req.dropoff_address,
         total_price: req.total_price,
         created_at: req.created_at,
         verification_pin: req.verification_pin,
+        operator_id: req.operator_id,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
       });
@@ -172,6 +205,90 @@ export default function UserHome() {
               {statusConfig?.label || activeRequest.status}
             </Text>
           </View>
+
+          {/* Live Map Tracking (Native only) */}
+          {showTracking && MapView && Marker && (
+            <View style={styles.mapContainer}>
+              <MapView
+                style={styles.map}
+                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                initialRegion={{
+                  latitude: activeRequest.pickup_lat,
+                  longitude: activeRequest.pickup_lng,
+                  latitudeDelta: 0.05,
+                  longitudeDelta: 0.05,
+                }}
+                region={operatorLocation ? {
+                  latitude: (activeRequest.pickup_lat + operatorLocation.lat) / 2,
+                  longitude: (activeRequest.pickup_lng + operatorLocation.lng) / 2,
+                  latitudeDelta: Math.abs(activeRequest.pickup_lat - operatorLocation.lat) * 2 + 0.02,
+                  longitudeDelta: Math.abs(activeRequest.pickup_lng - operatorLocation.lng) * 2 + 0.02,
+                } : undefined}
+              >
+                {/* Pickup Location Marker */}
+                <Marker
+                  coordinate={{
+                    latitude: activeRequest.pickup_lat,
+                    longitude: activeRequest.pickup_lng,
+                  }}
+                  title="Tu ubicación"
+                  description={activeRequest.pickup_address}
+                  pinColor="green"
+                />
+
+                {/* Operator Location Marker */}
+                {operatorLocation && operatorLocation.is_online && (
+                  <Marker
+                    coordinate={{
+                      latitude: operatorLocation.lat,
+                      longitude: operatorLocation.lng,
+                    }}
+                    title="Tu grúa"
+                    description={activeRequest.operator_name || 'Operador'}
+                    pinColor="blue"
+                  />
+                )}
+              </MapView>
+
+              {operatorLocation && operatorLocation.is_online ? (
+                <View style={styles.trackingInfo}>
+                  <View style={styles.trackingDot} />
+                  <Text style={styles.trackingText}>
+                    Ubicación en vivo
+                    {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.trackingInfoOffline}>
+                  <Text style={styles.trackingTextOffline}>
+                    Esperando ubicación del operador...
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Web fallback - show tracking status without map */}
+          {showTracking && !MapView && (
+            <View style={styles.webTrackingContainer}>
+              <Text style={styles.webTrackingTitle}>Seguimiento en tiempo real</Text>
+              {operatorLocation && operatorLocation.is_online ? (
+                <View style={styles.trackingInfo}>
+                  <View style={styles.trackingDot} />
+                  <Text style={styles.trackingText}>
+                    Operador en línea
+                    {lastUpdated && ` • Actualizado hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.trackingInfoOffline}>
+                  <Text style={styles.trackingTextOffline}>
+                    Esperando ubicación del operador...
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.requestDetails}>
             <View style={styles.detailRow}>
@@ -485,6 +602,59 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 12,
     color: '#6b7280',
+    textAlign: 'center',
+  },
+  mapContainer: {
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#e5e7eb',
+  },
+  map: {
+    width: '100%',
+    height: 200,
+  },
+  trackingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    backgroundColor: '#dcfce7',
+    gap: 6,
+  },
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#16a34a',
+  },
+  trackingText: {
+    fontSize: 12,
+    color: '#16a34a',
+    fontWeight: '500',
+  },
+  trackingInfoOffline: {
+    padding: 8,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+  },
+  trackingTextOffline: {
+    fontSize: 12,
+    color: '#92400e',
+  },
+  webTrackingContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  webTrackingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0369a1',
+    marginBottom: 8,
     textAlign: 'center',
   },
 });
