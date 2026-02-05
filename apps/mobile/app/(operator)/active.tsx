@@ -173,7 +173,7 @@ export default function ActiveService() {
     setRefreshing(false);
   };
 
-  // Send push notification to user
+  // Send push notification to user (non-critical - failures are just warnings)
   const sendUserNotification = async (userId: string, title: string, body: string, data?: Record<string, string>) => {
     try {
       const { error } = await supabase.functions.invoke('send-notification', {
@@ -186,10 +186,12 @@ export default function ActiveService() {
       });
 
       if (error) {
-        console.error('Error sending notification:', error);
+        // Notifications are not critical - log as warning, not error
+        console.warn('[Notificaciones] Fallo (no critico):', error.message || error);
       }
     } catch (err) {
-      console.error('Exception sending notification:', err);
+      // Notifications are not critical - log as warning, not error
+      console.warn('[Notificaciones] Exception (no critico):', err);
     }
   };
 
