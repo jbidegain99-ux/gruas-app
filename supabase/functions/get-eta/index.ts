@@ -20,6 +20,7 @@ interface ETAResponse {
   distance_km: number;
   distance_text: string;
   is_fallback?: boolean;
+  overview_polyline?: string;
   error?: string;
 }
 
@@ -40,6 +41,9 @@ interface GoogleDirectionsResponse {
         text: string;
       };
     }>;
+    overview_polyline?: {
+      points: string;
+    };
   }>;
   error_message?: string;
 }
@@ -189,6 +193,8 @@ serve(async (req: Request) => {
     const etaMinutes = Math.ceil(duration.value / 60);
     const distanceKm = leg.distance.value / 1000;
 
+    const overviewPolyline = data.routes[0]?.overview_polyline?.points;
+
     const result: ETAResponse = {
       success: true,
       eta_minutes: etaMinutes,
@@ -196,6 +202,7 @@ serve(async (req: Request) => {
       distance_km: Math.round(distanceKm * 10) / 10,
       distance_text: leg.distance.text,
       is_fallback: false,
+      overview_polyline: overviewPolyline,
     };
 
     console.log('ETA calculated:', result);

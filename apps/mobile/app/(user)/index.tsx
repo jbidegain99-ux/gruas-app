@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  Dimensions,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -15,6 +17,10 @@ import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking
 import { useETA } from '@/hooks/useETA';
 import { RatingModal } from '@/components/RatingModal';
 import { ChatScreen } from '@/components/ChatScreen';
+import { decodePolyline } from '@/lib/geoUtils';
+import type { LatLng } from '@/lib/geoUtils';
+import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType } from '@gruasapp/shared';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,12 +28,21 @@ let MapView: React.ComponentType<any> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Marker: React.ComponentType<any> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+let MarkerAnimated: React.ComponentType<any> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Polyline: React.ComponentType<any> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let AnimatedRegion: (new (...args: unknown[]) => { timing: (config: Record<string, unknown>) => { start: () => void } }) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PROVIDER_GOOGLE: any = null;
 
 if (Platform.OS !== 'web') {
   const Maps = require('react-native-maps');
   MapView = Maps.default;
   Marker = Maps.Marker;
+  MarkerAnimated = Maps.MarkerAnimated;
+  Polyline = Maps.Polyline;
+  AnimatedRegion = Maps.AnimatedRegion;
   PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
 }
 
@@ -40,12 +55,15 @@ type ActiveRequest = {
   pickup_lat: number;
   pickup_lng: number;
   dropoff_address: string;
+  dropoff_lat: number;
+  dropoff_lng: number;
   total_price: number | null;
   created_at: string;
   operator_id: string | null;
   operator_name: string | null;
   provider_name: string | null;
   verification_pin: string | null;
+  service_type: string;
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -56,6 +74,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   completed: { label: 'Completado', color: '#6b7280', bgColor: '#f3f4f6' },
   cancelled: { label: 'Cancelado', color: '#dc2626', bgColor: '#fee2e2' },
 };
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.4);
+const EDGE_PADDING = { top: 60, right: 60, bottom: 60, left: 60 };
 
 export default function UserHome() {
   const router = useRouter();
@@ -81,6 +103,15 @@ export default function UserHome() {
   // Chat state
   const [showChat, setShowChat] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Map state
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const animatedCoordinate = useRef<any>(null);
+  const animatedInitialized = useRef(false);
 
   // Track operator location in real-time when request has operator assigned
   const operatorId = activeRequest?.operator_id || null;
@@ -117,6 +148,72 @@ export default function UserHome() {
     canCalculateETA || false
   );
 
+  // Decode polyline when ETA updates
+  useEffect(() => {
+    if (eta?.overviewPolyline) {
+      const decoded = decodePolyline(eta.overviewPolyline);
+      setRouteCoordinates(decoded);
+    } else if (operatorLocation && operatorLocation.is_online && activeRequest) {
+      // Fallback: straight line between operator and pickup
+      setRouteCoordinates([
+        { latitude: operatorLocation.lat, longitude: operatorLocation.lng },
+        { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng },
+      ]);
+    } else {
+      setRouteCoordinates([]);
+    }
+  }, [eta?.overviewPolyline, operatorLocation?.lat, operatorLocation?.lng, activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
+
+  // Fit map to coordinates when they change
+  const visibleCoordinates = useMemo(() => {
+    const coords: LatLng[] = [];
+    if (activeRequest) {
+      coords.push({ latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng });
+      if (activeRequest.dropoff_lat && activeRequest.dropoff_lng) {
+        coords.push({ latitude: activeRequest.dropoff_lat, longitude: activeRequest.dropoff_lng });
+      }
+    }
+    if (operatorLocation && operatorLocation.is_online) {
+      coords.push({ latitude: operatorLocation.lat, longitude: operatorLocation.lng });
+    }
+    return coords;
+  }, [activeRequest?.pickup_lat, activeRequest?.pickup_lng, activeRequest?.dropoff_lat, activeRequest?.dropoff_lng, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online]);
+
+  useEffect(() => {
+    if (visibleCoordinates.length >= 2 && mapRef.current?.fitToCoordinates) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(visibleCoordinates, {
+          edgePadding: EDGE_PADDING,
+          animated: true,
+        });
+      }, 300);
+    }
+  }, [visibleCoordinates, isMapFullscreen]);
+
+  // Animate operator marker
+  useEffect(() => {
+    if (!operatorLocation || !operatorLocation.is_online || !AnimatedRegion) return;
+
+    if (!animatedInitialized.current) {
+      animatedCoordinate.current = new AnimatedRegion({
+        latitude: operatorLocation.lat,
+        longitude: operatorLocation.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      animatedInitialized.current = true;
+    } else if (animatedCoordinate.current) {
+      animatedCoordinate.current.timing({
+        latitude: operatorLocation.lat,
+        longitude: operatorLocation.lng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+        duration: 1000,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online]);
+
   const fetchActiveRequest = useCallback(async () => {
     const {
       data: { user },
@@ -150,10 +247,13 @@ export default function UserHome() {
         pickup_lat,
         pickup_lng,
         dropoff_address,
+        dropoff_lat,
+        dropoff_lng,
         total_price,
         created_at,
         verification_pin,
         operator_id,
+        service_type,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -173,12 +273,15 @@ export default function UserHome() {
         pickup_lat: req.pickup_lat,
         pickup_lng: req.pickup_lng,
         dropoff_address: req.dropoff_address,
+        dropoff_lat: req.dropoff_lat,
+        dropoff_lng: req.dropoff_lng,
         total_price: req.total_price,
         created_at: req.created_at,
         verification_pin: req.verification_pin,
         operator_id: req.operator_id,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
+        service_type: req.service_type || 'tow',
       });
     } else {
       setActiveRequest(null);
@@ -264,6 +367,85 @@ export default function UserHome() {
     setRefreshing(false);
   };
 
+  // Render map content (shared between inline and fullscreen)
+  const renderMapContent = (fullscreen: boolean) => {
+    if (!MapView || !Marker || !activeRequest) return null;
+
+    const OperatorMarkerComponent = MarkerAnimated && animatedCoordinate.current ? MarkerAnimated : Marker;
+    const operatorCoordinate = animatedCoordinate.current && MarkerAnimated
+      ? animatedCoordinate.current
+      : operatorLocation
+        ? { latitude: operatorLocation.lat, longitude: operatorLocation.lng }
+        : null;
+
+    const isFallback = eta?.isFallback ?? true;
+    const hasDropoff = activeRequest.dropoff_lat && activeRequest.dropoff_lng;
+
+    return (
+      <MapView
+        ref={mapRef}
+        style={fullscreen ? styles.mapFullscreen : { width: '100%', height: MAP_HEIGHT }}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        initialRegion={{
+          latitude: activeRequest.pickup_lat,
+          longitude: activeRequest.pickup_lng,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+      >
+        {/* Pickup Marker (green) */}
+        <Marker
+          coordinate={{
+            latitude: activeRequest.pickup_lat,
+            longitude: activeRequest.pickup_lng,
+          }}
+          title="Recogida"
+          description={activeRequest.pickup_address}
+          pinColor="green"
+        />
+
+        {/* Dropoff Marker (red) */}
+        {hasDropoff && (
+          <Marker
+            coordinate={{
+              latitude: activeRequest.dropoff_lat,
+              longitude: activeRequest.dropoff_lng,
+            }}
+            title="Destino"
+            description={activeRequest.dropoff_address}
+            pinColor="red"
+          />
+        )}
+
+        {/* Operator Marker (truck) */}
+        {operatorLocation && operatorLocation.is_online && operatorCoordinate && (
+          <OperatorMarkerComponent
+            coordinate={operatorCoordinate}
+            title="Tu grua"
+            description={activeRequest.operator_name || 'Operador'}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+            rotation={operatorLocation.heading ?? 0}
+          >
+            <View style={styles.truckMarker}>
+              <Text style={styles.truckEmoji}>🚛</Text>
+            </View>
+          </OperatorMarkerComponent>
+        )}
+
+        {/* Route Polyline */}
+        {Polyline && routeCoordinates.length >= 2 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#2563eb"
+            strokeWidth={4}
+            lineDashPattern={isFallback ? [10, 5] : undefined}
+          />
+        )}
+      </MapView>
+    );
+  };
+
   // Show chat screen if active
   if (showChat && activeRequest && currentUserId) {
     return (
@@ -296,7 +478,7 @@ export default function UserHome() {
       <View style={styles.header}>
         <Text style={styles.greeting}>Hola{userName ? `, ${userName}` : ''}</Text>
         <Text style={styles.subtitle}>
-          {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas una grúa?'}
+          {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas ayuda?'}
         </Text>
       </View>
 
@@ -320,63 +502,79 @@ export default function UserHome() {
           {/* Live Map Tracking (Native only) */}
           {showTracking && MapView && Marker && (
             <View style={styles.mapContainer}>
-              <MapView
-                style={styles.map}
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                initialRegion={{
-                  latitude: activeRequest.pickup_lat,
-                  longitude: activeRequest.pickup_lng,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
-                }}
-                region={operatorLocation ? {
-                  latitude: (activeRequest.pickup_lat + operatorLocation.lat) / 2,
-                  longitude: (activeRequest.pickup_lng + operatorLocation.lng) / 2,
-                  latitudeDelta: Math.abs(activeRequest.pickup_lat - operatorLocation.lat) * 2 + 0.02,
-                  longitudeDelta: Math.abs(activeRequest.pickup_lng - operatorLocation.lng) * 2 + 0.02,
-                } : undefined}
-              >
-                {/* Pickup Location Marker */}
-                <Marker
-                  coordinate={{
-                    latitude: activeRequest.pickup_lat,
-                    longitude: activeRequest.pickup_lng,
-                  }}
-                  title="Tu ubicación"
-                  description={activeRequest.pickup_address}
-                  pinColor="green"
-                />
+              {renderMapContent(false)}
 
-                {/* Operator Location Marker */}
-                {operatorLocation && operatorLocation.is_online && (
-                  <Marker
-                    coordinate={{
-                      latitude: operatorLocation.lat,
-                      longitude: operatorLocation.lng,
-                    }}
-                    title="Tu grúa"
-                    description={activeRequest.operator_name || 'Operador'}
-                    pinColor="blue"
-                  />
-                )}
-              </MapView>
+              {/* Expand button */}
+              <TouchableOpacity
+                style={styles.mapExpandButton}
+                onPress={() => setIsMapFullscreen(true)}
+              >
+                <Text style={styles.mapExpandIcon}>⛶</Text>
+              </TouchableOpacity>
 
               {operatorLocation && operatorLocation.is_online ? (
                 <View style={styles.trackingInfo}>
                   <View style={styles.trackingDot} />
                   <Text style={styles.trackingText}>
-                    Ubicación en vivo
+                    Ubicacion en vivo
                     {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicación del operador...
+                    Esperando ubicacion del operador...
                   </Text>
                 </View>
               )}
             </View>
+          )}
+
+          {/* Fullscreen Map Modal */}
+          {showTracking && MapView && (
+            <Modal
+              visible={isMapFullscreen}
+              animationType="slide"
+              onRequestClose={() => setIsMapFullscreen(false)}
+            >
+              <View style={styles.mapContainerFullscreen}>
+                {renderMapContent(true)}
+
+                {/* Close button */}
+                <TouchableOpacity
+                  style={styles.mapCloseButton}
+                  onPress={() => setIsMapFullscreen(false)}
+                >
+                  <Text style={styles.mapCloseIcon}>✕</Text>
+                </TouchableOpacity>
+
+                {/* Tracking info overlay */}
+                <View style={styles.fullscreenTrackingOverlay}>
+                  {operatorLocation && operatorLocation.is_online ? (
+                    <View style={styles.trackingInfo}>
+                      <View style={styles.trackingDot} />
+                      <Text style={styles.trackingText}>
+                        Ubicacion en vivo
+                        {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.trackingInfoOffline}>
+                      <Text style={styles.trackingTextOffline}>
+                        Esperando ubicacion del operador...
+                      </Text>
+                    </View>
+                  )}
+                  {eta && (
+                    <View style={styles.fullscreenEtaBar}>
+                      <Text style={styles.fullscreenEtaText}>
+                        ETA: {eta.etaText} — {eta.distanceText}{eta.isFallback ? ' (aprox.)' : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </Modal>
           )}
 
           {/* ETA Display */}
@@ -385,7 +583,7 @@ export default function UserHome() {
               {!operatorLocation || !operatorLocation.is_online ? (
                 <View style={styles.etaLoading}>
                   <ActivityIndicator size="small" color="#7c3aed" />
-                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
                 </View>
               ) : etaLoading ? (
                 <View style={styles.etaLoading}>
@@ -417,14 +615,14 @@ export default function UserHome() {
                 <View style={styles.trackingInfo}>
                   <View style={styles.trackingDot} />
                   <Text style={styles.trackingText}>
-                    Operador en línea
+                    Operador en linea
                     {lastUpdated && ` • Actualizado hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicación del operador...
+                    Esperando ubicacion del operador...
                   </Text>
                 </View>
               )}
@@ -444,9 +642,13 @@ export default function UserHome() {
               <Text style={styles.detailValue}>{activeRequest.incident_type}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tipo de Grúa</Text>
+              <Text style={styles.detailLabel}>Tipo de Servicio</Text>
               <Text style={styles.detailValue}>
-                {activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                {(() => {
+                  const cfg = SERVICE_TYPE_CONFIGS[(activeRequest.service_type || 'tow') as ServiceType];
+                  const isTow = !activeRequest.service_type || activeRequest.service_type === 'tow';
+                  return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+                })()}
               </Text>
             </View>
             <View style={styles.detailRow}>
@@ -485,7 +687,7 @@ export default function UserHome() {
 
             {activeRequest.verification_pin && activeRequest.status === 'en_route' && (
               <View style={styles.pinSection}>
-                <Text style={styles.pinLabel}>PIN de Verificación</Text>
+                <Text style={styles.pinLabel}>PIN de Verificacion</Text>
                 <Text style={styles.pinValue}>{activeRequest.verification_pin}</Text>
                 <Text style={styles.pinHint}>
                   Comparte este PIN con el operador cuando llegue
@@ -511,9 +713,9 @@ export default function UserHome() {
         <View style={styles.ctaContainer}>
           <View style={styles.ctaCard}>
             <Text style={styles.ctaIcon}>🚗</Text>
-            <Text style={styles.ctaTitle}>Solicitar Grúa</Text>
+            <Text style={styles.ctaTitle}>Solicitar Servicio</Text>
             <Text style={styles.ctaDescription}>
-              Estamos listos para ayudarte las 24 horas del día, los 7 días de la semana.
+              Estamos listos para ayudarte las 24 horas del dia, los 7 dias de la semana.
             </Text>
             <TouchableOpacity
               style={styles.ctaButton}
@@ -526,7 +728,7 @@ export default function UserHome() {
           <View style={styles.infoCards}>
             <View style={styles.infoCard}>
               <Text style={styles.infoIcon}>⏱️</Text>
-              <Text style={styles.infoTitle}>Rápido</Text>
+              <Text style={styles.infoTitle}>Rapido</Text>
               <Text style={styles.infoText}>Respuesta en minutos</Text>
             </View>
             <View style={styles.infoCard}>
@@ -858,9 +1060,87 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#e5e7eb',
   },
-  map: {
-    width: '100%',
-    height: 200,
+  mapFullscreen: {
+    flex: 1,
+  },
+  mapContainerFullscreen: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  mapExpandButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+    zIndex: 10,
+  },
+  mapExpandIcon: {
+    fontSize: 20,
+    color: '#111827',
+  },
+  mapCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10,
+  },
+  mapCloseIcon: {
+    fontSize: 20,
+    color: '#111827',
+    fontWeight: 'bold',
+  },
+  fullscreenTrackingOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingBottom: 34,
+  },
+  fullscreenEtaBar: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#faf5ff',
+    alignItems: 'center',
+  },
+  fullscreenEtaText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#581c87',
+  },
+  truckMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 3,
+    borderColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  truckEmoji: {
+    fontSize: 24,
   },
   trackingInfo: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ interface ETAResult {
   distanceKm: number;
   distanceText: string;
   isFallback: boolean;
+  overviewPolyline: string | null;
 }
 
 interface UseETAResult {
@@ -96,6 +97,7 @@ export function useETA(
         distanceKm: data.distance_km,
         distanceText: data.distance_text,
         isFallback: data.is_fallback || false,
+        overviewPolyline: data.overview_polyline || null,
       };
 
       setEta(result);

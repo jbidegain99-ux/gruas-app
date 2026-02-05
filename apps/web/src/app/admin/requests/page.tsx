@@ -8,6 +8,7 @@ type ServiceRequest = {
   user_id: string;
   operator_id: string | null;
   tow_type: 'light' | 'heavy';
+  service_type: string;
   status: string;
   pickup_address: string;
   dropoff_address: string;
@@ -16,6 +17,14 @@ type ServiceRequest = {
   created_at: string;
   profiles: { full_name: string } | null;
   operator: { full_name: string } | null;
+};
+
+const SERVICE_TYPE_LABELS: Record<string, string> = {
+  tow: '🚛 Grua',
+  battery: '🔋 Bateria',
+  tire: '🛞 Llanta',
+  fuel: '⛽ Combustible',
+  locksmith: '🔑 Cerrajeria',
 };
 
 export default function RequestsPage() {
@@ -65,7 +74,7 @@ export default function RequestsPage() {
       r.id,
       r.profiles?.full_name || 'N/A',
       r.operator?.full_name || 'N/A',
-      r.tow_type,
+      r.service_type || 'tow',
       r.status,
       r.pickup_address,
       r.dropoff_address,
@@ -177,7 +186,8 @@ export default function RequestsPage() {
                           {request.profiles?.full_name || 'N/A'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-600 dark:text-zinc-400">
-                          {request.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                          {SERVICE_TYPE_LABELS[request.service_type] || SERVICE_TYPE_LABELS.tow}
+                          {(!request.service_type || request.service_type === 'tow') && ` - ${request.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <StatusBadge status={request.status} />

@@ -7,6 +7,7 @@ type ServiceRequest = {
   id: string;
   status: string;
   tow_type: string;
+  service_type: string;
   incident_type: string;
   pickup_address: string;
   dropoff_address: string;
@@ -19,6 +20,14 @@ type ServiceRequest = {
   user_email: string | null;
   provider_name: string | null;
   operator_name: string | null;
+};
+
+const SERVICE_TYPE_LABELS: Record<string, string> = {
+  tow: '🚛 Grua',
+  battery: '🔋 Bateria',
+  tire: '🛞 Llanta',
+  fuel: '⛽ Combustible',
+  locksmith: '🔑 Cerrajeria',
 };
 
 type AuditEvent = {
@@ -79,6 +88,7 @@ export default function MopRequestsPage() {
           id,
           status,
           tow_type,
+          service_type,
           incident_type,
           pickup_address,
           dropoff_address,
@@ -104,6 +114,7 @@ export default function MopRequestsPage() {
         id: r.id,
         status: r.status,
         tow_type: r.tow_type,
+        service_type: r.service_type || 'tow',
         incident_type: r.incident_type,
         pickup_address: r.pickup_address,
         dropoff_address: r.dropoff_address,
@@ -245,7 +256,8 @@ export default function MopRequestsPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {request.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                      {SERVICE_TYPE_LABELS[request.service_type] || SERVICE_TYPE_LABELS.tow}
+                      {(!request.service_type || request.service_type === 'tow') && ` - ${request.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                       {request.incident_type}
@@ -341,9 +353,10 @@ function RequestDetailModal({
               <p className="text-xs text-zinc-500">{request.user_email}</p>
             </div>
             <div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Tipo de Grua</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Tipo de Servicio</p>
               <p className="text-sm text-zinc-900 dark:text-white">
-                {request.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                {SERVICE_TYPE_LABELS[request.service_type] || SERVICE_TYPE_LABELS.tow}
+                {(!request.service_type || request.service_type === 'tow') && ` - ${request.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
               </p>
             </div>
             <div>

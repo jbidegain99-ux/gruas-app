@@ -6,6 +6,56 @@ export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'MOP';
 // Tow Truck Types
 export type TowType = 'light' | 'heavy';
 
+// Service Types
+export type ServiceType = 'tow' | 'battery' | 'tire' | 'fuel' | 'locksmith';
+
+// Fuel Types
+export type FuelType = 'regular' | 'premium' | 'diesel';
+
+// Service-specific detail interfaces
+export interface TireServiceDetails {
+  has_spare: boolean;
+}
+
+export interface FuelServiceDetails {
+  fuel_type: FuelType;
+  gallons: number;
+}
+
+export type ServiceDetails = TireServiceDetails | FuelServiceDetails | Record<string, unknown>;
+
+// Service Type Pricing (from DB)
+export interface ServiceTypePricing {
+  id: string;
+  service_type: ServiceType;
+  display_name: string;
+  description: string;
+  icon: string;
+  base_price: number;
+  extra_fee: number;
+  extra_fee_label: string | null;
+  requires_destination: boolean;
+  sort_order: number;
+  is_active: boolean;
+  currency: string;
+}
+
+// UI config for service types
+export interface ServiceTypeConfig {
+  type: ServiceType;
+  emoji: string;
+  name: string;
+  color: string;
+}
+
+export const SERVICE_TYPE_CONFIGS: Record<ServiceType, ServiceTypeConfig> = {
+  tow:       { type: 'tow',       emoji: '🚛', name: 'Grua',        color: '#E67E22' },
+  battery:   { type: 'battery',   emoji: '🔋', name: 'Bateria',     color: '#2ECC71' },
+  tire:      { type: 'tire',      emoji: '🛞', name: 'Llanta',      color: '#3498DB' },
+  fuel:      { type: 'fuel',      emoji: '⛽', name: 'Combustible', color: '#E74C3C' },
+  locksmith: { type: 'locksmith', emoji: '🔑', name: 'Cerrajeria',  color: '#9B59B6' },
+};
+
 // Service Request Status
 export type ServiceRequestStatus =
   | 'initiated'    // Request created, waiting for operator
@@ -106,6 +156,9 @@ export interface ServiceRequest {
   incident_type: string;
   vehicle_plate: string | null;
   vehicle_doc_path: string | null;
+  vehicle_photo_url: string | null;
+  service_type: ServiceType;
+  service_details: ServiceDetails;
   pin_hash: string;
   distance_operator_to_pickup_km: number | null;
   distance_pickup_to_dropoff_km: number | null;
@@ -171,6 +224,8 @@ export interface CreateServiceRequestInput {
   incident_type: string;
   vehicle_plate?: string;
   vehicle_doc_path: string;
+  service_type: ServiceType;
+  service_details: ServiceDetails;
 }
 
 export interface VerifyPinInput {
