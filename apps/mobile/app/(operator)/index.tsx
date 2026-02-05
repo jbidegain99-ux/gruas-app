@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
-import type { ServiceType } from '@gruasapp/shared';
+import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import type { ServiceType } from '@gruas-app/shared';
 
 type AvailableRequest = {
   id: string;

@@ -19,8 +19,8 @@ import { RatingModal } from '@/components/RatingModal';
 import { ChatScreen } from '@/components/ChatScreen';
 import { decodePolyline } from '@/lib/geoUtils';
 import type { LatLng } from '@/lib/geoUtils';
-import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
-import type { ServiceType } from '@gruasapp/shared';
+import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import type { ServiceType } from '@gruas-app/shared';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

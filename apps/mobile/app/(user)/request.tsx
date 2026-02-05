@@ -19,8 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
 import { LocationPicker } from '@/components/LocationPicker';
-import type { ServiceType, ServiceTypePricing, FuelType } from '@gruasapp/shared';
-import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 
 type TowType = 'light' | 'heavy';
 

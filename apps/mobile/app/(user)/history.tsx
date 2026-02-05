@@ -15,8 +15,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
-import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
-import type { ServiceType } from '@gruasapp/shared';
+import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import type { ServiceType } from '@gruas-app/shared';
 
 type ServiceRequest = {
   id: string;
