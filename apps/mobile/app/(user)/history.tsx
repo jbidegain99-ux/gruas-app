@@ -11,8 +11,8 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
@@ -583,10 +583,10 @@ export default function History() {
         <Modal
           visible={chatModalVisible}
           animationType="slide"
-          presentationStyle="fullScreen"
+          presentationStyle="pageSheet"
           onRequestClose={() => setChatModalVisible(false)}
         >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
             <ChatScreen
               requestId={selectedRequest.id}
               currentUserId={currentUserId}
