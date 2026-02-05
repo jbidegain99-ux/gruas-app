@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType } from '@gruasapp/shared';
 
 type AvailableRequest = {
   id: string;
@@ -28,6 +30,8 @@ type AvailableRequest = {
   user_phone: string | null;
   vehicle_photo_url: string | null;
   notes: string | null;
+  service_type: string;
+  service_details: Record<string, unknown>;
 };
 
 export default function OperatorRequests() {
@@ -185,12 +189,17 @@ export default function OperatorRequests() {
     return date.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const renderRequest = ({ item }: { item: AvailableRequest }) => (
+  const renderRequest = ({ item }: { item: AvailableRequest }) => {
+    const svcConfig = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
+    const isTow = !item.service_type || item.service_type === 'tow';
+
+    return (
     <View style={styles.requestCard}>
       <View style={styles.requestHeader}>
-        <View style={styles.towTypeBadge}>
-          <Text style={styles.towTypeText}>
-            {item.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+        <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || '#16a34a'}15` }]}>
+          <Text style={[styles.towTypeText, { color: svcConfig?.color || '#16a34a' }]}>
+            {svcConfig ? `${svcConfig.emoji} ${svcConfig.name}` : 'Grua'}
+            {isTow && ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
           </Text>
         </View>
         <Text style={styles.timeText}>{formatTime(item.created_at)}</Text>
@@ -208,16 +217,23 @@ export default function OperatorRequests() {
             </Text>
           </View>
         </View>
-        <View style={styles.addressLine} />
-        <View style={styles.addressRow}>
-          <View style={[styles.addressDot, styles.destinationDot]} />
-          <View style={styles.addressTextContainer}>
-            <Text style={styles.addressLabel}>Destino</Text>
-            <Text style={styles.addressText} numberOfLines={2}>
-              {item.dropoff_address}
-            </Text>
-          </View>
-        </View>
+        {isTow && (
+          <>
+            <View style={styles.addressLine} />
+            <View style={styles.addressRow}>
+              <View style={[styles.addressDot, styles.destinationDot]} />
+              <View style={styles.addressTextContainer}>
+                <Text style={styles.addressLabel}>Destino</Text>
+                <Text style={styles.addressText} numberOfLines={2}>
+                  {item.dropoff_address}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+        {!isTow && (
+          <Text style={styles.pickupOnlyText}>Solo recogida</Text>
+        )}
       </View>
 
       {item.user_name && (
@@ -252,7 +268,8 @@ export default function OperatorRequests() {
         )}
       </TouchableOpacity>
     </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -418,6 +435,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     marginTop: 2,
+  },
+  pickupOnlyText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: 8,
+    marginLeft: 24,
   },
   userName: {
     fontSize: 13,

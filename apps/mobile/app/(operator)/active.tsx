@@ -17,6 +17,8 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking';
 import { ChatScreen } from '@/components/ChatScreen';
+import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType } from '@gruasapp/shared';
 
 type ActiveService = {
   id: string;
@@ -36,6 +38,7 @@ type ActiveService = {
   user_phone: string | null;
   created_at: string;
   vehicle_photo_url: string | null;
+  service_type: string;
 };
 
 const STATUS_STEPS = [
@@ -100,6 +103,7 @@ export default function ActiveService() {
         created_at,
         user_id,
         vehicle_photo_url,
+        service_type,
         profiles!service_requests_user_id_fkey (full_name, phone)
       `)
       .eq('operator_id', user.id)
@@ -136,6 +140,7 @@ export default function ActiveService() {
         vehicle_photo_url: svc.vehicle_photo_url,
         user_name: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.full_name || null,
         user_phone: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.phone || null,
+        service_type: svc.service_type || 'tow',
       });
     } else {
       setService(null);
@@ -509,6 +514,8 @@ export default function ActiveService() {
   }
 
   const currentStep = getCurrentStep();
+  const svcConfig = SERVICE_TYPE_CONFIGS[(service.service_type || 'tow') as ServiceType];
+  const isTow = !service.service_type || service.service_type === 'tow';
 
   return (
     <ScrollView
@@ -552,9 +559,10 @@ export default function ActiveService() {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.incidentType}>{service.incident_type}</Text>
-          <View style={styles.towTypeBadge}>
-            <Text style={styles.towTypeText}>
-              {service.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+          <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || '#16a34a'}15` }]}>
+            <Text style={[styles.towTypeText, { color: svcConfig?.color || '#16a34a' }]}>
+              {svcConfig ? `${svcConfig.emoji} ${svcConfig.name}` : 'Grua'}
+              {isTow && ` - ${service.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
             </Text>
           </View>
         </View>
@@ -654,7 +662,7 @@ export default function ActiveService() {
           </TouchableOpacity>
         )}
 
-        {service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
+        {isTow && service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
           <TouchableOpacity
             style={[styles.actionButton, styles.navigateButton]}
             onPress={() => openNavigation(service.dropoff_lat!, service.dropoff_lng!, 'Destino')}

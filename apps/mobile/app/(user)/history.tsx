@@ -15,6 +15,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
+import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType } from '@gruasapp/shared';
 
 type ServiceRequest = {
   id: string;
@@ -32,6 +34,7 @@ type ServiceRequest = {
   operator_name: string | null;
   provider_name: string | null;
   pin: string | null;
+  service_type: string;
 };
 
 type FilterType = 'all' | 'active' | 'completed' | 'cancelled';
@@ -103,6 +106,7 @@ export default function History() {
         cancelled_at,
         notes,
         operator_id,
+        service_type,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -134,6 +138,7 @@ export default function History() {
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         pin: savedPins[req.id] || null,
+        service_type: req.service_type || 'tow',
       }));
       setRequests(formattedRequests);
     }
@@ -278,7 +283,11 @@ export default function History() {
 
         <View style={styles.cardFooter}>
           <Text style={styles.towType}>
-            {item.tow_type === 'light' ? 'Grua Liviana' : 'Grua Pesada'}
+            {(() => {
+              const cfg = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
+              const isTow = !item.service_type || item.service_type === 'tow';
+              return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+            })()}
           </Text>
           {item.total_price && (
             <Text style={styles.price}>${item.total_price.toFixed(2)}</Text>
@@ -354,9 +363,13 @@ export default function History() {
             </View>
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Tipo de Grua</Text>
+              <Text style={styles.detailLabel}>Tipo de Servicio</Text>
               <Text style={styles.detailValue}>
-                {selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                {(() => {
+                  const cfg = SERVICE_TYPE_CONFIGS[(selectedRequest.service_type || 'tow') as ServiceType];
+                  const isTow = !selectedRequest.service_type || selectedRequest.service_type === 'tow';
+                  return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+                })()}
               </Text>
             </View>
 

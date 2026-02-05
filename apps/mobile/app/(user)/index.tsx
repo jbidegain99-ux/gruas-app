@@ -19,6 +19,8 @@ import { RatingModal } from '@/components/RatingModal';
 import { ChatScreen } from '@/components/ChatScreen';
 import { decodePolyline } from '@/lib/geoUtils';
 import type { LatLng } from '@/lib/geoUtils';
+import { SERVICE_TYPE_CONFIGS } from '@gruasapp/shared';
+import type { ServiceType } from '@gruasapp/shared';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,6 +63,7 @@ type ActiveRequest = {
   operator_name: string | null;
   provider_name: string | null;
   verification_pin: string | null;
+  service_type: string;
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -250,6 +253,7 @@ export default function UserHome() {
         created_at,
         verification_pin,
         operator_id,
+        service_type,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -277,6 +281,7 @@ export default function UserHome() {
         operator_id: req.operator_id,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
+        service_type: req.service_type || 'tow',
       });
     } else {
       setActiveRequest(null);
@@ -473,7 +478,7 @@ export default function UserHome() {
       <View style={styles.header}>
         <Text style={styles.greeting}>Hola{userName ? `, ${userName}` : ''}</Text>
         <Text style={styles.subtitle}>
-          {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas una grua?'}
+          {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas ayuda?'}
         </Text>
       </View>
 
@@ -637,9 +642,13 @@ export default function UserHome() {
               <Text style={styles.detailValue}>{activeRequest.incident_type}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tipo de Grua</Text>
+              <Text style={styles.detailLabel}>Tipo de Servicio</Text>
               <Text style={styles.detailValue}>
-                {activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                {(() => {
+                  const cfg = SERVICE_TYPE_CONFIGS[(activeRequest.service_type || 'tow') as ServiceType];
+                  const isTow = !activeRequest.service_type || activeRequest.service_type === 'tow';
+                  return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+                })()}
               </Text>
             </View>
             <View style={styles.detailRow}>
@@ -704,7 +713,7 @@ export default function UserHome() {
         <View style={styles.ctaContainer}>
           <View style={styles.ctaCard}>
             <Text style={styles.ctaIcon}>🚗</Text>
-            <Text style={styles.ctaTitle}>Solicitar Grua</Text>
+            <Text style={styles.ctaTitle}>Solicitar Servicio</Text>
             <Text style={styles.ctaDescription}>
               Estamos listos para ayudarte las 24 horas del dia, los 7 dias de la semana.
             </Text>
