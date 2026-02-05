@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { ChatScreen } from '@/components/ChatScreen';
 
 type ServiceRequest = {
   id: string;
@@ -27,6 +28,7 @@ type ServiceRequest = {
   completed_at: string | null;
   cancelled_at: string | null;
   notes: string | null;
+  operator_id: string | null;
   operator_name: string | null;
   provider_name: string | null;
   pin: string | null;
@@ -60,6 +62,8 @@ export default function History() {
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [chatModalVisible, setChatModalVisible] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async () => {
     const {
@@ -70,6 +74,8 @@ export default function History() {
       setLoading(false);
       return;
     }
+
+    setCurrentUserId(user.id);
 
     // Load saved PINs from local storage
     let savedPins: Record<string, string> = {};
@@ -96,6 +102,7 @@ export default function History() {
         completed_at,
         cancelled_at,
         notes,
+        operator_id,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -123,6 +130,7 @@ export default function History() {
         completed_at: req.completed_at,
         cancelled_at: req.cancelled_at,
         notes: req.notes,
+        operator_id: req.operator_id,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         pin: savedPins[req.id] || null,
@@ -384,6 +392,16 @@ export default function History() {
               <Text style={styles.idValue}>{selectedRequest.id}</Text>
             </View>
 
+            {/* Chat Button for active requests with operator */}
+            {selectedRequest.operator_id && ['assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
+              <TouchableOpacity
+                style={styles.chatButton}
+                onPress={() => setChatModalVisible(true)}
+              >
+                <Text style={styles.chatButtonText}>Abrir Chat con Operador</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Cancel Button for active requests */}
             {['initiated', 'assigned', 'en_route'].includes(selectedRequest.status) && (
               <TouchableOpacity
@@ -524,6 +542,23 @@ export default function History() {
 
       {renderDetailModal()}
       {renderCancelModal()}
+
+      {/* Chat Modal */}
+      {selectedRequest && currentUserId && chatModalVisible && (
+        <Modal
+          visible={chatModalVisible}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setChatModalVisible(false)}
+        >
+          <ChatScreen
+            requestId={selectedRequest.id}
+            currentUserId={currentUserId}
+            otherUserName={selectedRequest.operator_name}
+            onClose={() => setChatModalVisible(false)}
+          />
+        </Modal>
+      )}
     </View>
   );
 }
@@ -845,6 +880,20 @@ const styles = StyleSheet.create({
     color: '#92400e',
     textAlign: 'center',
     marginTop: 8,
+  },
+  chatButton: {
+    backgroundColor: '#dbeafe',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  chatButtonText: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: '#fee2e2',
