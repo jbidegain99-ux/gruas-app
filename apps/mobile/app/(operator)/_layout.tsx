@@ -27,6 +27,13 @@ export default function OperatorLayout() {
         }}
       />
       <Tabs.Screen
+        name="ratings"
+        options={{
+          title: 'Mis Resenas',
+          tabBarLabel: 'Resenas',
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Perfil',
