@@ -13,6 +13,8 @@ import {
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
@@ -283,36 +285,65 @@ export default function RequestService() {
       let vehiclePhotoUrl: string | null = null;
       if (photo) {
         try {
-          // Convert URI to blob
-          const response = await fetch(photo);
-          const blob = await response.blob();
+          console.log('=== PHOTO UPLOAD STARTED ===');
+          console.log('Photo URI:', photo);
+
+          // Verify that the file exists
+          const fileInfo = await FileSystem.getInfoAsync(photo);
+          console.log('File info:', fileInfo);
+
+          if (!fileInfo.exists) {
+            console.error('File does not exist at URI:', photo);
+            throw new Error('El archivo de foto no existe');
+          }
+
+          // Read file as base64
+          console.log('Reading file as base64...');
+          const base64 = await FileSystem.readAsStringAsync(photo, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          console.log('Base64 length:', base64.length);
+
+          if (!base64 || base64.length === 0) {
+            console.error('Failed to read file - base64 is empty');
+            throw new Error('No se pudo leer el archivo');
+          }
 
           // Generate unique filename
           const fileExt = photo.split('.').pop()?.toLowerCase() || 'jpg';
           const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+          console.log('Uploading to:', fileName);
 
-          // Upload to Supabase Storage
+          // Convert base64 to ArrayBuffer and upload
           const { error: uploadError } = await supabase.storage
             .from('service-photos')
-            .upload(fileName, blob, {
-              contentType: `image/${fileExt}`,
+            .upload(fileName, decode(base64), {
+              contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
               upsert: false,
             });
 
           if (uploadError) {
-            console.error('Error uploading photo:', uploadError);
-            // Continue without photo if upload fails
-          } else {
-            // Get public URL
-            const { data: urlData } = supabase.storage
-              .from('service-photos')
-              .getPublicUrl(fileName);
-            vehiclePhotoUrl = urlData.publicUrl;
-            console.log('Photo uploaded:', vehiclePhotoUrl);
+            console.error('Supabase upload error:', uploadError);
+            throw uploadError;
           }
+
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('service-photos')
+            .getPublicUrl(fileName);
+
+          vehiclePhotoUrl = urlData.publicUrl;
+          console.log('=== PHOTO UPLOAD SUCCESS ===');
+          console.log('Photo URL:', vehiclePhotoUrl);
         } catch (uploadErr) {
-          console.error('Exception uploading photo:', uploadErr);
-          // Continue without photo
+          console.error('=== PHOTO UPLOAD FAILED ===');
+          console.error('Error:', uploadErr);
+          // Continue without photo if upload fails
+          Alert.alert(
+            'Aviso',
+            'No se pudo subir la foto, pero la solicitud continuará sin ella.'
+          );
         }
       }
 
