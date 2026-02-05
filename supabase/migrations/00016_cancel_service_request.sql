@@ -59,7 +59,7 @@ BEGIN
   VALUES (
     p_request_id,
     v_user_id,
-    v_user_role::TEXT,
+    v_user_role,
     'REQUEST_CANCELLED',
     jsonb_build_object('reason', p_reason, 'cancelled_by_role', v_user_role)
   );
