@@ -30,6 +30,7 @@ type ActiveService = {
   dropoff_lng: number | null;
   total_price: number | null;
   notes: string | null;
+  user_id: string;
   user_name: string | null;
   user_phone: string | null;
   created_at: string;
@@ -95,6 +96,7 @@ export default function ActiveService() {
         total_price,
         notes,
         created_at,
+        user_id,
         profiles!service_requests_user_id_fkey (full_name, phone)
       `)
       .eq('operator_id', user.id)
@@ -127,6 +129,7 @@ export default function ActiveService() {
         total_price: svc.total_price,
         notes: svc.notes,
         created_at: svc.created_at,
+        user_id: svc.user_id,
         user_name: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.full_name || null,
         user_phone: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.phone || null,
       });
@@ -164,6 +167,49 @@ export default function ActiveService() {
     setRefreshing(true);
     await fetchActiveService();
     setRefreshing(false);
+  };
+
+  // Send push notification to user
+  const sendUserNotification = async (userId: string, title: string, body: string, data?: Record<string, string>) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-notification', {
+        body: {
+          user_id: userId,
+          title,
+          body,
+          data,
+        },
+      });
+
+      if (error) {
+        console.error('Error sending notification:', error);
+      }
+    } catch (err) {
+      console.error('Exception sending notification:', err);
+    }
+  };
+
+  // Get notification message for status change
+  const getStatusNotification = (status: string): { title: string; body: string } | null => {
+    switch (status) {
+      case 'en_route':
+        return {
+          title: 'Operador en camino',
+          body: 'El operador va en camino a tu ubicacion',
+        };
+      case 'active':
+        return {
+          title: 'Operador ha llegado',
+          body: 'El operador ha llegado y el servicio esta en curso',
+        };
+      case 'completed':
+        return {
+          title: 'Servicio completado',
+          body: 'Tu servicio ha sido completado. No olvides calificar al operador.',
+        };
+      default:
+        return null;
+    }
   };
 
   const updateStatus = async (newStatus: string) => {
@@ -204,6 +250,17 @@ export default function ActiveService() {
       event_type: newStatus === 'en_route' ? 'en_route' : newStatus === 'active' ? 'arrived' : 'service_completed',
       created_by: user.id,
     });
+
+    // Send push notification to user
+    const notification = getStatusNotification(newStatus);
+    if (notification && service.user_id) {
+      await sendUserNotification(
+        service.user_id,
+        notification.title,
+        notification.body,
+        { request_id: service.id, status: newStatus }
+      );
+    }
 
     setUpdating(false);
     await fetchActiveService();
