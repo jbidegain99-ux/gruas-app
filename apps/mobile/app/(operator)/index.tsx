@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +26,8 @@ type AvailableRequest = {
   created_at: string;
   user_name: string | null;
   user_phone: string | null;
+  vehicle_photo_url: string | null;
+  notes: string | null;
 };
 
 export default function OperatorRequests() {
@@ -221,6 +224,22 @@ export default function OperatorRequests() {
         <Text style={styles.userName}>Cliente: {item.user_name}</Text>
       )}
 
+      {/* Vehicle Photo */}
+      {item.vehicle_photo_url && (
+        <View style={styles.photoContainer}>
+          <Image
+            source={{ uri: item.vehicle_photo_url }}
+            style={styles.vehiclePhoto}
+            resizeMode="cover"
+          />
+        </View>
+      )}
+
+      {/* Notes */}
+      {item.notes && (
+        <Text style={styles.notesText} numberOfLines={2}>{item.notes}</Text>
+      )}
+
       <TouchableOpacity
         style={[styles.acceptButton, acceptingId === item.id && styles.acceptButtonDisabled]}
         onPress={() => handleAcceptRequest(item.id)}
@@ -404,6 +423,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginBottom: 12,
+  },
+  photoContainer: {
+    marginBottom: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  vehiclePhoto: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+  },
+  notesText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginBottom: 12,
+    backgroundColor: '#f9fafb',
+    padding: 10,
+    borderRadius: 8,
   },
   acceptButton: {
     backgroundColor: '#16a34a',

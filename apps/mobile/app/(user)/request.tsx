@@ -279,6 +279,43 @@ export default function RequestService() {
         return;
       }
 
+      // Upload photo if available
+      let vehiclePhotoUrl: string | null = null;
+      if (photo) {
+        try {
+          // Convert URI to blob
+          const response = await fetch(photo);
+          const blob = await response.blob();
+
+          // Generate unique filename
+          const fileExt = photo.split('.').pop()?.toLowerCase() || 'jpg';
+          const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+          // Upload to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from('service-photos')
+            .upload(fileName, blob, {
+              contentType: `image/${fileExt}`,
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error('Error uploading photo:', uploadError);
+            // Continue without photo if upload fails
+          } else {
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from('service-photos')
+              .getPublicUrl(fileName);
+            vehiclePhotoUrl = urlData.publicUrl;
+            console.log('Photo uploaded:', vehiclePhotoUrl);
+          }
+        } catch (uploadErr) {
+          console.error('Exception uploading photo:', uploadErr);
+          // Continue without photo
+        }
+      }
+
       // Combine vehicle description with notes if provided
       const combinedNotes = [
         vehicleDescription ? `Vehículo: ${vehicleDescription}` : '',
@@ -296,6 +333,7 @@ export default function RequestService() {
         p_dropoff_lng: dropoffCoords?.lng || -89.2182,
         p_dropoff_address: dropoffAddress,
         p_notes: combinedNotes,
+        p_vehicle_photo_url: vehiclePhotoUrl,
       });
 
       if (error) {
