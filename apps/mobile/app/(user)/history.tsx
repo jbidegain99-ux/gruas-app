@@ -12,7 +12,6 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
@@ -291,6 +290,28 @@ export default function History() {
 
   const renderDetailModal = () => {
     if (!selectedRequest) return null;
+
+    // When chat is active, show ChatScreen inside the detail modal
+    // instead of opening a second Modal (which causes invisible overlay)
+    if (chatModalVisible && currentUserId) {
+      return (
+        <Modal
+          visible={detailModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setChatModalVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            <ChatScreen
+              requestId={selectedRequest.id}
+              currentUserId={currentUserId}
+              otherUserName={selectedRequest.operator_name || 'Operador'}
+              onClose={() => setChatModalVisible(false)}
+            />
+          </View>
+        </Modal>
+      );
+    }
 
     const statusConfig = STATUS_CONFIG[selectedRequest.status] || STATUS_CONFIG.initiated;
 
@@ -578,24 +599,6 @@ export default function History() {
       {renderDetailModal()}
       {renderCancelModal()}
 
-      {/* Chat Modal */}
-      {selectedRequest && currentUserId && chatModalVisible && (
-        <Modal
-          visible={chatModalVisible}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setChatModalVisible(false)}
-        >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
-            <ChatScreen
-              requestId={selectedRequest.id}
-              currentUserId={currentUserId}
-              otherUserName={selectedRequest.operator_name}
-              onClose={() => setChatModalVisible(false)}
-            />
-          </SafeAreaView>
-        </Modal>
-      )}
     </View>
   );
 }

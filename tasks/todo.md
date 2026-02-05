@@ -1,15 +1,19 @@
 # GruasApp - Estado de 4 Bugs Criticos (5 Feb 2026)
 
-## Bug 1: Chat del solicitante - SOLUCIONADO
+## Bug 1: Chat del solicitante - SOLUCIONADO (v2 - Fix de visibilidad)
 
-**Solucion implementada:** Se agrego boton de chat al modal "Detalle de Solicitud" en `apps/mobile/app/(user)/history.tsx`
+**Problema original:** El chat modal se abria como un segundo `<Modal>` mientras el modal de detalle ya estaba abierto. Dos modales visibles simultaneamente en React Native causa que el segundo modal sea invisible (renderizado detras del primero), congelando la pantalla.
 
-Cambios realizados:
-- Importado `ChatScreen` component
-- Agregado `operator_id` al tipo y query de ServiceRequest
-- Agregado estado `chatModalVisible` y `currentUserId`
-- Agregado boton "Abrir Chat con Operador" visible para solicitudes con status `assigned`, `en_route`, o `active`
-- Agregado modal de chat con ChatScreen
+**Solucion implementada (v2):** Se renderiza el ChatScreen DENTRO del modal de detalle existente, en vez de abrir un segundo modal.
+
+Cambios realizados (v2 - 5 Feb 2026):
+- `apps/mobile/app/(user)/history.tsx`:
+  - Modificado `renderDetailModal()` para mostrar ChatScreen dentro del modal de detalle cuando `chatModalVisible` es true
+  - Eliminado el modal de chat separado (que causaba dos modales simultaneos)
+  - Eliminado import no usado de `SafeAreaView`
+- `apps/mobile/components/ChatScreen.tsx`:
+  - Movidos console.logs del cuerpo del render a un `useEffect` con dependencias correctas
+  - Esto elimina los 25+ logs "ChatScreen RENDER" que aparecian por re-renders del padre
 
 ---
 
@@ -309,7 +313,7 @@ GRANT EXECUTE ON FUNCTION get_available_requests_for_operator() TO authenticated
 
 | Bug | Estado | Accion |
 |-----|--------|--------|
-| Bug 1 (Chat) | SOLUCIONADO | Codigo actualizado en history.tsx |
+| Bug 1 (Chat) | SOLUCIONADO (v2) | Fix dual-modal invisible: ChatScreen ahora se renderiza dentro del modal de detalle |
 | Bug 2 (Fotos) | PENDIENTE | Ejecutar migration 00020 en Supabase |
 | Bug 3 (ETA) | FUNCIONA | No requiere accion |
 | Bug 4 (Cancelacion) | PENDIENTE | Ejecutar migration 00016 en Supabase |

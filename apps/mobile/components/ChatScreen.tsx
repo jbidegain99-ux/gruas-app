@@ -33,11 +33,6 @@ export function ChatScreen({
   otherUserName,
   onClose,
 }: ChatScreenProps) {
-  console.log('=== ChatScreen RENDER ===');
-  console.log('requestId:', requestId);
-  console.log('currentUserId:', currentUserId);
-  console.log('otherUserName:', otherUserName);
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,6 +40,14 @@ export function ChatScreen({
   const [hasError, setHasError] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+
+  // Log props only on mount or when they change
+  useEffect(() => {
+    console.log('=== ChatScreen MOUNTED ===');
+    console.log('requestId:', requestId);
+    console.log('currentUserId:', currentUserId);
+    console.log('otherUserName:', otherUserName);
+  }, [requestId, currentUserId, otherUserName]);
 
   // Fetch initial messages
   const fetchMessages = useCallback(async () => {
