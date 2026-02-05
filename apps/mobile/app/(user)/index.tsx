@@ -86,9 +86,12 @@ export default function UserHome() {
     showTracking ? operatorId : null
   );
 
-  // Calculate ETA when operator is en_route or assigned
-  const showETA = activeRequest &&
-    ['assigned', 'en_route'].includes(activeRequest.status) &&
+  // Show ETA section when operator is assigned or en_route
+  const showETASection = activeRequest &&
+    ['assigned', 'en_route'].includes(activeRequest.status);
+
+  // Only calculate ETA when we have operator location
+  const canCalculateETA = showETASection &&
     operatorLocation &&
     operatorLocation.is_online;
 
@@ -105,7 +108,7 @@ export default function UserHome() {
   const { eta, loading: etaLoading } = useETA(
     operatorCoords,
     pickupLocation,
-    showETA || false
+    canCalculateETA || false
   );
 
   const fetchActiveRequest = useCallback(async () => {
@@ -174,21 +177,32 @@ export default function UserHome() {
     } else {
       setActiveRequest(null);
 
-      // Check for recently completed requests that need rating
-      const { data: completedRequests } = await supabase
+      // Check for recently completed requests that need rating (within last 24 hours)
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+      const { data: completedRequests, error: completedError } = await supabase
         .from('service_requests')
         .select(`
           id,
           operator_id,
+          completed_at,
           operator:profiles!service_requests_operator_id_fkey (full_name)
         `)
         .eq('user_id', user.id)
         .eq('status', 'completed')
+        .not('operator_id', 'is', null)
+        .gte('completed_at', oneDayAgo.toISOString())
         .order('completed_at', { ascending: false })
         .limit(1);
 
+      if (completedError) {
+        console.log('[Rating] Error checking completed requests:', completedError);
+      }
+
       if (completedRequests && completedRequests.length > 0) {
         const completedReq = completedRequests[0];
+        console.log('[Rating] Found completed request:', completedReq.id);
 
         // Check if already rated
         const { data: existingRating } = await supabase
@@ -197,13 +211,18 @@ export default function UserHome() {
           .eq('request_id', completedReq.id)
           .maybeSingle();
 
+        console.log('[Rating] Existing rating:', existingRating);
+
         if (!existingRating && !showRatingModal) {
+          console.log('[Rating] Showing rating modal for request:', completedReq.id);
           setCompletedRequestForRating({
             id: completedReq.id,
             operatorName: (completedReq.operator as unknown as { full_name: string } | null)?.full_name || null,
           });
           setShowRatingModal(true);
         }
+      } else {
+        console.log('[Rating] No recently completed requests found');
       }
     }
 
@@ -356,9 +375,14 @@ export default function UserHome() {
           )}
 
           {/* ETA Display */}
-          {showETA && (
+          {showETASection && (
             <View style={styles.etaContainer}>
-              {etaLoading ? (
+              {!operatorLocation || !operatorLocation.is_online ? (
+                <View style={styles.etaLoading}>
+                  <ActivityIndicator size="small" color="#7c3aed" />
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
+                </View>
+              ) : etaLoading ? (
                 <View style={styles.etaLoading}>
                   <ActivityIndicator size="small" color="#7c3aed" />
                   <Text style={styles.etaLoadingText}>Calculando tiempo...</Text>
@@ -372,7 +396,11 @@ export default function UserHome() {
                     {eta.isFallback && ' (aprox.)'}
                   </Text>
                 </>
-              ) : null}
+              ) : (
+                <View style={styles.etaLoading}>
+                  <Text style={styles.etaLoadingText}>ETA no disponible</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -396,7 +424,7 @@ export default function UserHome() {
                 </View>
               )}
               {/* ETA for web */}
-              {showETA && eta && (
+              {showETASection && eta && (
                 <View style={styles.etaContainerWeb}>
                   <Text style={styles.etaLabel}>Tiempo estimado</Text>
                   <Text style={styles.etaValue}>{eta.etaText}</Text>
@@ -436,16 +464,18 @@ export default function UserHome() {
                 {activeRequest.provider_name && (
                   <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
                 )}
-                {/* Chat Button */}
-                {['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
-                  <TouchableOpacity
-                    style={styles.chatButton}
-                    onPress={() => setShowChat(true)}
-                  >
-                    <Text style={styles.chatButtonText}>Enviar mensaje</Text>
-                  </TouchableOpacity>
-                )}
               </View>
+            )}
+
+            {/* Chat Button - show when operator is assigned */}
+            {activeRequest.operator_id && ['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
+              <TouchableOpacity
+                style={styles.chatButtonLarge}
+                onPress={() => setShowChat(true)}
+              >
+                <Text style={styles.chatButtonIcon}>💬</Text>
+                <Text style={styles.chatButtonLargeText}>Chat con Operador</Text>
+              </TouchableOpacity>
             )}
 
             {activeRequest.verification_pin && activeRequest.status === 'en_route' && (
@@ -629,6 +659,25 @@ const styles = StyleSheet.create({
   chatButtonText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  chatButtonLarge: {
+    marginTop: 12,
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  chatButtonIcon: {
+    fontSize: 20,
+  },
+  chatButtonLargeText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
   pinSection: {

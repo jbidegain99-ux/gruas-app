@@ -1,148 +1,66 @@
-# Lessons Learned - Gruas App Development
+# GruasApp Phase 2 - Lessons Learned
 
-## Session: 2026-02-02
+## Issue: Phase 2 Features Not Visible
 
-### Bug Fix: Error 23502 NOT NULL Violation
+### Root Causes Identified
 
-**Issue**: Request creation showed success modal but failed with database error 23502.
+1. **Overly Restrictive Conditions**
+   - Features were implemented correctly but UI conditions prevented them from showing
+   - ETA required `operatorLocation && operatorLocation.is_online` - if operator hasn't published location yet, ETA never shows
+   - Chat button was nested inside `operatorSection` which only renders when `activeRequest.operator_name` exists
 
-**Root Cause**:
-1. Frontend (`request.tsx`) was NOT sending `p_dropoff_lat` and `p_dropoff_lng` parameters
-2. RPC `create_service_request()` expected these parameters
-3. Table `service_requests` has `dropoff_lat` and `dropoff_lng` as NOT NULL columns
-4. Result: Insert fails due to NULL in NOT NULL column
+2. **Missing Fallback States**
+   - No "waiting for location" state when operator location is pending
+   - No graceful degradation when data is partially available
 
-**Lesson**: Always verify parameter names match between:
-- Frontend call
-- RPC function signature
-- Database table schema
+3. **Tight Coupling**
+   - Chat button was tightly coupled to operator name availability
+   - Should have been independent based on `operator_id` presence
 
-**Fix Applied**:
-- Added `dropoffCoords` state to frontend
-- Pass `p_dropoff_lat` and `p_dropoff_lng` in RPC call
-- Use default San Salvador coordinates (13.6929, -89.2182) when not geocoded
+### Fixes Applied
 
----
+1. **ETA Visibility (index.tsx)**
+   - Split `showETA` into `showETASection` and `canCalculateETA`
+   - `showETASection` shows the UI container whenever operator is assigned/en_route
+   - `canCalculateETA` controls when we actually fetch ETA data
+   - Added "Obteniendo ubicación del operador..." loading state
 
-### Bug Fix: Operator Not Seeing Requests
+2. **Chat Button (index.tsx)**
+   - Moved chat button outside `operatorSection`
+   - Now shows based on `operator_id` presence + status
+   - Added prominent green button with emoji icon
 
-**Issue**: Operator home screen showed "No hay solicitudes disponibles" even when requests existed.
+3. **Rating Modal (index.tsx)**
+   - Added time constraint (24 hours) for completed requests
+   - Added logging for debugging
+   - Added null checks for `operator_id`
 
-**Root Cause**:
-1. Frontend called RPC with `{ p_operator_id: user.id }`
-2. RPC `get_available_requests_for_operator()` accepts NO parameters (uses `auth.uid()` internally)
-3. Passing unexpected parameter caused silent failure
+4. **Login letterSpacing (login.tsx)**
+   - Added explicit `letterSpacing: 0` to prevent style bleeding
 
-**Lesson**: Read function signatures carefully. If RPC uses `auth.uid()`, don't pass user ID as parameter.
+### Best Practices Going Forward
 
-**Fix Applied**:
-- Removed `p_operator_id` parameter from RPC call
-- Added error logging for debugging
+1. **Always show UI containers with loading states**
+   - Don't hide entire sections when data is loading
+   - Use spinners, skeletons, or placeholder text
 
----
+2. **Decouple UI visibility from data availability**
+   - Show the button/section even if some data is missing
+   - Disable interaction if needed, but keep it visible
 
-### Bug Fix: Incorrect Event Insert Schema
+3. **Add console.log for debugging**
+   - Especially in conditional logic
+   - Helps identify why features don't show
 
-**Issue**: Manual event insert in operator code used wrong field names.
+4. **Test edge cases**
+   - What happens when operator hasn't published location?
+   - What happens when operator name is null?
+   - What happens immediately after service completion?
 
-**Root Cause**:
-- Code used `created_by` instead of `actor_id`
-- Code used `metadata` instead of `payload`
-- Code used string `'assigned'` instead of enum `'OPERATOR_ACCEPTED'`
+### Testing Checklist
 
-**Lesson**:
-1. Check actual table schema before writing inserts
-2. DB triggers often handle audit logging - check if manual insert is needed
-3. In this case, `log_service_request_changes()` trigger auto-logs status changes
-
-**Fix Applied**:
-- Removed manual insert (trigger handles it)
-- Added comment explaining auto-logging
-
----
-
-### Architecture: RLS Policies
-
-**Learning**: Supabase RLS is powerful but requires careful policy design.
-
-**Key Patterns Used**:
-1. Users see only their own data: `auth.uid() = user_id`
-2. Operators see pending + their assigned: Multiple policies with `OR` conditions
-3. Admins bypass via EXISTS subquery check
-4. MOP has read-only access via SELECT policy only
-
-**Gotcha**: RPC functions with `SECURITY DEFINER` bypass RLS - use carefully.
-
----
-
-### UX: Error Handling in Modals
-
-**Issue**: Success modal showed before verifying actual success.
-
-**Lesson**:
-1. Check `error === null` first
-2. Also verify `data.success === true` for RPCs that return status
-3. Handle both network errors (catch) and API errors (response)
-4. Provide clear retry option
-
-**Pattern Applied**:
-```typescript
-if (error) {
-  Alert.alert('Error', error.message, [{ text: 'Reintentar' }]);
-  return;
-}
-if (!data || data.success !== true) {
-  Alert.alert('Error', 'Operation failed');
-  return;
-}
-// Only now show success
-Alert.alert('Success', 'Operation completed');
-```
-
----
-
-### Code Organization: Shared Types
-
-**Learning**: Using `@gruas-app/shared` package for types ensures consistency.
-
-**Types Defined**:
-- `UserRole`
-- `TowType`
-- `ServiceRequestStatus`
-- `RequestEventType`
-- All entity interfaces
-
-**Benefit**: Changes in one place propagate to all apps.
-
----
-
-### Real-time Updates
-
-**Pattern**: Supabase Channels for live updates.
-
-```typescript
-const channel = supabase
-  .channel('channel-name')
-  .on('postgres_changes', { event: '*', table: 'service_requests' }, callback)
-  .subscribe();
-
-// Cleanup
-return () => supabase.removeChannel(channel);
-```
-
-**Gotcha**: Channel name must be unique per subscription.
-
----
-
-## Rules to Follow
-
-1. **Verify RPC signatures** before calling - parameters must match exactly
-2. **Check NOT NULL columns** when debugging insert errors
-3. **Use DB triggers** for audit logging rather than manual inserts
-4. **Test error paths** - not just happy path
-5. **Default values** for optional location data (use city center)
-6. **Keep UI honest** - only show success when truly successful
-7. **Clean up subscriptions** to prevent memory leaks
-8. **Use const** over let when variable isn't reassigned (ESLint enforces)
-9. **Match field names** between frontend and backend exactly
-10. **Document test scenarios** for QA reproducibility
+- [ ] ETA shows "Obteniendo ubicación..." when operator assigned but no location
+- [ ] ETA shows actual time when operator location available
+- [ ] Chat button visible when operator assigned (regardless of operator name)
+- [ ] Rating modal appears after service completion (within 24 hours)
+- [ ] Login email field has normal letter spacing after logout
