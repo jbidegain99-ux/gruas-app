@@ -11,6 +11,7 @@ import {
   TextInput,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +35,7 @@ type ActiveService = {
   user_name: string | null;
   user_phone: string | null;
   created_at: string;
+  vehicle_photo_url: string | null;
 };
 
 const STATUS_STEPS = [
@@ -97,6 +99,7 @@ export default function ActiveService() {
         notes,
         created_at,
         user_id,
+        vehicle_photo_url,
         profiles!service_requests_user_id_fkey (full_name, phone)
       `)
       .eq('operator_id', user.id)
@@ -130,6 +133,7 @@ export default function ActiveService() {
         notes: svc.notes,
         created_at: svc.created_at,
         user_id: svc.user_id,
+        vehicle_photo_url: svc.vehicle_photo_url,
         user_name: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.full_name || null,
         user_phone: (svc.profiles as unknown as { full_name: string; phone: string } | null)?.phone || null,
       });
@@ -596,6 +600,18 @@ export default function ActiveService() {
           </View>
         )}
 
+        {/* Vehicle Photo */}
+        {service.vehicle_photo_url && (
+          <View style={styles.photoSection}>
+            <Text style={styles.photoLabel}>Foto del Vehiculo</Text>
+            <Image
+              source={{ uri: service.vehicle_photo_url }}
+              style={styles.vehiclePhotoLarge}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
         {/* Client Info */}
         <View style={styles.clientSection}>
           <View style={styles.clientInfo}>
@@ -971,6 +987,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#111827',
     marginTop: 4,
+  },
+  photoSection: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    marginTop: 12,
+  },
+  photoLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  vehiclePhotoLarge: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
   },
   clientSection: {
     flexDirection: 'row',

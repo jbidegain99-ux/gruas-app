@@ -69,7 +69,7 @@ El usuario YA tiene mapa en tiempo real con ETA:
 | Task | Estado | Accion |
 |------|--------|--------|
 | Task 1: Chat Usuario | YA IMPLEMENTADO | Ninguna |
-| Task 2: Fotos | NO FUNCIONA | Implementar subida y visualizacion |
+| Task 2: Fotos | IMPLEMENTADO | Migracion + Frontend completado |
 | Task 3: Mapa + ETA | YA IMPLEMENTADO | Ninguna |
 
 ---
