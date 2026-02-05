@@ -71,8 +71,12 @@ export default function UserHome() {
     operatorName: string | null;
   } | null>(null);
   const lastStatusRef = useRef<string | null>(null);
-  // Track dismissed rating requests to prevent loop
-  const dismissedRatingRequests = useRef<Set<string>>(new Set());
+  // List of pending ratings to show in UI (not popup)
+  const [pendingRatings, setPendingRatings] = useState<Array<{
+    id: string;
+    operatorName: string | null;
+    completedAt: string;
+  }>>([]);
 
   // Chat state
   const [showChat, setShowChat] = useState(false);
@@ -179,9 +183,9 @@ export default function UserHome() {
     } else {
       setActiveRequest(null);
 
-      // Check for recently completed requests that need rating (within last 24 hours)
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      // Check for recently completed requests that need rating (within last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
       const { data: completedRequests, error: completedError } = await supabase
         .from('service_requests')
@@ -194,46 +198,41 @@ export default function UserHome() {
         .eq('user_id', user.id)
         .eq('status', 'completed')
         .not('operator_id', 'is', null)
-        .gte('completed_at', oneDayAgo.toISOString())
+        .gte('completed_at', sevenDaysAgo.toISOString())
         .order('completed_at', { ascending: false })
-        .limit(1);
+        .limit(5);
 
       if (completedError) {
         console.log('[Rating] Error checking completed requests:', completedError);
-      }
-
-      if (completedRequests && completedRequests.length > 0) {
-        const completedReq = completedRequests[0];
-        console.log('[Rating] Found completed request:', completedReq.id);
-
-        // Check if already rated
-        const { data: existingRating } = await supabase
+        setPendingRatings([]);
+      } else if (completedRequests && completedRequests.length > 0) {
+        // Get IDs of already rated requests
+        const requestIds = completedRequests.map(r => r.id);
+        const { data: existingRatings } = await supabase
           .from('ratings')
-          .select('id')
-          .eq('request_id', completedReq.id)
-          .maybeSingle();
+          .select('request_id')
+          .in('request_id', requestIds);
 
-        console.log('[Rating] Existing rating:', existingRating);
+        const ratedIds = new Set(existingRatings?.map(r => r.request_id) || []);
 
-        // Only show if not already rated AND not previously dismissed
-        const wasDismissed = dismissedRatingRequests.current.has(completedReq.id);
-        if (!existingRating && !showRatingModal && !wasDismissed) {
-          console.log('[Rating] Showing rating modal for request:', completedReq.id);
-          setCompletedRequestForRating({
-            id: completedReq.id,
-            operatorName: (completedReq.operator as unknown as { full_name: string } | null)?.full_name || null,
-          });
-          setShowRatingModal(true);
-        } else if (wasDismissed) {
-          console.log('[Rating] Request was previously dismissed:', completedReq.id);
-        }
+        // Filter to only unrated requests
+        const unrated = completedRequests
+          .filter(req => !ratedIds.has(req.id))
+          .map(req => ({
+            id: req.id,
+            operatorName: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
+            completedAt: req.completed_at || '',
+          }));
+
+        console.log('[Rating] Pending ratings:', unrated.length);
+        setPendingRatings(unrated);
       } else {
-        console.log('[Rating] No recently completed requests found');
+        setPendingRatings([]);
       }
     }
 
     setLoading(false);
-  }, [showRatingModal]);
+  }, []);
 
   useEffect(() => {
     fetchActiveRequest();
@@ -536,6 +535,44 @@ export default function UserHome() {
               <Text style={styles.infoText}>Sin sorpresas</Text>
             </View>
           </View>
+
+          {/* Pending Ratings Section */}
+          {pendingRatings.length > 0 && (
+            <View style={styles.pendingRatingsSection}>
+              <Text style={styles.pendingRatingsTitle}>Califica tus servicios</Text>
+              <Text style={styles.pendingRatingsSubtitle}>
+                Tienes {pendingRatings.length} servicio{pendingRatings.length > 1 ? 's' : ''} sin calificar
+              </Text>
+              {pendingRatings.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.pendingRatingCard}
+                  onPress={() => {
+                    setCompletedRequestForRating({
+                      id: item.id,
+                      operatorName: item.operatorName,
+                    });
+                    setShowRatingModal(true);
+                  }}
+                >
+                  <View style={styles.pendingRatingInfo}>
+                    <Text style={styles.pendingRatingOperator}>
+                      {item.operatorName || 'Operador'}
+                    </Text>
+                    <Text style={styles.pendingRatingDate}>
+                      {new Date(item.completedAt).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.pendingRatingStars}>
+                    <Text style={styles.pendingRatingStarsText}>⭐ Calificar</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -546,18 +583,14 @@ export default function UserHome() {
           requestId={completedRequestForRating.id}
           operatorName={completedRequestForRating.operatorName}
           onClose={() => {
-            // Mark as dismissed to prevent showing again
-            if (completedRequestForRating) {
-              dismissedRatingRequests.current.add(completedRequestForRating.id);
-              console.log('[Rating] Dismissed request:', completedRequestForRating.id);
-            }
             setShowRatingModal(false);
             setCompletedRequestForRating(null);
           }}
           onSubmitted={() => {
             setShowRatingModal(false);
             setCompletedRequestForRating(null);
-            router.push('/(user)/history');
+            // Refresh to update pending ratings list
+            fetchActiveRequest();
           }}
         />
       )}
@@ -912,5 +945,60 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#bae6fd',
     alignItems: 'center',
+  },
+  // Pending Ratings Styles
+  pendingRatingsSection: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#fffbeb',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  pendingRatingsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  pendingRatingsSubtitle: {
+    fontSize: 14,
+    color: '#b45309',
+    marginBottom: 12,
+  },
+  pendingRatingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  pendingRatingInfo: {
+    flex: 1,
+  },
+  pendingRatingOperator: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  pendingRatingDate: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  pendingRatingStars: {
+    backgroundColor: '#fef3c7',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+  },
+  pendingRatingStarsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
   },
 });
