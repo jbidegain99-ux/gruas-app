@@ -82,13 +82,30 @@ export default function RequestService() {
   // Fetch active pricing rule
   useEffect(() => {
     const fetchPricing = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('pricing_rules')
         .select('base_exit_fee, included_km, price_per_km_light, price_per_km_heavy')
         .eq('is_active', true)
         .single();
 
+      if (error) {
+        console.error('Error fetching pricing rules:', error);
+        return;
+      }
+
       if (data) {
+        console.log('=== PRICING RULES LOADED ===');
+        console.log('base_exit_fee:', data.base_exit_fee);
+        console.log('included_km:', data.included_km);
+        console.log('price_per_km_light:', data.price_per_km_light);
+        console.log('price_per_km_heavy:', data.price_per_km_heavy);
+
+        // Warn if price_per_km values are 0 (this would cause constant pricing)
+        if (data.price_per_km_light === 0 && data.price_per_km_heavy === 0) {
+          console.warn('WARNING: price_per_km values are 0! Price will always equal base_exit_fee.');
+          console.warn('Update pricing_rules in Supabase: price_per_km_light=2.50, price_per_km_heavy=3.50');
+        }
+
         setPricing(data);
       }
     };
@@ -223,6 +240,15 @@ export default function RequestService() {
     const pricePerKm = towType === 'light' ? pricing.price_per_km_light : pricing.price_per_km_heavy;
     const extraKm = Math.max(0, distance - pricing.included_km);
     const total = pricing.base_exit_fee + extraKm * pricePerKm;
+
+    console.log('=== PRICE CALCULATION ===');
+    console.log('Distance (km):', distance);
+    console.log('Tow type:', towType);
+    console.log('Price per km:', pricePerKm);
+    console.log('Included km:', pricing.included_km);
+    console.log('Extra km:', extraKm);
+    console.log('Base fee:', pricing.base_exit_fee);
+    console.log('Formula: $' + pricing.base_exit_fee + ' + (' + extraKm + ' km * $' + pricePerKm + ') = $' + total);
 
     setEstimatedPrice(Math.round(total * 100) / 100);
   };

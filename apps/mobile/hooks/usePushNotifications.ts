@@ -197,11 +197,21 @@ export function usePushNotifications(): UsePushNotificationsResult {
     );
 
     return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+      try {
+        if (notificationListener.current) {
+          // Check if function exists before calling (not available in Expo Go SDK 53+)
+          if (typeof Notifications.removeNotificationSubscription === 'function') {
+            Notifications.removeNotificationSubscription(notificationListener.current);
+          }
+        }
+        if (responseListener.current) {
+          if (typeof Notifications.removeNotificationSubscription === 'function') {
+            Notifications.removeNotificationSubscription(responseListener.current);
+          }
+        }
+      } catch (error) {
+        // Ignore cleanup errors in Expo Go
+        console.log('Notification cleanup skipped (Expo Go limitation)');
       }
     };
   }, [handleNotificationResponse]);
