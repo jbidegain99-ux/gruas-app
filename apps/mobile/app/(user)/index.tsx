@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking';
+import { useETA } from '@/hooks/useETA';
+import { RatingModal } from '@/components/RatingModal';
+import { ChatScreen } from '@/components/ChatScreen';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,6 +64,18 @@ export default function UserHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [userName, setUserName] = useState('');
 
+  // Rating modal state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [completedRequestForRating, setCompletedRequestForRating] = useState<{
+    id: string;
+    operatorName: string | null;
+  } | null>(null);
+  const lastStatusRef = useRef<string | null>(null);
+
+  // Chat state
+  const [showChat, setShowChat] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   // Track operator location in real-time when request has operator assigned
   const operatorId = activeRequest?.operator_id || null;
   const showTracking = activeRequest &&
@@ -71,12 +86,37 @@ export default function UserHome() {
     showTracking ? operatorId : null
   );
 
+  // Calculate ETA when operator is en_route or assigned
+  const showETA = activeRequest &&
+    ['assigned', 'en_route'].includes(activeRequest.status) &&
+    operatorLocation &&
+    operatorLocation.is_online;
+
+  const pickupLocation = activeRequest ? {
+    lat: activeRequest.pickup_lat,
+    lng: activeRequest.pickup_lng,
+  } : null;
+
+  const operatorCoords = operatorLocation ? {
+    lat: operatorLocation.lat,
+    lng: operatorLocation.lng,
+  } : null;
+
+  const { eta, loading: etaLoading } = useETA(
+    operatorCoords,
+    pickupLocation,
+    showETA || false
+  );
+
   const fetchActiveRequest = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
+
+    // Store user ID for chat
+    setCurrentUserId(user.id);
 
     // Get user name
     const { data: profile } = await supabase
@@ -133,10 +173,42 @@ export default function UserHome() {
       });
     } else {
       setActiveRequest(null);
+
+      // Check for recently completed requests that need rating
+      const { data: completedRequests } = await supabase
+        .from('service_requests')
+        .select(`
+          id,
+          operator_id,
+          operator:profiles!service_requests_operator_id_fkey (full_name)
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1);
+
+      if (completedRequests && completedRequests.length > 0) {
+        const completedReq = completedRequests[0];
+
+        // Check if already rated
+        const { data: existingRating } = await supabase
+          .from('ratings')
+          .select('id')
+          .eq('request_id', completedReq.id)
+          .maybeSingle();
+
+        if (!existingRating && !showRatingModal) {
+          setCompletedRequestForRating({
+            id: completedReq.id,
+            operatorName: (completedReq.operator as unknown as { full_name: string } | null)?.full_name || null,
+          });
+          setShowRatingModal(true);
+        }
+      }
     }
 
     setLoading(false);
-  }, []);
+  }, [showRatingModal]);
 
   useEffect(() => {
     fetchActiveRequest();
@@ -167,6 +239,18 @@ export default function UserHome() {
     await fetchActiveRequest();
     setRefreshing(false);
   };
+
+  // Show chat screen if active
+  if (showChat && activeRequest && currentUserId) {
+    return (
+      <ChatScreen
+        requestId={activeRequest.id}
+        currentUserId={currentUserId}
+        otherUserName={activeRequest.operator_name}
+        onClose={() => setShowChat(false)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -271,6 +355,27 @@ export default function UserHome() {
             </View>
           )}
 
+          {/* ETA Display */}
+          {showETA && (
+            <View style={styles.etaContainer}>
+              {etaLoading ? (
+                <View style={styles.etaLoading}>
+                  <ActivityIndicator size="small" color="#7c3aed" />
+                  <Text style={styles.etaLoadingText}>Calculando tiempo...</Text>
+                </View>
+              ) : eta ? (
+                <>
+                  <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                  <Text style={styles.etaValue}>{eta.etaText}</Text>
+                  <Text style={styles.etaDistance}>
+                    {eta.distanceText} de distancia
+                    {eta.isFallback && ' (aprox.)'}
+                  </Text>
+                </>
+              ) : null}
+            </View>
+          )}
+
           {/* Web fallback - show tracking status without map */}
           {showTracking && !MapView && (
             <View style={styles.webTrackingContainer}>
@@ -288,6 +393,13 @@ export default function UserHome() {
                   <Text style={styles.trackingTextOffline}>
                     Esperando ubicación del operador...
                   </Text>
+                </View>
+              )}
+              {/* ETA for web */}
+              {showETA && eta && (
+                <View style={styles.etaContainerWeb}>
+                  <Text style={styles.etaLabel}>Tiempo estimado</Text>
+                  <Text style={styles.etaValue}>{eta.etaText}</Text>
                 </View>
               )}
             </View>
@@ -323,6 +435,15 @@ export default function UserHome() {
                 <Text style={styles.operatorName}>{activeRequest.operator_name}</Text>
                 {activeRequest.provider_name && (
                   <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
+                )}
+                {/* Chat Button */}
+                {['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
+                  <TouchableOpacity
+                    style={styles.chatButton}
+                    onPress={() => setShowChat(true)}
+                  >
+                    <Text style={styles.chatButtonText}>Enviar mensaje</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             )}
@@ -380,6 +501,24 @@ export default function UserHome() {
             </View>
           </View>
         </View>
+      )}
+
+      {/* Rating Modal */}
+      {completedRequestForRating && (
+        <RatingModal
+          visible={showRatingModal}
+          requestId={completedRequestForRating.id}
+          operatorName={completedRequestForRating.operatorName}
+          onClose={() => {
+            setShowRatingModal(false);
+            setCompletedRequestForRating(null);
+          }}
+          onSubmitted={() => {
+            setShowRatingModal(false);
+            setCompletedRequestForRating(null);
+            router.push('/(user)/history');
+          }}
+        />
       )}
     </ScrollView>
   );
@@ -478,6 +617,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginTop: 2,
+  },
+  chatButton: {
+    marginTop: 12,
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  chatButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   pinSection: {
     marginTop: 8,
@@ -659,5 +811,46 @@ const styles = StyleSheet.create({
     color: '#0369a1',
     marginBottom: 8,
     textAlign: 'center',
+  },
+  etaContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#faf5ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+    alignItems: 'center',
+  },
+  etaLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  etaLoadingText: {
+    fontSize: 14,
+    color: '#7c3aed',
+  },
+  etaLabel: {
+    fontSize: 12,
+    color: '#7c3aed',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  etaValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#581c87',
+  },
+  etaDistance: {
+    fontSize: 13,
+    color: '#9333ea',
+    marginTop: 4,
+  },
+  etaContainerWeb: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#bae6fd',
+    alignItems: 'center',
   },
 });

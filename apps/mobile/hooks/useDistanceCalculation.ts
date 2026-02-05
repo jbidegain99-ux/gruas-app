@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCachedDistance, setCachedDistance } from '@/lib/distanceCache';
 
 interface Coordinates {
   lat: number;
@@ -25,15 +26,15 @@ interface UseDistanceCalculationResult {
   refetch: () => void;
 }
 
-// Cache key generator
+// Cache key generator for in-memory cache (fast lookup)
 function getCacheKey(origin: Coordinates | null, destination: Coordinates | null): string | null {
   if (!origin || !destination) return null;
   // Round to 4 decimal places to allow for small GPS variations
   return `${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}-${destination.lat.toFixed(4)},${destination.lng.toFixed(4)}`;
 }
 
-// Simple in-memory cache
-const distanceCache = new Map<string, DistanceResult>();
+// In-memory cache for current session (faster than AsyncStorage)
+const memoryCache = new Map<string, DistanceResult>();
 
 export function useDistanceCalculation(
   originCoords: Coordinates | null,
@@ -64,14 +65,46 @@ export function useDistanceCalculation(
 
     const cacheKey = getCacheKey(originCoords, destCoords);
 
-    // Check cache first
-    if (cacheKey && distanceCache.has(cacheKey)) {
-      const cached = distanceCache.get(cacheKey)!;
+    // Check in-memory cache first (fastest)
+    if (cacheKey && memoryCache.has(cacheKey)) {
+      const cached = memoryCache.get(cacheKey)!;
+      console.log('[Distance] Memory cache hit');
       setDistance(cached.distance_km);
       setDistanceText(cached.distance_text);
       setDuration(cached.duration_minutes);
       setDurationText(cached.duration_text);
       setIsFallback(cached.is_fallback || false);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    // Check persistent cache (AsyncStorage)
+    const persistentCached = await getCachedDistance(
+      originCoords.lat,
+      originCoords.lng,
+      destCoords.lat,
+      destCoords.lng
+    );
+
+    if (persistentCached) {
+      console.log('[Distance] Persistent cache hit');
+      // Also add to memory cache for faster subsequent lookups
+      if (cacheKey) {
+        memoryCache.set(cacheKey, {
+          distance_km: persistentCached.distance_km,
+          distance_text: persistentCached.distance_text,
+          duration_minutes: persistentCached.duration_minutes,
+          duration_text: persistentCached.duration_text,
+          is_fallback: persistentCached.is_fallback,
+        });
+        lastCacheKeyRef.current = cacheKey;
+      }
+      setDistance(persistentCached.distance_km);
+      setDistanceText(persistentCached.distance_text);
+      setDuration(persistentCached.duration_minutes);
+      setDurationText(persistentCached.duration_text);
+      setIsFallback(persistentCached.is_fallback || false);
       setError(null);
       setLoading(false);
       return;
@@ -111,11 +144,24 @@ export function useDistanceCalculation(
         is_fallback: data.is_fallback,
       };
 
-      // Cache the result
+      // Cache the result in memory
       if (cacheKey) {
-        distanceCache.set(cacheKey, result);
+        memoryCache.set(cacheKey, result);
         lastCacheKeyRef.current = cacheKey;
       }
+
+      // Also cache persistently (async, don't wait)
+      setCachedDistance(
+        originCoords.lat,
+        originCoords.lng,
+        destCoords.lat,
+        destCoords.lng,
+        result.distance_km,
+        result.distance_text,
+        result.duration_minutes,
+        result.duration_text,
+        result.is_fallback
+      );
 
       setDistance(result.distance_km);
       setDistanceText(result.distance_text);
@@ -157,13 +203,13 @@ export function useDistanceCalculation(
       return;
     }
 
-    // Check cache immediately (no debounce needed for cached results)
-    if (newCacheKey && distanceCache.has(newCacheKey)) {
+    // Check memory cache immediately (no debounce needed for cached results)
+    if (newCacheKey && memoryCache.has(newCacheKey)) {
       calculateDistance();
       return;
     }
 
-    // Debounce the API call
+    // Debounce the API call (persistent cache check is async, handled in calculateDistance)
     setLoading(true);
     debounceTimeoutRef.current = setTimeout(() => {
       calculateDistance();
@@ -177,11 +223,12 @@ export function useDistanceCalculation(
   }, [originCoords, destCoords, debounceMs, calculateDistance]);
 
   const refetch = useCallback(() => {
-    // Clear cache for current key
+    // Clear memory cache for current key
     const cacheKey = getCacheKey(originCoords, destCoords);
     if (cacheKey) {
-      distanceCache.delete(cacheKey);
+      memoryCache.delete(cacheKey);
     }
+    // Note: We don't clear persistent cache on refetch to allow offline fallback
     calculateDistance();
   }, [originCoords, destCoords, calculateDistance]);
 

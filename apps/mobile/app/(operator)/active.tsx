@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking';
+import { ChatScreen } from '@/components/ChatScreen';
 
 type ActiveService = {
   id: string;
@@ -53,6 +54,10 @@ export default function ActiveService() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
+  // Chat state
+  const [showChat, setShowChat] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   // Track operator location when service is active
   // This sends GPS updates every 15 seconds to operator_locations table
   const isServiceActive = service !== null &&
@@ -70,6 +75,9 @@ export default function ActiveService() {
     } = await supabase.auth.getUser();
 
     if (!user) return;
+
+    // Store user ID for chat
+    setCurrentUserId(user.id);
 
     const { data: services } = await supabase
       .from('service_requests')
@@ -399,6 +407,18 @@ export default function ActiveService() {
     return STATUS_STEPS.findIndex((s) => s.key === service.status);
   };
 
+  // Show chat screen if active
+  if (showChat && service && currentUserId) {
+    return (
+      <ChatScreen
+        requestId={service.id}
+        currentUserId={currentUserId}
+        otherUserName={service.user_name}
+        onClose={() => setShowChat(false)}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -525,9 +545,17 @@ export default function ActiveService() {
             <Text style={styles.clientLabel}>Cliente</Text>
             <Text style={styles.clientName}>{service.user_name || 'Sin nombre'}</Text>
           </View>
-          <TouchableOpacity style={styles.callButton} onPress={callUser}>
-            <Text style={styles.callButtonText}>Llamar</Text>
-          </TouchableOpacity>
+          <View style={styles.clientActions}>
+            <TouchableOpacity
+              style={styles.chatButtonSmall}
+              onPress={() => setShowChat(true)}
+            >
+              <Text style={styles.chatButtonSmallText}>Mensaje</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.callButton} onPress={callUser}>
+              <Text style={styles.callButtonText}>Llamar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Price */}
@@ -907,6 +935,10 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginTop: 2,
   },
+  clientActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   callButton: {
     backgroundColor: '#eff6ff',
     paddingVertical: 8,
@@ -915,6 +947,16 @@ const styles = StyleSheet.create({
   },
   callButtonText: {
     color: '#2563eb',
+    fontWeight: '600',
+  },
+  chatButtonSmall: {
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  chatButtonSmallText: {
+    color: '#16a34a',
     fontWeight: '600',
   },
   priceSection: {
