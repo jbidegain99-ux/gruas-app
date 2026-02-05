@@ -186,7 +186,14 @@ export default function History() {
   };
 
   const handleCancelRequest = async () => {
-    if (!selectedRequest) return;
+    console.log('=== CANCEL REQUEST STARTED ===');
+    console.log('selectedRequest:', selectedRequest?.id);
+
+    if (!selectedRequest) {
+      console.error('No request selected!');
+      Alert.alert('Error', 'No hay solicitud seleccionada');
+      return;
+    }
 
     if (!cancelReason.trim()) {
       Alert.alert('Error', 'Por favor ingresa un motivo de cancelacion');
@@ -195,27 +202,46 @@ export default function History() {
 
     setCancelling(true);
 
-    const { data, error } = await supabase.rpc('cancel_service_request', {
-      p_request_id: selectedRequest.id,
-      p_reason: cancelReason.trim(),
-    });
+    try {
+      console.log('Calling cancel_service_request RPC...');
+      const { data, error } = await supabase.rpc('cancel_service_request', {
+        p_request_id: selectedRequest.id,
+        p_reason: cancelReason.trim(),
+      });
 
-    setCancelling(false);
+      console.log('RPC response - data:', data);
+      console.log('RPC response - error:', error);
 
-    if (error) {
-      Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
-      return;
+      if (error) {
+        console.error('Supabase RPC error:', error);
+        Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
+        return;
+      }
+
+      if (data && !data.success) {
+        console.error('RPC returned error:', data.error);
+        Alert.alert('Error', data.error || 'No se pudo cancelar la solicitud');
+        return;
+      }
+
+      console.log('Request cancelled successfully');
+      Alert.alert('Solicitud Cancelada', 'Tu solicitud ha sido cancelada exitosamente');
+      setCancelModalVisible(false);
+      setDetailModalVisible(false);
+      setSelectedRequest(null);
+      await fetchRequests();
+    } catch (err: any) {
+      console.error('=== CANCEL ERROR ===');
+      console.error('Error object:', err);
+      console.error('Error message:', err?.message);
+      Alert.alert(
+        'Error',
+        err?.message || 'No se pudo cancelar la solicitud. Intenta de nuevo.'
+      );
+    } finally {
+      setCancelling(false);
+      console.log('=== CANCEL REQUEST FINISHED ===');
     }
-
-    if (data && !data.success) {
-      Alert.alert('Error', data.error || 'No se pudo cancelar la solicitud');
-      return;
-    }
-
-    Alert.alert('Solicitud Cancelada', 'Tu solicitud ha sido cancelada exitosamente');
-    setCancelModalVisible(false);
-    setDetailModalVisible(false);
-    await fetchRequests();
   };
 
   const renderRequestCard = ({ item }: { item: ServiceRequest }) => {
@@ -396,7 +422,15 @@ export default function History() {
             {selectedRequest.operator_id && ['assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
               <TouchableOpacity
                 style={styles.chatButton}
-                onPress={() => setChatModalVisible(true)}
+                onPress={() => {
+                  console.log('=== CHAT BUTTON PRESSED ===');
+                  console.log('selectedRequest.id:', selectedRequest?.id);
+                  console.log('selectedRequest.operator_id:', selectedRequest?.operator_id);
+                  console.log('selectedRequest.operator_name:', selectedRequest?.operator_name);
+                  console.log('currentUserId:', currentUserId);
+                  console.log('Setting chatModalVisible to true...');
+                  setChatModalVisible(true);
+                }}
               >
                 <Text style={styles.chatButtonText}>Abrir Chat con Operador</Text>
               </TouchableOpacity>

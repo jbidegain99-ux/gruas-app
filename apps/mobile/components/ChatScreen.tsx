@@ -33,52 +33,104 @@ export function ChatScreen({
   otherUserName,
   onClose,
 }: ChatScreenProps) {
+  console.log('=== ChatScreen RENDER ===');
+  console.log('requestId:', requestId);
+  console.log('currentUserId:', currentUserId);
+  console.log('otherUserName:', otherUserName);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
   // Fetch initial messages
   const fetchMessages = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('request_messages')
-      .select('*')
-      .eq('request_id', requestId)
-      .order('created_at', { ascending: true });
+    try {
+      console.log('Fetching messages for request:', requestId);
 
-    if (error) {
-      console.error('Error fetching messages:', error);
-    } else {
-      setMessages(data || []);
+      if (!requestId) {
+        console.error('No requestId provided!');
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('request_messages')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching messages:', error);
+        setHasError(true);
+      } else {
+        console.log('Messages fetched:', data?.length || 0);
+        setMessages(data || []);
+      }
+    } catch (err) {
+      console.error('Exception fetching messages:', err);
+      setHasError(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [requestId]);
 
   // Subscribe to new messages
   useEffect(() => {
-    fetchMessages();
+    if (!requestId) {
+      console.log('No requestId, skipping initialization');
+      setLoading(false);
+      return;
+    }
 
-    const channel = supabase
-      .channel(`chat:${requestId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'request_messages',
-          filter: `request_id=eq.${requestId}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
-        }
-      )
-      .subscribe();
+    let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const init = async () => {
+      await fetchMessages();
+
+      if (!isMounted) return;
+
+      try {
+        console.log('Setting up realtime subscription for:', requestId);
+
+        channel = supabase
+          .channel(`chat:${requestId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'request_messages',
+              filter: `request_id=eq.${requestId}`,
+            },
+            (payload) => {
+              console.log('New message received:', payload);
+              if (isMounted) {
+                const newMsg = payload.new as Message;
+                setMessages((prev) => [...prev, newMsg]);
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log('Realtime subscription status:', status);
+          });
+      } catch (err) {
+        console.error('Error setting up realtime:', err);
+      }
+    };
+
+    init();
 
     return () => {
-      supabase.removeChannel(channel);
+      console.log('Cleaning up ChatScreen');
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [requestId, fetchMessages]);
 
@@ -99,6 +151,7 @@ export function ChatScreen({
     setNewMessage('');
 
     try {
+      console.log('Sending message:', trimmedMessage);
       const { error } = await supabase.rpc('send_message', {
         p_request_id: requestId,
         p_message: trimmedMessage,
@@ -107,6 +160,8 @@ export function ChatScreen({
       if (error) {
         console.error('Error sending message:', error);
         setNewMessage(trimmedMessage); // Restore message on error
+      } else {
+        console.log('Message sent successfully');
       }
     } catch (err) {
       console.error('Send message exception:', err);
@@ -161,10 +216,26 @@ export function ChatScreen({
     );
   };
 
+  // Error state
+  if (hasError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>
+          No se pudo cargar el chat. Intenta de nuevo.
+        </Text>
+        <TouchableOpacity onPress={onClose} style={styles.errorButton}>
+          <Text style={styles.errorButtonText}>Cerrar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Loading state
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.loadingText}>Cargando chat...</Text>
       </View>
     );
   }
@@ -247,6 +318,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f9fafb',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorButton: {
+    padding: 15,
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
