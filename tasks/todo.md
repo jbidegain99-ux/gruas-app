@@ -649,3 +649,212 @@ Esta task es mas compleja y requiere:
 - Guardar tokens de dispositivo
 - Edge Function para enviar notificaciones
 - Se recomienda implementar en una sesion dedicada
+
+---
+
+# EPICA 8: FASE 2 - FUNCIONALIDADES AVANZADAS
+
+## Sesion: 2026-02-05
+
+### Orden de Implementacion
+1. **TASK 4**: Optimizacion de Costos API (evita gastar creditos durante desarrollo)
+2. **TASK 1**: ETA Dinamico con Trafico (alta prioridad para UX)
+3. **TASK 2**: Sistema de Calificaciones (importante para confianza)
+4. **TASK 3**: Chat Basico Usuario-Operador (util pero menos critico)
+
+---
+
+## TASK 4: Optimizacion de Costos API
+
+### Estado: ✅ COMPLETADO
+
+### Objetivo
+Reducir llamadas a Google Maps API usando cache persistente (AsyncStorage) y throttle de ETA.
+
+### Subtareas
+- [x] **4.1** Crear `lib/distanceCache.ts` con cache persistente
+  - Usar AsyncStorage para persistir entre sesiones
+  - Cache con expiracion de 24 horas
+  - Redondear coordenadas a 2 decimales (~1km precision)
+- [x] **4.2** Modificar `useDistanceCalculation` para usar cache persistente
+  - Verificar cache antes de llamar Edge Function
+  - Guardar resultado en cache despues de llamada exitosa
+- [x] **4.3** Agregar throttle para ETA
+  - Solo actualizar si operador se movio >100 metros
+  - Funcion Haversine para calcular distancia de movimiento
+
+### Archivos Creados/Modificados
+| Archivo | Accion |
+|---------|--------|
+| `apps/mobile/lib/distanceCache.ts` | CREADO - Cache persistente con AsyncStorage |
+| `apps/mobile/lib/geoUtils.ts` | CREADO - Haversine y MovementThrottle class |
+| `apps/mobile/hooks/useDistanceCalculation.ts` | MODIFICADO - Usa cache persistente |
+
+---
+
+## TASK 1: ETA Dinamico con Trafico
+
+### Estado: ✅ COMPLETADO
+
+### Objetivo
+Mostrar tiempo estimado de llegada actualizado en tiempo real cuando operador esta en camino.
+
+### Subtareas
+- [x] **1.1** Crear Edge Function `get-eta` (mantiene API key segura)
+  - Usa Google Directions API con `departure_time=now`
+  - Retorna `duration_in_traffic`
+- [x] **1.2** Crear hook `useETA` en mobile
+  - Actualiza cada 60 segundos
+  - Solo si operador se movio >100 metros (usa throttle de TASK 4)
+- [x] **1.3** Integrar en pantalla de tracking del usuario
+  - Mostrar ETA cuando status = 'en_route' o 'assigned'
+  - UI: "Tiempo estimado de llegada: X min"
+
+### Archivos Creados/Modificados
+| Archivo | Accion |
+|---------|--------|
+| `supabase/functions/get-eta/index.ts` | CREADO - Edge Function con Directions API |
+| `apps/mobile/hooks/useETA.ts` | CREADO - Hook con throttle y periodic updates |
+| `apps/mobile/app/(user)/index.tsx` | MODIFICADO - Muestra ETA con estilos |
+
+---
+
+## TASK 2: Sistema de Calificaciones
+
+### Estado: ✅ COMPLETADO (tabla ya existia)
+
+### Objetivo
+Usuario califica al operador (1-5 estrellas) despues de completar el servicio.
+
+### Base de Datos (SQL)
+```sql
+-- Tabla de calificaciones
+CREATE TABLE IF NOT EXISTS ratings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  request_id UUID REFERENCES service_requests(id) ON DELETE CASCADE,
+  rater_id UUID REFERENCES auth.users(id),
+  rated_id UUID REFERENCES auth.users(id),
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  rater_type VARCHAR(20) CHECK (rater_type IN ('user', 'operator')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(request_id, rater_type)
+);
+
+-- Indices y RLS
+CREATE INDEX IF NOT EXISTS idx_ratings_rated_id ON ratings(rated_id);
+ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can create ratings for their requests"
+ON ratings FOR INSERT WITH CHECK (auth.uid() = rater_id);
+
+CREATE POLICY "Users can view ratings"
+ON ratings FOR SELECT USING (true);
+
+-- Funcion para promedio
+CREATE OR REPLACE FUNCTION get_operator_rating(p_operator_id UUID)
+RETURNS TABLE(average_rating NUMERIC, total_ratings BIGINT) AS $$
+BEGIN
+  RETURN QUERY SELECT ROUND(AVG(rating)::numeric, 1), COUNT(*)
+  FROM ratings WHERE rated_id = p_operator_id AND rater_type = 'user';
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Subtareas
+- [x] **2.1** Tabla `ratings` ya existia (migracion 00009)
+  - Usa `rate_service` RPC para calificar
+- [x] **2.2** Crear componente `RatingModal.tsx`
+  - 5 estrellas tocables
+  - Campo de comentario opcional
+  - Botones "Omitir" y "Enviar"
+- [x] **2.3** Integrar en flujo de completado
+  - Detecta cuando no hay request activo
+  - Busca requests completados sin calificacion
+  - Muestra modal automaticamente
+  - Navega a historial despues
+
+### Archivos Creados/Modificados
+| Archivo | Accion |
+|---------|--------|
+| `apps/mobile/components/RatingModal.tsx` | CREADO - Modal con estrellas y comentario |
+| `apps/mobile/app/(user)/index.tsx` | MODIFICADO - Trigger modal al completar |
+
+---
+
+## TASK 3: Chat Basico Usuario-Operador
+
+### Estado: ✅ COMPLETADO (tabla ya existia)
+
+### Objetivo
+Mensajeria en tiempo real entre usuario y operador durante servicio activo.
+
+### Nota
+La tabla `request_messages` ya existia (migracion 00008) con:
+- RLS para usuarios y operadores
+- `send_message` RPC
+- Realtime habilitado
+
+### Subtareas
+- [x] **3.1** Tabla `request_messages` ya existia (migracion 00008)
+- [x] **3.2** Crear componente `ChatScreen.tsx`
+  - Lista de mensajes con scroll
+  - Mensajes propios a la derecha (azul)
+  - Mensajes del otro a la izquierda (gris)
+  - Suscripcion Realtime
+  - KeyboardAvoidingView para iOS
+- [x] **3.3** Agregar boton "Chat" en pantallas de tracking
+  - Visible solo durante servicio activo
+  - Usuario: Boton "Enviar mensaje" en seccion operador
+  - Operador: Boton "Mensaje" junto a "Llamar"
+
+### Archivos Creados/Modificados
+| Archivo | Accion |
+|---------|--------|
+| `apps/mobile/components/ChatScreen.tsx` | CREADO - Chat con Realtime |
+| `apps/mobile/app/(user)/index.tsx` | MODIFICADO - Boton chat + ChatScreen |
+| `apps/mobile/app/(operator)/active.tsx` | MODIFICADO - Boton chat + ChatScreen |
+
+---
+
+## Checklist Final Fase 2
+
+- [x] TASK 4: Cache de distancias funciona (log "[DistanceCache] Cache hit")
+- [x] TASK 1: ETA visible y se actualiza cada minuto
+- [x] TASK 2: Modal de calificacion aparece al completar
+- [x] TASK 3: Chat en tiempo real funciona
+- [x] TypeScript compila sin errores
+- [x] Build exitoso (`expo export --platform web`)
+
+---
+
+## Resumen de Archivos Creados/Modificados - Fase 2
+
+### Nuevos Archivos
+| Archivo | Descripcion |
+|---------|-------------|
+| `apps/mobile/lib/distanceCache.ts` | Cache persistente con AsyncStorage |
+| `apps/mobile/lib/geoUtils.ts` | Haversine, MovementThrottle |
+| `apps/mobile/hooks/useETA.ts` | Hook de ETA con throttle |
+| `apps/mobile/components/RatingModal.tsx` | Modal de calificacion 1-5 estrellas |
+| `apps/mobile/components/ChatScreen.tsx` | Chat en tiempo real |
+| `supabase/functions/get-eta/index.ts` | Edge Function ETA con trafico |
+
+### Archivos Modificados
+| Archivo | Cambios |
+|---------|---------|
+| `apps/mobile/hooks/useDistanceCalculation.ts` | Usa cache persistente |
+| `apps/mobile/app/(user)/index.tsx` | ETA, RatingModal, Chat |
+| `apps/mobile/app/(operator)/active.tsx` | Chat |
+
+---
+
+## Pendiente para Produccion
+
+```bash
+# 1. Deploy Edge Functions
+supabase functions deploy get-eta
+
+# 2. Configurar secrets (si no estan)
+supabase secrets set GOOGLE_MAPS_API_KEY=your-api-key
+```
