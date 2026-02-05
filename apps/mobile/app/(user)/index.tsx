@@ -71,6 +71,8 @@ export default function UserHome() {
     operatorName: string | null;
   } | null>(null);
   const lastStatusRef = useRef<string | null>(null);
+  // Track dismissed rating requests to prevent loop
+  const dismissedRatingRequests = useRef<Set<string>>(new Set());
 
   // Chat state
   const [showChat, setShowChat] = useState(false);
@@ -213,13 +215,17 @@ export default function UserHome() {
 
         console.log('[Rating] Existing rating:', existingRating);
 
-        if (!existingRating && !showRatingModal) {
+        // Only show if not already rated AND not previously dismissed
+        const wasDismissed = dismissedRatingRequests.current.has(completedReq.id);
+        if (!existingRating && !showRatingModal && !wasDismissed) {
           console.log('[Rating] Showing rating modal for request:', completedReq.id);
           setCompletedRequestForRating({
             id: completedReq.id,
             operatorName: (completedReq.operator as unknown as { full_name: string } | null)?.full_name || null,
           });
           setShowRatingModal(true);
+        } else if (wasDismissed) {
+          console.log('[Rating] Request was previously dismissed:', completedReq.id);
         }
       } else {
         console.log('[Rating] No recently completed requests found');
@@ -540,6 +546,11 @@ export default function UserHome() {
           requestId={completedRequestForRating.id}
           operatorName={completedRequestForRating.operatorName}
           onClose={() => {
+            // Mark as dismissed to prevent showing again
+            if (completedRequestForRating) {
+              dismissedRatingRequests.current.add(completedRequestForRating.id);
+              console.log('[Rating] Dismissed request:', completedRequestForRating.id);
+            }
             setShowRatingModal(false);
             setCompletedRequestForRating(null);
           }}

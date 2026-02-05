@@ -1,56 +1,52 @@
-# GruasApp Phase 2 - Bug Fixes Plan
+# GruasApp Phase 2 - Bug Fixes Plan (Updated)
 
-## Diagnosis Summary
+## Diagnosis Summary - CRITICAL ISSUE FOUND
 
-After reviewing the code, all Phase 2 features ARE implemented in the codebase:
-- `apps/mobile/app/(user)/index.tsx` - Contains ETA, Chat, and Rating integrations
-- `apps/mobile/components/RatingModal.tsx` - Rating component exists
-- `apps/mobile/components/ChatScreen.tsx` - Chat component exists
-- `apps/mobile/hooks/useETA.ts` - ETA hook exists
+The frontend code exists and is correct, BUT **the Supabase RPC functions were never created in the database**.
 
-**The problem is that the CONDITIONS to show these features are too restrictive.**
+Errors seen:
+- `PGRST202: Could not find the function public.rate_service`
+- `PGRST202: Could not find the function public.send_message`
+- `PGRST202: Could not find the function public.upsert_operator_location`
 
----
-
-## Problem 1: ETA Not Visible
-
-**Root Cause:** The `showETA` condition requires `operatorLocation && operatorLocation.is_online`.
-If the operator hasn't published location yet OR `is_online` is false, ETA never shows.
-
-**Fix:** Show ETA section whenever operator is assigned, show "Waiting for location" state.
+**Root Cause:** Migrations were defined in code but never applied to production Supabase.
 
 ---
 
-## Problem 2: Chat Not Visible  
+## Solution: Run Migration in SQL Editor
 
-**Root Cause:** Chat button is nested inside `operatorSection` block which only renders when `activeRequest.operator_name` exists.
+**File:** `supabase/migrations/00019_fix_missing_rpcs.sql`
 
-**Fix:** Move chat button to be independent of operator section.
+This migration creates:
+1. `rate_service(p_request_id, p_stars, p_comment)` - For rating services
+2. `send_message(p_request_id, p_message)` - For chat messages
+3. `upsert_operator_location(p_lat, p_lng, p_is_online)` - For GPS tracking
 
----
-
-## Problem 3: Rating Not Appearing
-
-**Root Cause:** Query uses `completed_at` column and strict status check.
-
-**Fix:** Make query more robust.
-
----
-
-## Problem 4: Login Email Spacing Bug
-
-**Root Cause:** Possible style caching after logout.
-
-**Fix:** Explicitly set `letterSpacing: 0` on login input.
+**How to apply:**
+1. Go to Supabase Dashboard → SQL Editor
+2. Copy contents of `supabase/migrations/00019_fix_missing_rpcs.sql`
+3. Run the SQL
 
 ---
 
-## Execution Order
+## Frontend Fix: Rating Modal Loop
 
-1. [x] Create plan
-2. [ ] Fix Problem 4 (Login)
-3. [ ] Fix Problem 1 (ETA)
-4. [ ] Fix Problem 2 (Chat)
-5. [ ] Fix Problem 3 (Rating)
-6. [ ] TypeScript verification
-7. [ ] Update lessons.md
+**Problem:** When user taps "Omitir", the modal closes but reappears because `fetchActiveRequest` finds the same unrated request.
+
+**Fix Applied:**
+- Added `dismissedRatingRequests` ref to track dismissed request IDs
+- Check this set before showing modal
+- Add request ID to set when user taps "Omitir"
+
+**File:** `apps/mobile/app/(user)/index.tsx`
+
+---
+
+## Execution Status
+
+1. [x] Read frontend files to understand RPC parameters
+2. [x] Create migration file with all 3 RPCs
+3. [x] Fix rating modal loop in frontend
+4. [x] TypeScript verification passed
+5. [ ] **USER ACTION REQUIRED:** Run SQL migration in Supabase
+6. [ ] Test all features end-to-end
