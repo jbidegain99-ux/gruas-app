@@ -3,22 +3,34 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Alert,
-  TextInput,
   Linking,
   Platform,
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  MapPin,
+  Navigation,
+  Phone,
+  MessageCircle,
+  CheckCircle,
+  XCircle,
+  ClipboardList,
+  Truck,
+} from 'lucide-react-native';
+import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
 import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking';
 import { ChatScreen } from '@/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
+import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 type ActiveService = {
   id: string;
@@ -50,6 +62,7 @@ const STATUS_STEPS = [
 
 export default function ActiveService() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [service, setService] = useState<ActiveService | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,14 +78,13 @@ export default function ActiveService() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Track operator location when service is active
-  // This sends GPS updates every 15 seconds to operator_locations table
   const isServiceActive = service !== null &&
     ['assigned', 'en_route', 'active'].includes(service.status);
 
   useOperatorLocationTracking({
     isActive: isServiceActive,
-    intervalMs: 15000, // 15 seconds
-    distanceInterval: 50, // 50 meters minimum movement
+    intervalMs: 15000,
+    distanceInterval: 50,
   });
 
   const fetchActiveService = useCallback(async () => {
@@ -82,7 +94,6 @@ export default function ActiveService() {
 
     if (!user) return;
 
-    // Store user ID for chat
     setCurrentUserId(user.id);
 
     const { data: services } = await supabase
@@ -113,14 +124,6 @@ export default function ActiveService() {
 
     if (services && services.length > 0) {
       const svc = services[0];
-
-      // Debug: Log coordinates received from database
-      console.log('=== SERVICE COORDINATES FROM DB ===');
-      console.log('Service ID:', svc.id);
-      console.log('Pickup: lat=', svc.pickup_lat, ', lng=', svc.pickup_lng);
-      console.log('Dropoff: lat=', svc.dropoff_lat, ', lng=', svc.dropoff_lng);
-      console.log('Pickup address:', svc.pickup_address);
-      console.log('Dropoff address:', svc.dropoff_address);
 
       setService({
         id: svc.id,
@@ -178,7 +181,6 @@ export default function ActiveService() {
     setRefreshing(false);
   };
 
-  // Send push notification to user (non-critical - failures are just warnings)
   const sendUserNotification = async (userId: string, title: string, body: string, data?: Record<string, string>) => {
     try {
       const { error } = await supabase.functions.invoke('send-notification', {
@@ -191,16 +193,13 @@ export default function ActiveService() {
       });
 
       if (error) {
-        // Notifications are not critical - log as warning, not error
         console.warn('[Notificaciones] Fallo (no critico):', error.message || error);
       }
     } catch (err) {
-      // Notifications are not critical - log as warning, not error
       console.warn('[Notificaciones] Exception (no critico):', err);
     }
   };
 
-  // Get notification message for status change
   const getStatusNotification = (status: string): { title: string; body: string } | null => {
     switch (status) {
       case 'en_route':
@@ -255,14 +254,12 @@ export default function ActiveService() {
       return;
     }
 
-    // Log event
     await supabase.from('request_events').insert({
       request_id: service.id,
       event_type: newStatus === 'en_route' ? 'en_route' : newStatus === 'active' ? 'arrived' : 'service_completed',
       created_by: user.id,
     });
 
-    // Send push notification to user
     const notification = getStatusNotification(newStatus);
     if (notification && service.user_id) {
       await sendUserNotification(
@@ -298,7 +295,6 @@ export default function ActiveService() {
   };
 
   const handleArrived = () => {
-    // Show PIN verification modal
     setShowPinVerification(true);
     setPinInput('');
   };
@@ -311,7 +307,6 @@ export default function ActiveService() {
 
     setUpdating(true);
 
-    // Verify PIN using server-side RPC
     const { data, error } = await supabase.rpc('verify_request_pin', {
       p_request_id: service.id,
       p_pin: pinInput,
@@ -381,23 +376,13 @@ export default function ActiveService() {
     setShowCancelModal(false);
   };
 
-  // Enhanced navigation function with platform support
   const openNavigation = async (lat: number, lng: number, label: string) => {
-    // Debug: Log coordinates being used for navigation
-    console.log(`=== NAVIGATION DEBUG (${label}) ===`);
-    console.log('Lat:', lat, '| Type:', typeof lat);
-    console.log('Lng:', lng, '| Type:', typeof lng);
-
-    // Validate coordinates before opening navigation
     if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-      console.error('Invalid coordinates for navigation!');
       Alert.alert('Error', 'Las coordenadas de navegación no son válidas.');
       return;
     }
 
-    // Validate coordinates are within valid ranges
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.error('Coordinates out of valid range!', { lat, lng });
       Alert.alert('Error', 'Las coordenadas están fuera de rango válido.');
       return;
     }
@@ -407,7 +392,6 @@ export default function ActiveService() {
       {
         text: 'Google Maps',
         onPress: async () => {
-          // Try native Google Maps app first
           const googleMapsUrl = Platform.select({
             ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
             android: `google.navigation:q=${lat},${lng}`,
@@ -421,7 +405,6 @@ export default function ActiveService() {
             }
           }
 
-          // Fallback to web Google Maps
           const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
           await Linking.openURL(webUrl);
         },
@@ -435,7 +418,6 @@ export default function ActiveService() {
           if (canOpen) {
             await Linking.openURL(wazeUrl);
           } else {
-            // Waze not installed, fallback to web
             const webUrl = `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
             await Linking.openURL(webUrl);
           }
@@ -443,7 +425,6 @@ export default function ActiveService() {
       },
     ];
 
-    // Add Apple Maps option on iOS
     if (Platform.OS === 'ios') {
       options.splice(1, 0, {
         text: 'Apple Maps',
@@ -457,7 +438,6 @@ export default function ActiveService() {
     Alert.alert('Abrir navegación', `Navegar a: ${label}`, options);
   };
 
-  // Quick navigation - opens Google Maps directly without menu
   const openMaps = (lat: number, lng: number, label: string) => {
     openNavigation(lat, lng, label);
   };
@@ -488,27 +468,22 @@ export default function ActiveService() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   if (!service) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📋</Text>
+        <ClipboardList size={56} color={colors.text.tertiary} strokeWidth={1.5} />
         <Text style={styles.emptyTitle}>Sin servicio activo</Text>
         <Text style={styles.emptyText}>
           Acepta una solicitud para comenzar un servicio.
         </Text>
-        <TouchableOpacity
-          style={styles.backButton}
+        <Button
+          title="Ver Solicitudes"
           onPress={() => router.replace('/(operator)')}
-        >
-          <Text style={styles.backButtonText}>Ver Solicitudes</Text>
-        </TouchableOpacity>
+          size="medium"
+        />
       </View>
     );
   }
@@ -520,9 +495,14 @@ export default function ActiveService() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      {/* Header */}
+      <View style={styles.headerTop}>
+        <BudiLogo variant="icon" height={28} />
+      </View>
+
       {/* Progress Steps */}
       <View style={styles.progressContainer}>
         {STATUS_STEPS.slice(0, 3).map((step, index) => (
@@ -533,7 +513,7 @@ export default function ActiveService() {
                 index <= currentStep && styles.progressDotActive,
               ]}
             >
-              {index < currentStep && <Text style={styles.checkmark}>✓</Text>}
+              {index < currentStep && <CheckCircle size={16} color={colors.text.inverse} strokeWidth={2.5} />}
             </View>
             <Text
               style={[
@@ -556,12 +536,16 @@ export default function ActiveService() {
       </View>
 
       {/* Service Details Card */}
-      <View style={styles.card}>
+      <Card variant="elevated" padding="l">
         <View style={styles.cardHeader}>
           <Text style={styles.incidentType}>{service.incident_type}</Text>
-          <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || '#16a34a'}15` }]}>
-            <Text style={[styles.towTypeText, { color: svcConfig?.color || '#16a34a' }]}>
-              {svcConfig ? `${svcConfig.emoji} ${svcConfig.name}` : 'Grua'}
+          <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || colors.accent[500]}15` }]}>
+            {(() => {
+              const SvcIcon = SERVICE_ICONS[(service.service_type || 'tow') as ServiceType] || Truck;
+              return <SvcIcon size={14} color={svcConfig?.color || colors.accent[500]} strokeWidth={2} />;
+            })()}
+            <Text style={[styles.towTypeText, { color: svcConfig?.color || colors.accent[500] }]}>
+              {svcConfig?.name || 'Grua'}
               {isTow && ` - ${service.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
             </Text>
           </View>
@@ -569,21 +553,21 @@ export default function ActiveService() {
 
         {/* Addresses */}
         <View style={styles.addressSection}>
-          <TouchableOpacity
+          <Pressable
             style={styles.addressRow}
             onPress={() => openMaps(service.pickup_lat, service.pickup_lng, 'Recogida')}
           >
-            <View style={styles.addressDot} />
+            <MapPin size={14} color={colors.success.main} strokeWidth={2} />
             <View style={styles.addressContent}>
               <Text style={styles.addressLabel}>Recogida</Text>
               <Text style={styles.addressText}>{service.pickup_address}</Text>
               <Text style={styles.navigationHint}>Toca para navegar</Text>
             </View>
-          </TouchableOpacity>
+          </Pressable>
 
           <View style={styles.addressLine} />
 
-          <TouchableOpacity
+          <Pressable
             style={styles.addressRow}
             onPress={() =>
               service.dropoff_lat && service.dropoff_lng
@@ -591,7 +575,7 @@ export default function ActiveService() {
                 : null
             }
           >
-            <View style={[styles.addressDot, styles.destinationDot]} />
+            <MapPin size={14} color={colors.error.main} strokeWidth={2} />
             <View style={styles.addressContent}>
               <Text style={styles.addressLabel}>Destino</Text>
               <Text style={styles.addressText}>{service.dropoff_address}</Text>
@@ -599,10 +583,10 @@ export default function ActiveService() {
                 <Text style={styles.navigationHint}>Toca para navegar</Text>
               )}
             </View>
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
-        {/* Notes (may include vehicle description) */}
+        {/* Notes */}
         {service.notes && (
           <View style={styles.infoSection}>
             <Text style={styles.infoLabel}>Notas</Text>
@@ -629,15 +613,14 @@ export default function ActiveService() {
             <Text style={styles.clientName}>{service.user_name || 'Sin nombre'}</Text>
           </View>
           <View style={styles.clientActions}>
-            <TouchableOpacity
-              style={styles.chatButtonSmall}
-              onPress={() => setShowChat(true)}
-            >
+            <Pressable style={styles.chatButtonSmall} onPress={() => setShowChat(true)}>
+              <MessageCircle size={16} color={colors.primary[500]} strokeWidth={2} />
               <Text style={styles.chatButtonSmallText}>Mensaje</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.callButton} onPress={callUser}>
+            </Pressable>
+            <Pressable style={styles.callButton} onPress={callUser}>
+              <Phone size={16} color={colors.primary[500]} strokeWidth={2} />
               <Text style={styles.callButtonText}>Llamar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
 
@@ -648,80 +631,71 @@ export default function ActiveService() {
             <Text style={styles.priceValue}>${service.total_price.toFixed(2)}</Text>
           </View>
         )}
-      </View>
+      </Card>
 
       {/* Action Buttons */}
       <View style={styles.actionSection}>
-        {/* Navigate Button - shows target based on current status */}
+        {/* Navigate Button */}
         {['assigned', 'en_route'].includes(service.status) && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.navigateButton]}
+          <Button
+            title="Navegar al Cliente"
             onPress={() => openNavigation(service.pickup_lat, service.pickup_lng, 'Punto de Recogida')}
-          >
-            <Text style={styles.actionButtonText}>Navegar al Cliente</Text>
-          </TouchableOpacity>
+            variant="secondary"
+            size="large"
+            icon={<Navigation size={18} color={colors.primary[500]} strokeWidth={2} />}
+          />
         )}
 
         {isTow && service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.navigateButton]}
+          <Button
+            title="Navegar al Destino"
             onPress={() => openNavigation(service.dropoff_lat!, service.dropoff_lng!, 'Destino')}
-          >
-            <Text style={styles.actionButtonText}>Navegar al Destino</Text>
-          </TouchableOpacity>
+            variant="secondary"
+            size="large"
+            icon={<Navigation size={18} color={colors.primary[500]} strokeWidth={2} />}
+          />
         )}
 
         {service.status === 'assigned' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.enRouteButton]}
+          <Button
+            title="Voy en Camino"
             onPress={handleStartEnRoute}
+            loading={updating}
             disabled={updating}
-          >
-            {updating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.actionButtonText}>Voy en Camino</Text>
-            )}
-          </TouchableOpacity>
+            size="large"
+          />
         )}
 
         {service.status === 'en_route' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.arrivedButton]}
+          <Button
+            title="Ya Llegué (Verificar PIN)"
             onPress={handleArrived}
+            loading={updating}
             disabled={updating}
-          >
-            {updating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.actionButtonText}>Ya Llegué (Verificar PIN)</Text>
-            )}
-          </TouchableOpacity>
+            size="large"
+          />
         )}
 
         {service.status === 'active' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.completeButton]}
+          <Button
+            title="Completar Servicio"
             onPress={handleComplete}
+            loading={updating}
             disabled={updating}
-          >
-            {updating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.actionButtonText}>Completar Servicio</Text>
-            )}
-          </TouchableOpacity>
+            size="large"
+          />
         )}
 
-        {/* Cancel Button - available in assigned and en_route */}
+        {/* Cancel Button */}
         {['assigned', 'en_route'].includes(service.status) && (
-          <TouchableOpacity
+          <Pressable
             style={styles.cancelServiceButton}
             onPress={openCancelModal}
             disabled={updating}
           >
+            <XCircle size={18} color={colors.error.main} strokeWidth={2} />
             <Text style={styles.cancelServiceButtonText}>Cancelar Servicio</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -734,29 +708,29 @@ export default function ActiveService() {
               Solicita el PIN de 4 digitos al cliente para verificar tu llegada.
             </Text>
 
-            <TextInput
-              style={styles.pinInput}
-              value={pinInput}
-              onChangeText={setPinInput}
-              keyboardType="number-pad"
-              maxLength={4}
-              placeholder="----"
-              placeholderTextColor="#9ca3af"
-            />
+            <View style={styles.pinInputWrapper}>
+              <Input
+                placeholder="----"
+                value={pinInput}
+                onChangeText={setPinInput}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+            </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.modalCancelButton}
                 onPress={() => setShowPinVerification(false)}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Pressable>
+              <Pressable
                 style={styles.modalConfirmButton}
                 onPress={verifyPinAndArrive}
               >
                 <Text style={styles.modalConfirmText}>Verificar</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -771,36 +745,31 @@ export default function ActiveService() {
               Por favor indica el motivo de la cancelacion
             </Text>
 
-            <TextInput
-              style={styles.cancelReasonInput}
-              value={cancelReason}
-              onChangeText={setCancelReason}
-              placeholder="Escribe el motivo..."
-              placeholderTextColor="#9ca3af"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
+            <View style={styles.cancelReasonWrapper}>
+              <Input
+                placeholder="Escribe el motivo..."
+                value={cancelReason}
+                onChangeText={setCancelReason}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.modalCancelButton}
                 onPress={() => setShowCancelModal(false)}
                 disabled={cancelling}
               >
                 <Text style={styles.modalCancelText}>Volver</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.cancelConfirmButton, cancelling && styles.buttonDisabled]}
+              </Pressable>
+              <Button
+                title="Confirmar"
                 onPress={handleCancelService}
+                loading={cancelling}
                 disabled={cancelling}
-              >
-                {cancelling ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Confirmar</Text>
-                )}
-              </TouchableOpacity>
+                size="medium"
+              />
             </View>
           </View>
         </View>
@@ -812,58 +781,41 @@ export default function ActiveService() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: spacing.l,
+    paddingBottom: spacing.xxxxl,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
+  headerTop: {
+    marginBottom: spacing.m,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-    backgroundColor: '#f9fafb',
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    padding: spacing.xxxl,
+    backgroundColor: colors.background.secondary,
+    gap: spacing.s,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   emptyText: {
-    fontSize: 15,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    backgroundColor: '#16a34a',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    marginBottom: spacing.m,
   },
   progressContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 10,
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.s,
   },
   progressStep: {
     alignItems: 'center',
@@ -873,26 +825,23 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.border.light,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressDotActive: {
-    backgroundColor: '#16a34a',
-  },
-  checkmark: {
-    color: '#fff',
-    fontWeight: 'bold',
+    backgroundColor: colors.accent[500],
   },
   progressLabel: {
-    fontSize: 11,
-    color: '#9ca3af',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    color: colors.text.tertiary,
+    marginTop: spacing.micro,
     textAlign: 'center',
   },
   progressLabelActive: {
-    color: '#16a34a',
-    fontWeight: '600',
+    color: colors.accent[500],
+    fontFamily: typography.fonts.bodySemiBold,
   },
   progressLine: {
     position: 'absolute',
@@ -900,208 +849,197 @@ const styles = StyleSheet.create({
     right: -25,
     width: 50,
     height: 2,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.border.light,
   },
   progressLineActive: {
-    backgroundColor: '#16a34a',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 20,
+    backgroundColor: colors.accent[500],
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
   incidentType: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
     flex: 1,
   },
   towTypeBadge: {
-    backgroundColor: '#f0fdf4',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.micro,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.m,
   },
   towTypeText: {
-    color: '#16a34a',
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
   },
   addressSection: {
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
   addressRow: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  addressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#16a34a',
-    marginTop: 4,
-  },
-  destinationDot: {
-    backgroundColor: '#dc2626',
+    gap: spacing.s,
   },
   addressContent: {
     flex: 1,
   },
   addressLabel: {
-    fontSize: 11,
-    color: '#9ca3af',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.micro,
+    color: colors.text.tertiary,
     textTransform: 'uppercase',
   },
   addressText: {
-    fontSize: 14,
-    color: '#374151',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     marginTop: 2,
   },
   navigationHint: {
-    fontSize: 11,
-    color: '#2563eb',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    color: colors.primary[500],
+    marginTop: spacing.micro,
   },
   addressLine: {
     width: 2,
     height: 24,
-    backgroundColor: '#e5e7eb',
-    marginLeft: 5,
-    marginVertical: 4,
+    backgroundColor: colors.border.light,
+    marginLeft: 6,
+    marginVertical: spacing.micro,
   },
   infoSection: {
-    paddingTop: 12,
+    paddingTop: spacing.s,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    marginTop: 12,
+    borderTopColor: colors.border.light,
+    marginTop: spacing.s,
   },
   infoLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
   },
   infoText: {
-    fontSize: 14,
-    color: '#111827',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
+    marginTop: spacing.micro,
   },
   photoSection: {
-    paddingTop: 12,
+    paddingTop: spacing.s,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    marginTop: 12,
+    borderTopColor: colors.border.light,
+    marginTop: spacing.s,
   },
   photoLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   vehiclePhotoLarge: {
     width: '100%',
     height: 200,
-    borderRadius: 12,
+    borderRadius: radii.l,
   },
   clientSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 16,
+    paddingTop: spacing.m,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    marginTop: 16,
+    borderTopColor: colors.border.light,
+    marginTop: spacing.m,
   },
   clientInfo: {},
   clientLabel: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
   },
   clientName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
     marginTop: 2,
   },
   clientActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xs,
   },
   callButton: {
-    backgroundColor: '#eff6ff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.micro,
+    backgroundColor: colors.primary[50],
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.m,
   },
   callButtonText: {
-    color: '#2563eb',
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.primary[500],
   },
   chatButtonSmall: {
-    backgroundColor: '#f0fdf4',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.micro,
+    backgroundColor: colors.primary[50],
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.m,
   },
   chatButtonSmallText: {
-    color: '#16a34a',
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.primary[500],
   },
   priceSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 16,
+    paddingTop: spacing.m,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    marginTop: 16,
+    borderTopColor: colors.border.light,
+    marginTop: spacing.m,
   },
   priceLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   priceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.accent[600],
   },
   actionSection: {
-    gap: 12,
+    marginTop: spacing.l,
+    gap: spacing.s,
   },
-  actionButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+  cancelServiceButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.m,
+    borderRadius: radii.l,
+    backgroundColor: colors.error.light,
+    borderWidth: 1,
+    borderColor: colors.error.main + '30',
   },
-  enRouteButton: {
-    backgroundColor: '#7c3aed',
+  cancelServiceButtonText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.error.main,
   },
-  arrivedButton: {
-    backgroundColor: '#2563eb',
-  },
-  completeButton: {
-    backgroundColor: '#16a34a',
-  },
-  navigateButton: {
-    backgroundColor: '#0891b2',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
+  // Modals
   modalOverlay: {
     position: 'absolute',
     top: 0,
@@ -1111,97 +1049,62 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.l,
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
     width: '100%',
     maxWidth: 320,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   modalDescription: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
-  pinInput: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    letterSpacing: 16,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+  pinInputWrapper: {
+    marginBottom: spacing.l,
+  },
+  cancelReasonWrapper: {
+    marginBottom: spacing.l,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s,
   },
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: spacing.s,
+    borderRadius: radii.m,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.border.medium,
   },
   modalCancelText: {
-    color: '#374151',
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
   },
   modalConfirmButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: spacing.s,
+    borderRadius: radii.m,
     alignItems: 'center',
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
   },
   modalConfirmText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  cancelServiceButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  cancelServiceButtonText: {
-    color: '#dc2626',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelReasonInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 80,
-    backgroundColor: '#f9fafb',
-    marginBottom: 20,
-  },
-  cancelConfirmButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#dc2626',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.inverse,
   },
 });

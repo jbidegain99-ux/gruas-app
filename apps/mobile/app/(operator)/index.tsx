@@ -3,17 +3,20 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   Alert,
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Zap, ClipboardList, Truck } from 'lucide-react-native';
+import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
+import { BudiLogo, Button, Card, LoadingSpinner } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 type AvailableRequest = {
   id: string;
@@ -36,6 +39,7 @@ type AvailableRequest = {
 
 export default function OperatorRequests() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<AvailableRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -194,94 +198,91 @@ export default function OperatorRequests() {
     const isTow = !item.service_type || item.service_type === 'tow';
 
     return (
-    <View style={styles.requestCard}>
-      <View style={styles.requestHeader}>
-        <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || '#16a34a'}15` }]}>
-          <Text style={[styles.towTypeText, { color: svcConfig?.color || '#16a34a' }]}>
-            {svcConfig ? `${svcConfig.emoji} ${svcConfig.name}` : 'Grua'}
-            {isTow && ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
-          </Text>
-        </View>
-        <Text style={styles.timeText}>{formatTime(item.created_at)}</Text>
-      </View>
-
-      <Text style={styles.incidentType}>{item.incident_type}</Text>
-
-      <View style={styles.addressSection}>
-        <View style={styles.addressRow}>
-          <View style={styles.addressDot} />
-          <View style={styles.addressTextContainer}>
-            <Text style={styles.addressLabel}>Recogida</Text>
-            <Text style={styles.addressText} numberOfLines={2}>
-              {item.pickup_address}
+      <Card variant="elevated" padding="m">
+        <View style={styles.requestHeader}>
+          <View style={[styles.towTypeBadge, { backgroundColor: `${svcConfig?.color || colors.accent[500]}15` }]}>
+            {(() => {
+              const SvcIcon = SERVICE_ICONS[(item.service_type || 'tow') as ServiceType] || Truck;
+              return <SvcIcon size={14} color={svcConfig?.color || colors.accent[500]} strokeWidth={2} />;
+            })()}
+            <Text style={[styles.towTypeText, { color: svcConfig?.color || colors.accent[500] }]}>
+              {svcConfig?.name || 'Grua'}
+              {isTow && ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
             </Text>
           </View>
+          <Text style={styles.timeText}>{formatTime(item.created_at)}</Text>
         </View>
-        {isTow && (
-          <>
-            <View style={styles.addressLine} />
-            <View style={styles.addressRow}>
-              <View style={[styles.addressDot, styles.destinationDot]} />
-              <View style={styles.addressTextContainer}>
-                <Text style={styles.addressLabel}>Destino</Text>
-                <Text style={styles.addressText} numberOfLines={2}>
-                  {item.dropoff_address}
-                </Text>
-              </View>
+
+        <Text style={styles.incidentType}>{item.incident_type}</Text>
+
+        <View style={styles.addressSection}>
+          <View style={styles.addressRow}>
+            <MapPin size={14} color={colors.success.main} strokeWidth={2} />
+            <View style={styles.addressTextContainer}>
+              <Text style={styles.addressLabel}>Recogida</Text>
+              <Text style={styles.addressText} numberOfLines={2}>
+                {item.pickup_address}
+              </Text>
             </View>
-          </>
-        )}
-        {!isTow && (
-          <Text style={styles.pickupOnlyText}>Solo recogida</Text>
-        )}
-      </View>
-
-      {item.user_name && (
-        <Text style={styles.userName}>Cliente: {item.user_name}</Text>
-      )}
-
-      {/* Vehicle Photo */}
-      {item.vehicle_photo_url && (
-        <View style={styles.photoContainer}>
-          <Image
-            source={{ uri: item.vehicle_photo_url }}
-            style={styles.vehiclePhoto}
-            resizeMode="cover"
-          />
+          </View>
+          {isTow && (
+            <>
+              <View style={styles.addressLine} />
+              <View style={styles.addressRow}>
+                <MapPin size={14} color={colors.error.main} strokeWidth={2} />
+                <View style={styles.addressTextContainer}>
+                  <Text style={styles.addressLabel}>Destino</Text>
+                  <Text style={styles.addressText} numberOfLines={2}>
+                    {item.dropoff_address}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+          {!isTow && (
+            <Text style={styles.pickupOnlyText}>Solo recogida</Text>
+          )}
         </View>
-      )}
 
-      {/* Notes */}
-      {item.notes && (
-        <Text style={styles.notesText} numberOfLines={2}>{item.notes}</Text>
-      )}
-
-      <TouchableOpacity
-        style={[styles.acceptButton, acceptingId === item.id && styles.acceptButtonDisabled]}
-        onPress={() => handleAcceptRequest(item.id)}
-        disabled={acceptingId === item.id}
-      >
-        {acceptingId === item.id ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.acceptButtonText}>Aceptar Servicio</Text>
+        {item.user_name && (
+          <Text style={styles.userName}>Cliente: {item.user_name}</Text>
         )}
-      </TouchableOpacity>
-    </View>
+
+        {/* Vehicle Photo */}
+        {item.vehicle_photo_url && (
+          <View style={styles.photoContainer}>
+            <Image
+              source={{ uri: item.vehicle_photo_url }}
+              style={styles.vehiclePhoto}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
+        {/* Notes */}
+        {item.notes && (
+          <Text style={styles.notesText} numberOfLines={2}>{item.notes}</Text>
+        )}
+
+        <Button
+          title="Aceptar Servicio"
+          onPress={() => handleAcceptRequest(item.id)}
+          loading={acceptingId === item.id}
+          disabled={acceptingId === item.id}
+          size="large"
+        />
+      </Card>
     );
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.l }]}>
+        <BudiLogo variant="wordmark" height={28} />
         <Text style={styles.greeting}>Hola{operatorName ? `, ${operatorName}` : ''}</Text>
         <Text style={styles.subtitle}>
           {hasActiveService
@@ -293,20 +294,24 @@ export default function OperatorRequests() {
       </View>
 
       {hasActiveService ? (
-        <View style={styles.activeServiceCard}>
-          <Text style={styles.activeServiceText}>
-            Tienes un servicio en curso. Complétalo antes de aceptar uno nuevo.
-          </Text>
-          <TouchableOpacity
-            style={styles.viewActiveButton}
-            onPress={() => router.push('/(operator)/active')}
-          >
-            <Text style={styles.viewActiveButtonText}>Ver Servicio Activo</Text>
-          </TouchableOpacity>
+        <View style={styles.activeServiceWrapper}>
+          <Card variant="outlined" padding="l">
+            <View style={styles.activeServiceContent}>
+              <Zap size={32} color={colors.accent[500]} strokeWidth={2} />
+              <Text style={styles.activeServiceText}>
+                Tienes un servicio en curso. Complétalo antes de aceptar uno nuevo.
+              </Text>
+              <Button
+                title="Ver Servicio Activo"
+                onPress={() => router.push('/(operator)/active')}
+                size="large"
+              />
+            </View>
+          </Card>
         </View>
       ) : requests.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📍</Text>
+          <ClipboardList size={56} color={colors.text.tertiary} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Sin solicitudes</Text>
           <Text style={styles.emptyText}>
             Las nuevas solicitudes aparecerán aquí automáticamente.
@@ -319,7 +324,7 @@ export default function OperatorRequests() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16a34a" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
           }
           showsVerticalScrollIndicator={false}
         />
@@ -331,202 +336,155 @@ export default function OperatorRequests() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   header: {
-    padding: 20,
-    paddingBottom: 12,
+    padding: spacing.l,
+    paddingBottom: spacing.s,
+    backgroundColor: colors.background.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.text.primary,
+    marginTop: spacing.s,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
+    marginTop: spacing.micro,
   },
   listContent: {
-    padding: 20,
-    paddingTop: 8,
-    gap: 16,
-  },
-  requestCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 12,
+    padding: spacing.l,
+    paddingTop: spacing.m,
+    gap: spacing.m,
   },
   requestHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.s,
   },
   towTypeBadge: {
-    backgroundColor: '#f0fdf4',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.micro,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.m,
   },
   towTypeText: {
-    color: '#16a34a',
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
   },
   timeText: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
   },
   incidentType: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.m,
   },
   addressSection: {
-    marginBottom: 12,
+    marginBottom: spacing.s,
   },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-  },
-  addressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#16a34a',
-    marginTop: 4,
-  },
-  destinationDot: {
-    backgroundColor: '#dc2626',
+    gap: spacing.s,
   },
   addressLine: {
     width: 2,
     height: 24,
-    backgroundColor: '#e5e7eb',
-    marginLeft: 5,
-    marginVertical: 4,
+    backgroundColor: colors.border.light,
+    marginLeft: 6,
+    marginVertical: spacing.micro,
   },
   addressTextContainer: {
     flex: 1,
   },
   addressLabel: {
-    fontSize: 11,
-    color: '#9ca3af',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.micro,
+    color: colors.text.tertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   addressText: {
-    fontSize: 14,
-    color: '#374151',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     marginTop: 2,
   },
   pickupOnlyText: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
     fontStyle: 'italic',
-    marginTop: 8,
-    marginLeft: 24,
+    marginTop: spacing.xs,
+    marginLeft: spacing.xl,
   },
   userName: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 12,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginBottom: spacing.s,
   },
   photoContainer: {
-    marginBottom: 12,
-    borderRadius: 8,
+    marginBottom: spacing.s,
+    borderRadius: radii.m,
     overflow: 'hidden',
   },
   vehiclePhoto: {
     width: '100%',
     height: 150,
-    borderRadius: 8,
+    borderRadius: radii.m,
   },
   notesText: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
     fontStyle: 'italic',
-    marginBottom: 12,
-    backgroundColor: '#f9fafb',
-    padding: 10,
-    borderRadius: 8,
+    marginBottom: spacing.s,
+    backgroundColor: colors.background.secondary,
+    padding: spacing.s,
+    borderRadius: radii.m,
   },
-  acceptButton: {
-    backgroundColor: '#16a34a',
-    paddingVertical: 14,
-    borderRadius: 12,
+  activeServiceWrapper: {
+    padding: spacing.l,
+  },
+  activeServiceContent: {
     alignItems: 'center',
-    marginTop: 8,
-  },
-  acceptButtonDisabled: {
-    opacity: 0.7,
-  },
-  acceptButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  activeServiceCard: {
-    margin: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#16a34a',
-    alignItems: 'center',
+    gap: spacing.m,
   },
   activeServiceText: {
-    fontSize: 15,
-    color: '#374151',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  viewActiveButton: {
-    backgroundColor: '#16a34a',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  viewActiveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    padding: spacing.xxxl,
+    gap: spacing.s,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   emptyText: {
-    fontSize: 15,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
   },

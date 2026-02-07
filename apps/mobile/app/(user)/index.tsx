@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   RefreshControl,
   ActivityIndicator,
@@ -20,7 +20,12 @@ import { ChatScreen } from '@/components/ChatScreen';
 import { decodePolyline } from '@/lib/geoUtils';
 import type { LatLng } from '@/lib/geoUtils';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
-import type { ServiceType } from '@gruas-app/shared';
+import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign } from 'lucide-react-native';
+import { SERVICE_ICONS } from '@/lib/serviceIcons';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,17 +67,7 @@ type ActiveRequest = {
   operator_id: string | null;
   operator_name: string | null;
   provider_name: string | null;
-  verification_pin: string | null;
   service_type: string;
-};
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
-  initiated: { label: 'Buscando Operador', color: '#ca8a04', bgColor: '#fef9c3' },
-  assigned: { label: 'Operador Asignado', color: '#2563eb', bgColor: '#dbeafe' },
-  en_route: { label: 'Grúa en Camino', color: '#7c3aed', bgColor: '#ede9fe' },
-  active: { label: 'Servicio en Curso', color: '#16a34a', bgColor: '#dcfce7' },
-  completed: { label: 'Completado', color: '#6b7280', bgColor: '#f3f4f6' },
-  cancelled: { label: 'Cancelado', color: '#dc2626', bgColor: '#fee2e2' },
 };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -81,6 +76,7 @@ const EDGE_PADDING = { top: 60, right: 60, bottom: 60, left: 60 };
 
 export default function UserHome() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -251,7 +247,6 @@ export default function UserHome() {
         dropoff_lng,
         total_price,
         created_at,
-        verification_pin,
         operator_id,
         service_type,
         operator:profiles!service_requests_operator_id_fkey (full_name),
@@ -277,7 +272,6 @@ export default function UserHome() {
         dropoff_lng: req.dropoff_lng,
         total_price: req.total_price,
         created_at: req.created_at,
-        verification_pin: req.verification_pin,
         operator_id: req.operator_id,
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
@@ -428,7 +422,7 @@ export default function UserHome() {
             rotation={operatorLocation.heading ?? 0}
           >
             <View style={styles.truckMarker}>
-              <Text style={styles.truckEmoji}>🚛</Text>
+              <Truck size={20} color={colors.primary[600]} strokeWidth={2.5} />
             </View>
           </OperatorMarkerComponent>
         )}
@@ -437,7 +431,7 @@ export default function UserHome() {
         {Polyline && routeCoordinates.length >= 2 && (
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="#2563eb"
+            strokeColor={colors.primary[500]}
             strokeWidth={4}
             lineDashPattern={isFallback ? [10, 5] : undefined}
           />
@@ -459,23 +453,20 @@ export default function UserHome() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
-
-  const statusConfig = activeRequest ? STATUS_CONFIG[activeRequest.status] : null;
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Header */}
       <View style={styles.header}>
+        <View style={styles.logoContainer}>
+          <BudiLogo variant="wordmark" height={28} />
+        </View>
         <Text style={styles.greeting}>Hola{userName ? `, ${userName}` : ''}</Text>
         <Text style={styles.subtitle}>
           {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas ayuda?'}
@@ -483,38 +474,28 @@ export default function UserHome() {
       </View>
 
       {activeRequest ? (
-        // Active Request Card
-        <View style={styles.activeCard}>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusConfig?.bgColor || '#f3f4f6' },
-            ]}
-          >
-            <View
-              style={[styles.statusDot, { backgroundColor: statusConfig?.color || '#6b7280' }]}
-            />
-            <Text style={[styles.statusText, { color: statusConfig?.color || '#6b7280' }]}>
-              {statusConfig?.label || activeRequest.status}
-            </Text>
-          </View>
+        // Active Request View
+        <View style={styles.activeRequestContainer}>
+          <StatusBadge status={activeRequest.status as ServiceRequestStatus} />
 
-          {/* Live Map Tracking (Native only) */}
+          {/* Live Map Tracking - PROMINENT, outside Card (Native only) */}
           {showTracking && MapView && Marker && (
-            <View style={styles.mapContainer}>
-              {renderMapContent(false)}
+            <View style={styles.mapSection}>
+              <View style={styles.mapContainer}>
+                {renderMapContent(false)}
 
-              {/* Expand button */}
-              <TouchableOpacity
-                style={styles.mapExpandButton}
-                onPress={() => setIsMapFullscreen(true)}
-              >
-                <Text style={styles.mapExpandIcon}>⛶</Text>
-              </TouchableOpacity>
+                {/* Expand button */}
+                <Pressable
+                  style={styles.mapExpandButton}
+                  onPress={() => setIsMapFullscreen(true)}
+                >
+                  <Maximize2 size={18} color={colors.text.primary} />
+                </Pressable>
+              </View>
 
               {operatorLocation && operatorLocation.is_online ? (
                 <View style={styles.trackingInfo}>
-                  <View style={styles.trackingDot} />
+                  <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
                     Ubicacion en vivo
                     {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
@@ -525,6 +506,36 @@ export default function UserHome() {
                   <Text style={styles.trackingTextOffline}>
                     Esperando ubicacion del operador...
                   </Text>
+                </View>
+              )}
+
+              {/* ETA overlay on map */}
+              {showETASection && (
+                <View style={styles.etaContainer}>
+                  {!operatorLocation || !operatorLocation.is_online ? (
+                    <View style={styles.etaLoading}>
+                      <ActivityIndicator size="small" color={colors.primary[400]} />
+                      <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                    </View>
+                  ) : etaLoading ? (
+                    <View style={styles.etaLoading}>
+                      <ActivityIndicator size="small" color={colors.primary[400]} />
+                      <Text style={styles.etaLoadingText}>Calculando tiempo...</Text>
+                    </View>
+                  ) : eta ? (
+                    <>
+                      <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                      <Text style={styles.etaValue}>{eta.etaText}</Text>
+                      <Text style={styles.etaDistance}>
+                        {eta.distanceText} de distancia
+                        {eta.isFallback && ' (aprox.)'}
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={styles.etaLoading}>
+                      <Text style={styles.etaLoadingText}>ETA no disponible</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -541,18 +552,18 @@ export default function UserHome() {
                 {renderMapContent(true)}
 
                 {/* Close button */}
-                <TouchableOpacity
+                <Pressable
                   style={styles.mapCloseButton}
                   onPress={() => setIsMapFullscreen(false)}
                 >
-                  <Text style={styles.mapCloseIcon}>✕</Text>
-                </TouchableOpacity>
+                  <X size={20} color={colors.text.primary} strokeWidth={2.5} />
+                </Pressable>
 
                 {/* Tracking info overlay */}
                 <View style={styles.fullscreenTrackingOverlay}>
                   {operatorLocation && operatorLocation.is_online ? (
                     <View style={styles.trackingInfo}>
-                      <View style={styles.trackingDot} />
+                      <MapPin size={14} color={colors.success.main} />
                       <Text style={styles.trackingText}>
                         Ubicacion en vivo
                         {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
@@ -577,43 +588,13 @@ export default function UserHome() {
             </Modal>
           )}
 
-          {/* ETA Display */}
-          {showETASection && (
-            <View style={styles.etaContainer}>
-              {!operatorLocation || !operatorLocation.is_online ? (
-                <View style={styles.etaLoading}>
-                  <ActivityIndicator size="small" color="#7c3aed" />
-                  <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
-                </View>
-              ) : etaLoading ? (
-                <View style={styles.etaLoading}>
-                  <ActivityIndicator size="small" color="#7c3aed" />
-                  <Text style={styles.etaLoadingText}>Calculando tiempo...</Text>
-                </View>
-              ) : eta ? (
-                <>
-                  <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
-                  <Text style={styles.etaValue}>{eta.etaText}</Text>
-                  <Text style={styles.etaDistance}>
-                    {eta.distanceText} de distancia
-                    {eta.isFallback && ' (aprox.)'}
-                  </Text>
-                </>
-              ) : (
-                <View style={styles.etaLoading}>
-                  <Text style={styles.etaLoadingText}>ETA no disponible</Text>
-                </View>
-              )}
-            </View>
-          )}
-
           {/* Web fallback - show tracking status without map */}
           {showTracking && !MapView && (
             <View style={styles.webTrackingContainer}>
               <Text style={styles.webTrackingTitle}>Seguimiento en tiempo real</Text>
               {operatorLocation && operatorLocation.is_online ? (
                 <View style={styles.trackingInfo}>
-                  <View style={styles.trackingDot} />
+                  <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
                     Operador en linea
                     {lastUpdated && ` • Actualizado hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
@@ -636,106 +617,130 @@ export default function UserHome() {
             </View>
           )}
 
-          <View style={styles.requestDetails}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tipo de Incidente</Text>
-              <Text style={styles.detailValue}>{activeRequest.incident_type}</Text>
+          {/* ETA when no map (status assigned/en_route but MapView unavailable) */}
+          {showETASection && !showTracking && (
+            <View style={styles.etaContainer}>
+              {!operatorLocation || !operatorLocation.is_online ? (
+                <View style={styles.etaLoading}>
+                  <ActivityIndicator size="small" color={colors.primary[400]} />
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                </View>
+              ) : eta ? (
+                <>
+                  <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                  <Text style={styles.etaValue}>{eta.etaText}</Text>
+                </>
+              ) : null}
             </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tipo de Servicio</Text>
-              <Text style={styles.detailValue}>
-                {(() => {
-                  const cfg = SERVICE_TYPE_CONFIGS[(activeRequest.service_type || 'tow') as ServiceType];
-                  const isTow = !activeRequest.service_type || activeRequest.service_type === 'tow';
-                  return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
-                })()}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Recogida</Text>
-              <Text style={styles.detailValue} numberOfLines={2}>
-                {activeRequest.pickup_address}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Destino</Text>
-              <Text style={styles.detailValue} numberOfLines={2}>
-                {activeRequest.dropoff_address}
-              </Text>
-            </View>
+          )}
 
-            {activeRequest.operator_name && (
-              <View style={styles.operatorSection}>
-                <Text style={styles.operatorLabel}>Operador Asignado</Text>
-                <Text style={styles.operatorName}>{activeRequest.operator_name}</Text>
-                {activeRequest.provider_name && (
-                  <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
-                )}
+          {/* Request Details Card */}
+          <Card variant="elevated" padding="l">
+            <View style={styles.requestDetails}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Tipo de Incidente</Text>
+                <Text style={styles.detailValue}>{activeRequest.incident_type}</Text>
               </View>
-            )}
-
-            {/* Chat Button - show when operator is assigned */}
-            {activeRequest.operator_id && ['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
-              <TouchableOpacity
-                style={styles.chatButtonLarge}
-                onPress={() => setShowChat(true)}
-              >
-                <Text style={styles.chatButtonIcon}>💬</Text>
-                <Text style={styles.chatButtonLargeText}>Chat con Operador</Text>
-              </TouchableOpacity>
-            )}
-
-            {activeRequest.verification_pin && activeRequest.status === 'en_route' && (
-              <View style={styles.pinSection}>
-                <Text style={styles.pinLabel}>PIN de Verificacion</Text>
-                <Text style={styles.pinValue}>{activeRequest.verification_pin}</Text>
-                <Text style={styles.pinHint}>
-                  Comparte este PIN con el operador cuando llegue
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Tipo de Servicio</Text>
+                <View style={styles.serviceTypeRow}>
+                  {(() => {
+                    const svcType = (activeRequest.service_type || 'tow') as ServiceType;
+                    const cfg = SERVICE_TYPE_CONFIGS[svcType];
+                    const isTow = !activeRequest.service_type || activeRequest.service_type === 'tow';
+                    const SvcIcon = SERVICE_ICONS[svcType] || Truck;
+                    return (
+                      <>
+                        <SvcIcon size={16} color={cfg?.color || colors.primary[500]} strokeWidth={2} />
+                        <Text style={styles.detailValue}>
+                          {cfg?.name || 'Grua'}{isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
+                        </Text>
+                      </>
+                    );
+                  })()}
+                </View>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Recogida</Text>
+                <Text style={styles.detailValue} numberOfLines={2}>
+                  {activeRequest.pickup_address}
                 </Text>
               </View>
-            )}
-
-            {activeRequest.total_price && (
-              <View style={styles.priceSection}>
-                <Text style={styles.priceLabel}>Precio Estimado</Text>
-                <Text style={styles.priceValue}>${activeRequest.total_price.toFixed(2)}</Text>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Destino</Text>
+                <Text style={styles.detailValue} numberOfLines={2}>
+                  {activeRequest.dropoff_address}
+                </Text>
               </View>
-            )}
-          </View>
 
-          <View style={styles.requestIdRow}>
-            <Text style={styles.requestIdLabel}>ID:</Text>
-            <Text style={styles.requestId}>{activeRequest.id.substring(0, 8)}</Text>
-          </View>
+              {activeRequest.operator_name && (
+                <View style={styles.operatorSection}>
+                  <Text style={styles.operatorLabel}>Operador Asignado</Text>
+                  <Text style={styles.operatorName}>{activeRequest.operator_name}</Text>
+                  {activeRequest.provider_name && (
+                    <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
+                  )}
+                </View>
+              )}
+
+              {/* Chat Button - show when operator is assigned */}
+              {activeRequest.operator_id && ['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
+                <Button
+                  title="Chat con Operador"
+                  onPress={() => setShowChat(true)}
+                  variant="secondary"
+                  size="medium"
+                  icon={<MessageCircle size={18} color={colors.primary[500]} />}
+                />
+              )}
+
+              {activeRequest.total_price && (
+                <View style={styles.priceSection}>
+                  <Text style={styles.priceLabel}>Precio Estimado</Text>
+                  <Text style={styles.priceValue}>${activeRequest.total_price.toFixed(2)}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.requestIdRow}>
+              <Text style={styles.requestIdText}>ID: {activeRequest.id.substring(0, 8)}</Text>
+            </View>
+          </Card>
         </View>
       ) : (
         // No Active Request - Show CTA
         <View style={styles.ctaContainer}>
-          <View style={styles.ctaCard}>
-            <Text style={styles.ctaIcon}>🚗</Text>
-            <Text style={styles.ctaTitle}>Solicitar Servicio</Text>
-            <Text style={styles.ctaDescription}>
-              Estamos listos para ayudarte las 24 horas del dia, los 7 dias de la semana.
-            </Text>
-            <TouchableOpacity
-              style={styles.ctaButton}
-              onPress={() => router.push('/(user)/request')}
-            >
-              <Text style={styles.ctaButtonText}>Solicitar Ahora</Text>
-            </TouchableOpacity>
-          </View>
+          <Card variant="elevated" padding="xl">
+            <View style={styles.ctaContent}>
+              <View style={styles.ctaIconCircle}>
+                <Truck size={48} color={colors.accent[500]} strokeWidth={1.8} />
+              </View>
+              <Text style={styles.ctaTitle}>Solicitar Servicio</Text>
+              <Text style={styles.ctaDescription}>
+                Estamos listos para ayudarte las 24 horas del dia, los 7 dias de la semana.
+              </Text>
+              <Button
+                title="Solicitar Ahora"
+                onPress={() => router.push('/(user)/request')}
+              />
+            </View>
+          </Card>
 
           <View style={styles.infoCards}>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoIcon}>⏱️</Text>
-              <Text style={styles.infoTitle}>Rapido</Text>
-              <Text style={styles.infoText}>Respuesta en minutos</Text>
-            </View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoIcon}>💰</Text>
-              <Text style={styles.infoTitle}>Precios Justos</Text>
-              <Text style={styles.infoText}>Sin sorpresas</Text>
-            </View>
+            <Card padding="m">
+              <View style={styles.infoCardContent}>
+                <Clock size={24} color={colors.primary[500]} strokeWidth={2} />
+                <Text style={styles.infoTitle}>Rapido</Text>
+                <Text style={styles.infoText}>Respuesta en minutos</Text>
+              </View>
+            </Card>
+            <Card padding="m">
+              <View style={styles.infoCardContent}>
+                <DollarSign size={24} color={colors.accent[500]} strokeWidth={2} />
+                <Text style={styles.infoTitle}>Precios Justos</Text>
+                <Text style={styles.infoText}>Sin sorpresas</Text>
+              </View>
+            </Card>
           </View>
 
           {/* Pending Ratings Section */}
@@ -746,7 +751,7 @@ export default function UserHome() {
                 Tienes {pendingRatings.length} servicio{pendingRatings.length > 1 ? 's' : ''} sin calificar
               </Text>
               {pendingRatings.map((item) => (
-                <TouchableOpacity
+                <Pressable
                   key={item.id}
                   style={styles.pendingRatingCard}
                   onPress={() => {
@@ -769,9 +774,10 @@ export default function UserHome() {
                     </Text>
                   </View>
                   <View style={styles.pendingRatingStars}>
-                    <Text style={styles.pendingRatingStarsText}>⭐ Calificar</Text>
+                    <Star size={16} color={colors.accent[500]} fill={colors.accent[500]} />
+                    <Text style={styles.pendingRatingStarsText}>Calificar</Text>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           )}
@@ -801,271 +807,139 @@ export default function UserHome() {
 }
 
 const styles = StyleSheet.create({
+  // Layout
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: spacing.l,
+    paddingBottom: spacing.xxxxl,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-  },
+
+  // Header
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
+  },
+  logoContainer: {
+    marginBottom: spacing.s,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.text.primary,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
+    marginTop: spacing.micro,
   },
-  activeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+
+  // Active request layout
+  activeRequestContainer: {
+    gap: spacing.m,
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    gap: 6,
+
+  // Map section - prominent, full width
+  mapSection: {
+    borderRadius: radii.l,
+    overflow: 'hidden',
+    backgroundColor: colors.border.light,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
+  // Request details
   requestDetails: {
-    marginTop: 20,
-    gap: 16,
+    gap: spacing.m,
   },
   detailRow: {
-    gap: 4,
+    gap: spacing.micro,
   },
   detailLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
   },
   detailValue: {
-    fontSize: 15,
-    color: '#111827',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
   },
-  operatorSection: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 8,
-  },
-  operatorLabel: {
-    fontSize: 12,
-    color: '#16a34a',
-    fontWeight: '500',
-  },
-  operatorName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginTop: 4,
-  },
-  providerName: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  chatButton: {
-    marginTop: 12,
-    backgroundColor: '#2563eb',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  chatButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  chatButtonLarge: {
-    marginTop: 12,
-    backgroundColor: '#16a34a',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+  serviceTypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: spacing.xs,
   },
-  chatButtonIcon: {
-    fontSize: 20,
+
+  // Operator
+  operatorSection: {
+    marginTop: spacing.xs,
+    padding: spacing.s,
+    backgroundColor: colors.success.light,
+    borderRadius: radii.s,
   },
-  chatButtonLargeText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  operatorLabel: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
   },
-  pinSection: {
-    marginTop: 8,
-    padding: 16,
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
-    alignItems: 'center',
+  operatorName: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    marginTop: spacing.micro,
   },
-  pinLabel: {
-    fontSize: 12,
-    color: '#2563eb',
-    fontWeight: '500',
+  providerName: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
-  pinValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1e40af',
-    letterSpacing: 8,
-    marginTop: 8,
-  },
-  pinHint: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 8,
-    textAlign: 'center',
-  },
+
+  // Chat icon removed - using Lucide MessageCircle
+
+  // Price
   priceSection: {
-    marginTop: 8,
+    marginTop: spacing.xs,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   priceLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   priceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
   },
+
+  // Request ID
   requestIdRow: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: spacing.m,
+    paddingTop: spacing.m,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    borderTopColor: colors.border.light,
   },
-  requestIdLabel: {
-    fontSize: 12,
-    color: '#9ca3af',
+  requestIdText: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
   },
-  requestId: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontFamily: 'monospace',
-  },
-  ctaContainer: {
-    gap: 16,
-  },
-  ctaCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  ctaIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  ctaTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  ctaDescription: {
-    fontSize: 15,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  ctaButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-  },
-  ctaButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoCards: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  infoIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
+
+  // Map
   mapContainer: {
-    marginTop: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#e5e7eb',
+    height: MAP_HEIGHT,
+    backgroundColor: colors.border.light,
   },
   mapFullscreen: {
     flex: 1,
   },
   mapContainerFullscreen: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.black,
   },
   mapExpandButton: {
     position: 'absolute',
@@ -1073,42 +947,34 @@ const styles = StyleSheet.create({
     right: 10,
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radii.full,
     backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
     elevation: 3,
     zIndex: 10,
   },
-  mapExpandIcon: {
-    fontSize: 20,
-    color: '#111827',
-  },
+  // mapExpandIcon removed - using Lucide Maximize2
   mapCloseButton: {
     position: 'absolute',
     top: 50,
-    right: 16,
+    right: spacing.m,
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
     zIndex: 10,
-  },
-  mapCloseIcon: {
-    fontSize: 20,
-    color: '#111827',
-    fontWeight: 'bold',
   },
   fullscreenTrackingOverlay: {
     position: 'absolute',
@@ -1119,166 +985,231 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
   },
   fullscreenEtaBar: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#faf5ff',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    backgroundColor: colors.primary[50],
     alignItems: 'center',
   },
   fullscreenEtaText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#581c87',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[800],
   },
+
+  // Truck marker
   truckMarker: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderWidth: 3,
-    borderColor: '#2563eb',
+    borderColor: colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  truckEmoji: {
-    fontSize: 24,
-  },
+
+  // Tracking info
   trackingInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-    backgroundColor: '#dcfce7',
-    gap: 6,
+    padding: spacing.xs,
+    backgroundColor: colors.success.light,
+    gap: spacing.xs,
   },
-  trackingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#16a34a',
-  },
+  // trackingDot removed - using Lucide MapPin
   trackingText: {
-    fontSize: 12,
-    color: '#16a34a',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
   },
   trackingInfoOffline: {
-    padding: 8,
-    backgroundColor: '#fef3c7',
+    padding: spacing.xs,
+    backgroundColor: colors.warning.light,
     alignItems: 'center',
   },
   trackingTextOffline: {
-    fontSize: 12,
-    color: '#92400e',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.warning.dark,
   },
+
+  // Web tracking
   webTrackingContainer: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 12,
+    marginTop: spacing.m,
+    padding: spacing.m,
+    backgroundColor: colors.info.light,
+    borderRadius: radii.m,
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: colors.info.main,
   },
   webTrackingTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0369a1',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.info.dark,
+    marginBottom: spacing.xs,
     textAlign: 'center',
   },
+
+  // ETA
   etaContainer: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#faf5ff',
-    borderRadius: 12,
+    marginTop: spacing.m,
+    padding: spacing.m,
+    backgroundColor: colors.primary[50],
+    borderRadius: radii.m,
     borderWidth: 1,
-    borderColor: '#e9d5ff',
+    borderColor: colors.primary[100],
     alignItems: 'center',
   },
   etaLoading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs,
   },
   etaLoadingText: {
-    fontSize: 14,
-    color: '#7c3aed',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[400],
   },
   etaLabel: {
-    fontSize: 12,
-    color: '#7c3aed',
-    fontWeight: '500',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.primary[500],
+    marginBottom: spacing.micro,
   },
   etaValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#581c87',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.primary[800],
   },
   etaDistance: {
-    fontSize: 13,
-    color: '#9333ea',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[400],
+    marginTop: spacing.micro,
   },
   etaContainerWeb: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: spacing.s,
+    paddingTop: spacing.s,
     borderTopWidth: 1,
-    borderTopColor: '#bae6fd',
+    borderTopColor: colors.info.main,
     alignItems: 'center',
   },
-  // Pending Ratings Styles
+
+  // CTA (no active request)
+  ctaContainer: {
+    gap: spacing.m,
+  },
+  ctaContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.m,
+  },
+  ctaIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.accent[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.m,
+  },
+  ctaTitle: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  ctaDescription: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.l,
+    lineHeight: typography.lineHeights.bodySmall,
+  },
+
+  // Info cards
+  infoCards: {
+    flexDirection: 'row',
+    gap: spacing.s,
+  },
+  infoCardContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
+    marginBottom: spacing.micro,
+  },
+  infoText: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+
+  // Pending ratings
   pendingRatingsSection: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#fffbeb',
-    borderRadius: 16,
+    marginTop: spacing.xl,
+    padding: spacing.m,
+    backgroundColor: colors.warning.light,
+    borderRadius: radii.l,
     borderWidth: 1,
-    borderColor: '#fde68a',
+    borderColor: colors.warning.main,
   },
   pendingRatingsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h4,
+    color: colors.warning.dark,
+    marginBottom: spacing.micro,
   },
   pendingRatingsSubtitle: {
-    fontSize: 14,
-    color: '#b45309',
-    marginBottom: 12,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.warning.dark,
+    marginBottom: spacing.s,
   },
   pendingRatingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 8,
+    backgroundColor: colors.background.primary,
+    padding: spacing.s,
+    borderRadius: radii.m,
+    marginTop: spacing.xs,
     borderWidth: 1,
-    borderColor: '#fde68a',
+    borderColor: colors.warning.main,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent[500],
   },
   pendingRatingInfo: {
     flex: 1,
   },
   pendingRatingOperator: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
   },
   pendingRatingDate: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     marginTop: 2,
   },
   pendingRatingStars: {
-    backgroundColor: '#fef3c7',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.micro,
+    backgroundColor: colors.accent[50],
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.full,
   },
   pendingRatingStarsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400e',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.accent[600],
   },
 });

@@ -7,7 +7,7 @@ export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'MOP';
 export type TowType = 'light' | 'heavy';
 
 // Service Types
-export type ServiceType = 'tow' | 'battery' | 'tire' | 'fuel' | 'locksmith';
+export type ServiceType = 'tow' | 'battery' | 'tire' | 'fuel' | 'locksmith' | 'mechanic' | 'winch';
 
 // Fuel Types
 export type FuelType = 'regular' | 'premium' | 'diesel';
@@ -54,7 +54,40 @@ export const SERVICE_TYPE_CONFIGS: Record<ServiceType, ServiceTypeConfig> = {
   tire:      { type: 'tire',      emoji: '🛞', name: 'Llanta',      color: '#3498DB' },
   fuel:      { type: 'fuel',      emoji: '⛽', name: 'Combustible', color: '#E74C3C' },
   locksmith: { type: 'locksmith', emoji: '🔑', name: 'Cerrajeria',  color: '#9B59B6' },
+  mechanic:  { type: 'mechanic',  emoji: '🔧', name: 'Mecanico',    color: '#F39C12' },
+  winch:     { type: 'winch',     emoji: '🏗️', name: 'Winche',      color: '#1ABC9C' },
 };
+
+// Service (dynamic catalog) Interface
+export interface Service {
+  id: string;
+  slug: string;
+  name_es: string;
+  name_en: string;
+  description_es: string;
+  description_en: string;
+  icon: string;
+  base_price: number;
+  extra_fee: number;
+  extra_fee_label: string | null;
+  requires_destination: boolean;
+  sort_order: number;
+  is_active: boolean;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Provider-Service Junction Interface
+export interface ProviderService {
+  id: string;
+  provider_id: string;
+  service_id: string;
+  is_available: boolean;
+  custom_price: number | null;
+  created_at: string;
+  updated_at: string;
+}
 
 // Service Request Status
 export type ServiceRequestStatus =

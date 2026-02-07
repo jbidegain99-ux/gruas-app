@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { ServiceTypeBadge } from '@/components/ServiceTypeBadge';
 
 type Provider = {
   id: string;
@@ -12,6 +13,19 @@ type Provider = {
   contact_email: string | null;
   address: string | null;
   created_at: string;
+  provider_services?: ProviderServiceRow[];
+};
+
+type ProviderServiceRow = {
+  service_id: string;
+  is_available: boolean;
+  services: { slug: string; name_es: string } | null;
+};
+
+type ServiceOption = {
+  id: string;
+  slug: string;
+  name_es: string;
 };
 
 export default function ProvidersPage() {
@@ -26,9 +40,12 @@ export default function ProvidersPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from('providers')
-        .select('*')
+        .select(`
+          *,
+          provider_services(service_id, is_available, services(slug, name_es))
+        `)
         .order('created_at', { ascending: false });
-      setProviders(data || []);
+      setProviders((data as Provider[]) || []);
       setLoading(false);
     };
     fetchProviders();
@@ -57,11 +74,11 @@ export default function ProvidersPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+          <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">
             Proveedores
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Gestiona los proveedores de servicios de grua
+            Gestiona los proveedores de servicios
           </p>
         </div>
         <button
@@ -69,7 +86,7 @@ export default function ProvidersPage() {
             setEditingProvider(null);
             setShowForm(true);
           }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600"
         >
           Agregar Proveedor
         </button>
@@ -102,6 +119,9 @@ export default function ProvidersPage() {
                   Tipo Grua
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Servicios
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Contacto
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -115,13 +135,13 @@ export default function ProvidersPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
                     Cargando...
                   </td>
                 </tr>
               ) : providers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
                     No hay proveedores registrados
                   </td>
                 </tr>
@@ -145,6 +165,18 @@ export default function ProvidersPage() {
                       {provider.tow_type_supported === 'heavy' && 'Pesada'}
                       {provider.tow_type_supported === 'both' && 'Ambas'}
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {provider.provider_services
+                          ?.filter((ps) => ps.is_available)
+                          .map((ps) => (
+                            <ServiceTypeBadge
+                              key={ps.service_id}
+                              serviceType={ps.services?.slug || ''}
+                            />
+                          )) || <span className="text-xs text-zinc-400">-</span>}
+                      </div>
+                    </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                       {provider.contact_phone || provider.contact_email || 'N/A'}
                     </td>
@@ -166,7 +198,7 @@ export default function ProvidersPage() {
                           setEditingProvider(provider);
                           setShowForm(true);
                         }}
-                        className="mr-2 text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                        className="mr-2 text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
                       >
                         Editar
                       </button>
@@ -206,13 +238,52 @@ function ProviderForm({
   const [address, setAddress] = useState(provider?.address || '');
   const [loading, setLoading] = useState(false);
 
+  // Service assignment
+  const [allServices, setAllServices] = useState<ServiceOption[]>([]);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('services')
+        .select('id, slug, name_es')
+        .eq('is_active', true)
+        .order('sort_order');
+      setAllServices(data || []);
+
+      // Pre-select assigned services
+      if (provider?.provider_services) {
+        const assigned = new Set(
+          provider.provider_services
+            .filter((ps) => ps.is_available)
+            .map((ps) => ps.service_id)
+        );
+        setSelectedServiceIds(assigned);
+      }
+    };
+    fetchServices();
+  }, [provider]);
+
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     const supabase = createClient();
 
-    const data = {
+    const providerData = {
       name,
       tow_type_supported: towType,
       contact_phone: phone || null,
@@ -220,10 +291,29 @@ function ProviderForm({
       address: address || null,
     };
 
+    let providerId = provider?.id;
+
     if (provider) {
-      await supabase.from('providers').update(data).eq('id', provider.id);
+      await supabase.from('providers').update(providerData).eq('id', provider.id);
     } else {
-      await supabase.from('providers').insert(data);
+      const { data } = await supabase.from('providers').insert(providerData).select('id').single();
+      providerId = data?.id;
+    }
+
+    // Sync provider_services
+    if (providerId) {
+      // Remove all existing
+      await supabase.from('provider_services').delete().eq('provider_id', providerId);
+
+      // Insert selected
+      if (selectedServiceIds.size > 0) {
+        const rows = Array.from(selectedServiceIds).map((serviceId) => ({
+          provider_id: providerId,
+          service_id: serviceId,
+          is_available: true,
+        }));
+        await supabase.from('provider_services').insert(rows);
+      }
     }
 
     setLoading(false);
@@ -297,6 +387,34 @@ function ProviderForm({
             className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
           />
         </div>
+
+        {/* Service Assignment */}
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Servicios Asignados
+          </label>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {allServices.map((svc) => (
+              <label
+                key={svc.id}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${
+                  selectedServiceIds.has(svc.id)
+                    ? 'border-budi-primary-500 bg-budi-primary-50 dark:bg-budi-primary-900/20'
+                    : 'border-zinc-200 dark:border-zinc-700'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedServiceIds.has(svc.id)}
+                  onChange={() => toggleService(svc.id)}
+                  className="rounded border-zinc-300 text-budi-primary-500 focus:ring-budi-primary-500"
+                />
+                <ServiceTypeBadge serviceType={svc.slug} />
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="flex justify-end gap-2">
           <button
             type="button"
@@ -308,7 +426,7 @@ function ProviderForm({
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
           >
             {loading ? 'Guardando...' : 'Guardar'}
           </button>

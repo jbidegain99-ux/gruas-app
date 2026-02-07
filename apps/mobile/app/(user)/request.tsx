@@ -3,8 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -21,6 +20,20 @@ import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
 import { LocationPicker } from '@/components/LocationPicker';
 import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, MapPin, Flag, LocateFixed } from 'lucide-react-native';
+import { BudiLogo, Button, Card, Input } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
+
+type LucideIconComponent = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
+
+const SERVICE_ICONS: Record<ServiceType, LucideIconComponent> = {
+  tow: Truck,
+  battery: Battery,
+  tire: CircleDot,
+  fuel: Fuel,
+  locksmith: KeyRound,
+};
 
 type TowType = 'light' | 'heavy';
 
@@ -53,6 +66,7 @@ type PricingRule = {
 
 export default function RequestService() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
@@ -401,9 +415,29 @@ export default function RequestService() {
       Alert.alert(
         'Solicitud Enviada',
         `Tu solicitud de ${svcName} ha sido registrada.\n\nPIN de verificacion: ${data.pin}\n\nGuarda este PIN. Lo necesitaras cuando llegue el operador.`,
-        [{ text: 'Ver Estado', onPress: () => router.replace('/(user)') }]
+        [{
+          text: 'Ver Estado',
+          onPress: () => {
+            setStep(1);
+            setServiceType('tow');
+            setPickupCoords(null);
+            setPickupAddress('');
+            setDropoffCoords(null);
+            setDropoffAddress('');
+            setTowType('light');
+            setIncidentType('');
+            setVehicleDescription('');
+            setNotes('');
+            setPhoto(null);
+            setEstimatedPrice(null);
+            setHasSpare(null);
+            setFuelType('regular');
+            setFuelGallons(1);
+            setSubmitting(false);
+            router.replace('/(user)');
+          },
+        }]
       );
-      setSubmitting(false);
     } catch {
       Alert.alert('Error de conexion', 'No se pudo conectar con el servidor.');
       setSubmitting(false);
@@ -417,40 +451,49 @@ export default function RequestService() {
       <Text style={styles.stepSubtitle}>Selecciona el servicio que necesitas</Text>
 
       {loadingPricingTypes ? (
-        <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={colors.primary[500]} style={{ marginTop: spacing.l }} />
       ) : (
         <View style={styles.serviceGrid}>
           {serviceTypePricing.map((stp) => {
             const config = SERVICE_TYPE_CONFIGS[stp.service_type as ServiceType];
             const isSelected = serviceType === stp.service_type;
+            const ServiceIcon = SERVICE_ICONS[stp.service_type as ServiceType] || Truck;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={stp.id}
                 style={[
                   styles.serviceCard,
-                  isSelected && { borderColor: config?.color || '#2563eb', backgroundColor: `${config?.color || '#2563eb'}10` },
+                  isSelected && { borderColor: colors.accent[500], backgroundColor: colors.accent[50] },
                 ]}
                 onPress={() => setServiceType(stp.service_type as ServiceType)}
               >
-                <Text style={styles.serviceCardIcon}>{stp.icon}</Text>
-                <Text style={[styles.serviceCardName, isSelected && { color: config?.color || '#2563eb' }]}>
+                <View style={[
+                  styles.serviceIconContainer,
+                  { backgroundColor: `${config?.color || colors.primary[500]}20` },
+                  isSelected && { backgroundColor: `${colors.accent[500]}20` },
+                ]}>
+                  <ServiceIcon
+                    size={36}
+                    color={isSelected ? colors.accent[500] : (config?.color || colors.primary[500])}
+                    strokeWidth={1.8}
+                  />
+                </View>
+                <Text style={[styles.serviceCardName, isSelected && { color: colors.accent[600] }]}>
                   {stp.display_name}
                 </Text>
                 <Text style={styles.serviceCardDesc}>{stp.description}</Text>
                 <Text style={styles.serviceCardPrice}>Desde ${stp.base_price.toFixed(2)}</Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.nextButton, !serviceType && styles.buttonDisabled]}
+      <Button
+        title="Siguiente"
         onPress={() => setStep(2)}
         disabled={!serviceType}
-      >
-        <Text style={styles.nextButtonText}>Siguiente</Text>
-      </TouchableOpacity>
+      />
     </View>
   );
 
@@ -460,46 +503,53 @@ export default function RequestService() {
       <Text style={styles.stepTitle}>Ubicacion</Text>
 
       <Text style={styles.label}>Punto de Recogida</Text>
-      <TouchableOpacity
+      <Pressable
         style={styles.locationSelector}
         onPress={() => setShowPickupPicker(true)}
       >
-        <Text style={styles.locationSelectorIcon}>📍</Text>
+        <View style={styles.locationSelectorIconWrap}>
+          <MapPin size={20} color={colors.primary[500]} strokeWidth={2} />
+        </View>
         <View style={styles.locationSelectorContent}>
           <Text style={[styles.locationSelectorText, !pickupAddress && styles.locationSelectorPlaceholder]}>
             {pickupAddress || 'Toca para seleccionar ubicacion'}
           </Text>
         </View>
         <Text style={styles.locationSelectorArrow}>›</Text>
-      </TouchableOpacity>
+      </Pressable>
 
-      <TouchableOpacity
+      <Pressable
         style={styles.quickGpsButton}
         onPress={getCurrentLocation}
         disabled={gettingLocation}
       >
         {gettingLocation ? (
-          <ActivityIndicator color="#2563eb" size="small" />
+          <ActivityIndicator color={colors.primary[500]} size="small" />
         ) : (
-          <Text style={styles.quickGpsText}>📡 Usar mi ubicacion actual</Text>
+          <View style={styles.quickGpsContent}>
+            <LocateFixed size={16} color={colors.primary[500]} strokeWidth={2} />
+            <Text style={styles.quickGpsText}>Usar mi ubicacion actual</Text>
+          </View>
         )}
-      </TouchableOpacity>
+      </Pressable>
 
       {requiresDestination && (
         <>
           <Text style={styles.label}>Destino</Text>
-          <TouchableOpacity
+          <Pressable
             style={styles.locationSelector}
             onPress={() => setShowDestinationPicker(true)}
           >
-            <Text style={styles.locationSelectorIcon}>🏁</Text>
+            <View style={styles.locationSelectorIconWrap}>
+              <Flag size={20} color={colors.error.main} strokeWidth={2} />
+            </View>
             <View style={styles.locationSelectorContent}>
               <Text style={[styles.locationSelectorText, !dropoffAddress && styles.locationSelectorPlaceholder]}>
                 {dropoffAddress || 'Toca para seleccionar destino'}
               </Text>
             </View>
             <Text style={styles.locationSelectorArrow}>›</Text>
-          </TouchableOpacity>
+          </Pressable>
         </>
       )}
 
@@ -512,19 +562,17 @@ export default function RequestService() {
       )}
 
       <View style={styles.navButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
-          <Text style={styles.backButtonText}>Atras</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.nextButton,
-            (!pickupAddress || (requiresDestination && !dropoffAddress)) && styles.buttonDisabled,
-          ]}
-          onPress={() => setStep(3)}
-          disabled={!pickupAddress || (requiresDestination && !dropoffAddress)}
-        >
-          <Text style={styles.nextButtonText}>Siguiente</Text>
-        </TouchableOpacity>
+        <View style={styles.navBack}>
+          <Button title="Atras" onPress={() => setStep(1)} variant="secondary" size="medium" />
+        </View>
+        <View style={styles.navNext}>
+          <Button
+            title="Siguiente"
+            onPress={() => setStep(3)}
+            size="medium"
+            disabled={!pickupAddress || (requiresDestination && !dropoffAddress)}
+          />
+        </View>
       </View>
 
       <LocationPicker
@@ -561,26 +609,26 @@ export default function RequestService() {
       <>
         <Text style={styles.label}>Tipo de Grua</Text>
         <View style={styles.toggleContainer}>
-          <TouchableOpacity
+          <Pressable
             style={[styles.toggleButton, towType === 'light' && styles.toggleActive]}
             onPress={() => setTowType('light')}
           >
             <Text style={[styles.toggleText, towType === 'light' && styles.toggleTextActive]}>Liviana</Text>
             <Text style={styles.toggleSubtext}>Autos, camionetas</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Pressable>
+          <Pressable
             style={[styles.toggleButton, towType === 'heavy' && styles.toggleActive]}
             onPress={() => setTowType('heavy')}
           >
             <Text style={[styles.toggleText, towType === 'heavy' && styles.toggleTextActive]}>Pesada</Text>
             <Text style={styles.toggleSubtext}>Camiones, buses</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <Text style={styles.label}>Tipo de Incidente</Text>
         <View style={styles.incidentGrid}>
           {INCIDENT_TYPES.map((type) => (
-            <TouchableOpacity
+            <Pressable
               key={type}
               style={[styles.incidentButton, incidentType === type && styles.incidentActive]}
               onPress={() => setIncidentType(type)}
@@ -588,7 +636,7 @@ export default function RequestService() {
               <Text style={[styles.incidentText, incidentType === type && styles.incidentTextActive]}>
                 {type}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
       </>
@@ -598,20 +646,20 @@ export default function RequestService() {
       <>
         <Text style={styles.label}>Tienes llanta de repuesto?</Text>
         <View style={styles.toggleContainer}>
-          <TouchableOpacity
+          <Pressable
             style={[styles.toggleButton, hasSpare === true && styles.toggleActive]}
             onPress={() => setHasSpare(true)}
           >
             <Text style={[styles.toggleText, hasSpare === true && styles.toggleTextActive]}>Si tengo</Text>
             <Text style={styles.toggleSubtext}>Solo cambio</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Pressable>
+          <Pressable
             style={[styles.toggleButton, hasSpare === false && styles.toggleActive]}
             onPress={() => setHasSpare(false)}
           >
             <Text style={[styles.toggleText, hasSpare === false && styles.toggleTextActive]}>No tengo</Text>
             <Text style={styles.toggleSubtext}>+${currentPricingType?.extra_fee?.toFixed(2) || '15.00'}</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </>
     );
@@ -621,7 +669,7 @@ export default function RequestService() {
         <Text style={styles.label}>Tipo de Combustible</Text>
         <View style={styles.toggleContainer}>
           {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => (
-            <TouchableOpacity
+            <Pressable
               key={ft}
               style={[styles.toggleButton, fuelType === ft && styles.toggleActive]}
               onPress={() => setFuelType(ft)}
@@ -629,25 +677,25 @@ export default function RequestService() {
               <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
                 {ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
         <Text style={styles.label}>Cantidad (galones)</Text>
         <View style={styles.gallonSelector}>
-          <TouchableOpacity
+          <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.max(1, fuelGallons - 1))}
           >
             <Text style={styles.gallonBtnText}>-</Text>
-          </TouchableOpacity>
+          </Pressable>
           <Text style={styles.gallonValue}>{fuelGallons}</Text>
-          <TouchableOpacity
+          <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.min(10, fuelGallons + 1))}
           >
             <Text style={styles.gallonBtnText}>+</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
         {fuelGallons > 1 && currentPricingType && (
           <Text style={styles.extraFeeNote}>
@@ -671,18 +719,22 @@ export default function RequestService() {
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>
-          {SERVICE_TYPE_CONFIGS[serviceType].emoji} Detalles del Servicio
-        </Text>
+        <View style={styles.stepTitleRow}>
+          {(() => {
+            const SvcIcon = SERVICE_ICONS[serviceType] || Truck;
+            const cfg = SERVICE_TYPE_CONFIGS[serviceType];
+            return <SvcIcon size={22} color={cfg?.color || colors.primary[500]} strokeWidth={2} />;
+          })()}
+          <Text style={styles.stepTitle}>Detalles del Servicio</Text>
+        </View>
 
         {serviceType === 'tow' && renderTowDetails()}
         {serviceType === 'tire' && renderTireDetails()}
         {serviceType === 'fuel' && renderFuelDetails()}
         {(serviceType === 'battery' || serviceType === 'locksmith') && renderSimpleDetails()}
 
-        <Text style={styles.label}>Notas Adicionales (opcional)</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
+        <Input
+          label="Notas Adicionales (opcional)"
           placeholder="Informacion adicional para el operador..."
           value={notes}
           onChangeText={setNotes}
@@ -691,16 +743,12 @@ export default function RequestService() {
         />
 
         <View style={styles.navButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
-            <Text style={styles.backButtonText}>Atras</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.nextButton, !canProceed && styles.buttonDisabled]}
-            onPress={() => setStep(4)}
-            disabled={!canProceed}
-          >
-            <Text style={styles.nextButtonText}>Siguiente</Text>
-          </TouchableOpacity>
+          <View style={styles.navBack}>
+            <Button title="Atras" onPress={() => setStep(2)} variant="secondary" size="medium" />
+          </View>
+          <View style={styles.navNext}>
+            <Button title="Siguiente" onPress={() => setStep(4)} size="medium" disabled={!canProceed} />
+          </View>
         </View>
       </View>
     );
@@ -711,9 +759,8 @@ export default function RequestService() {
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Detalles del Vehiculo</Text>
 
-      <Text style={styles.label}>Descripcion del Vehiculo (opcional)</Text>
-      <TextInput
-        style={styles.input}
+      <Input
+        label="Descripcion del Vehiculo (opcional)"
         placeholder="Ej: Toyota Corolla 2020, color blanco"
         value={vehicleDescription}
         onChangeText={setVehicleDescription}
@@ -721,12 +768,12 @@ export default function RequestService() {
 
       <Text style={styles.label}>Foto del Vehiculo (opcional)</Text>
       <View style={styles.photoButtons}>
-        <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-          <Text style={styles.photoButtonText}>Tomar Foto</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-          <Text style={styles.photoButtonText}>Galeria</Text>
-        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Button title="Tomar Foto" onPress={takePhoto} variant="secondary" size="medium" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button title="Galeria" onPress={pickImage} variant="secondary" size="medium" />
+        </View>
       </View>
 
       {photo && (
@@ -734,12 +781,12 @@ export default function RequestService() {
       )}
 
       <View style={styles.navButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(3)}>
-          <Text style={styles.backButtonText}>Atras</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(5)}>
-          <Text style={styles.nextButtonText}>Ver Resumen</Text>
-        </TouchableOpacity>
+        <View style={styles.navBack}>
+          <Button title="Atras" onPress={() => setStep(3)} variant="secondary" size="medium" />
+        </View>
+        <View style={styles.navNext}>
+          <Button title="Ver Resumen" onPress={() => setStep(5)} size="medium" />
+        </View>
       </View>
     </View>
   );
@@ -754,75 +801,81 @@ export default function RequestService() {
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Servicio:</Text>
-            <Text style={styles.summaryValue}>{config.emoji} {config.name}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Recogida:</Text>
-            <Text style={styles.summaryValue}>{pickupAddress}</Text>
-          </View>
-          {requiresDestination && (
+        <Card variant="outlined" padding="m">
+          <View style={styles.summaryContent}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Destino:</Text>
-              <Text style={styles.summaryValue}>{dropoffAddress}</Text>
-            </View>
-          )}
-          {serviceType === 'tow' && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tipo de Grua:</Text>
-              <Text style={styles.summaryValue}>{towType === 'light' ? 'Liviana' : 'Pesada'}</Text>
-            </View>
-          )}
-          {serviceType === 'tow' && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Incidente:</Text>
-              <Text style={styles.summaryValue}>{incidentType}</Text>
-            </View>
-          )}
-          {serviceType === 'tire' && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Repuesto:</Text>
-              <Text style={styles.summaryValue}>{hasSpare ? 'Si' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
-            </View>
-          )}
-          {serviceType === 'fuel' && (
-            <>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Combustible:</Text>
-                <Text style={styles.summaryValue}>{fuelType === 'regular' ? 'Regular' : fuelType === 'premium' ? 'Premium' : 'Diesel'}</Text>
+              <Text style={styles.summaryLabel}>Servicio:</Text>
+              <View style={styles.summaryServiceRow}>
+                {(() => {
+                  const SvcIcon = SERVICE_ICONS[serviceType] || Truck;
+                  return <SvcIcon size={16} color={config.color || colors.primary[500]} strokeWidth={2} />;
+                })()}
+                <Text style={styles.summaryValue}>{config.name}</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Galones:</Text>
-                <Text style={styles.summaryValue}>{fuelGallons}</Text>
-              </View>
-            </>
-          )}
-          {vehicleDescription && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Vehiculo:</Text>
-              <Text style={styles.summaryValue}>{vehicleDescription}</Text>
             </View>
-          )}
-        </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Recogida:</Text>
+              <Text style={styles.summaryValue}>{pickupAddress}</Text>
+            </View>
+            {requiresDestination && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Destino:</Text>
+                <Text style={styles.summaryValue}>{dropoffAddress}</Text>
+              </View>
+            )}
+            {serviceType === 'tow' && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Tipo de Grua:</Text>
+                <Text style={styles.summaryValue}>{towType === 'light' ? 'Liviana' : 'Pesada'}</Text>
+              </View>
+            )}
+            {serviceType === 'tow' && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Incidente:</Text>
+                <Text style={styles.summaryValue}>{incidentType}</Text>
+              </View>
+            )}
+            {serviceType === 'tire' && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Repuesto:</Text>
+                <Text style={styles.summaryValue}>{hasSpare ? 'Si' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
+              </View>
+            )}
+            {serviceType === 'fuel' && (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Combustible:</Text>
+                  <Text style={styles.summaryValue}>{fuelType === 'regular' ? 'Regular' : fuelType === 'premium' ? 'Premium' : 'Diesel'}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Galones:</Text>
+                  <Text style={styles.summaryValue}>{fuelGallons}</Text>
+                </View>
+              </>
+            )}
+            {vehicleDescription && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Vehiculo:</Text>
+                <Text style={styles.summaryValue}>{vehicleDescription}</Text>
+              </View>
+            )}
+          </View>
+        </Card>
 
         <View style={styles.priceCard}>
-          <Text style={styles.priceLabel}>Precio Estimado</Text>
+          <Text style={styles.priceLabelText}>Precio Estimado</Text>
 
           {requiresDestination ? (
             // Tow: depends on distance calculation
             distanceLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#2563eb" />
+                <ActivityIndicator size="large" color={colors.primary[500]} />
                 <Text style={styles.loadingText}>Calculando distancia...</Text>
               </View>
             ) : distanceError ? (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{distanceError}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={refetchDistance}>
-                  <Text style={styles.retryButtonText}>Reintentar</Text>
-                </TouchableOpacity>
+                <Button title="Reintentar" onPress={refetchDistance} size="small" />
               </View>
             ) : (
               <>
@@ -863,30 +916,28 @@ export default function RequestService() {
         </View>
 
         <View style={styles.navButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(4)}>
-            <Text style={styles.backButtonText}>Atras</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (submitting || (requiresDestination && (distanceLoading || !calculatedDistance))) && styles.buttonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={submitting || (requiresDestination && (distanceLoading || !calculatedDistance))}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Confirmar Solicitud</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.navBack}>
+            <Button title="Atras" onPress={() => setStep(4)} variant="secondary" size="medium" />
+          </View>
+          <View style={styles.navNext}>
+            <Button
+              title="Confirmar Solicitud"
+              onPress={handleSubmit}
+              size="medium"
+              loading={submitting}
+              disabled={submitting || (requiresDestination && (distanceLoading || !calculatedDistance))}
+            />
+          </View>
         </View>
       </View>
     );
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}>
+      <View style={styles.wizardHeader}>
+        <BudiLogo variant="icon" height={28} />
+      </View>
       <View style={styles.progressContainer}>
         {[1, 2, 3, 4, 5].map((s) => (
           <View
@@ -906,387 +957,366 @@ export default function RequestService() {
 }
 
 const styles = StyleSheet.create({
+  // Layout
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: spacing.l,
+    paddingBottom: spacing.xxxxl,
   },
+
+  // Wizard header
+  wizardHeader: {
+    marginBottom: spacing.s,
+  },
+
+  // Progress
   progressContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
   },
   progressDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.border.light,
   },
   progressDotActive: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
   },
+
+  // Step
   stepContainer: {
-    gap: 16,
+    gap: spacing.m,
+  },
+  stepTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    marginBottom: spacing.micro,
   },
   stepTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   stepSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
+    marginTop: spacing.xs,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  // ─── Service Type Grid ───
+
+  // Service Type Grid
   serviceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: spacing.s,
   },
   serviceCard: {
     width: '47%',
     borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    padding: 16,
+    borderColor: colors.border.light,
+    borderRadius: radii.l,
+    padding: spacing.m,
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
   },
-  serviceCardIcon: {
-    fontSize: 32,
+  serviceIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   serviceCardName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: typography.fonts.bodyBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
   },
   serviceCardDesc: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   serviceCardPrice: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2563eb',
-    marginTop: 4,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.accent[600],
+    marginTop: spacing.micro,
   },
-  // ─── Location ───
+
+  // Location
   locationSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 14,
-    backgroundColor: '#f9fafb',
+    borderColor: colors.border.light,
+    borderRadius: radii.m,
+    padding: spacing.s,
+    backgroundColor: colors.background.secondary,
   },
-  locationSelectorIcon: {
-    fontSize: 20,
-    marginRight: 12,
+  locationSelectorIconWrap: {
+    marginRight: spacing.s,
   },
   locationSelectorContent: {
     flex: 1,
   },
   locationSelectorText: {
-    fontSize: 15,
-    color: '#111827',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
   },
   locationSelectorPlaceholder: {
-    color: '#9ca3af',
+    color: colors.text.tertiary,
   },
   locationSelectorArrow: {
     fontSize: 24,
-    color: '#9ca3af',
-    marginLeft: 8,
+    color: colors.text.tertiary,
+    marginLeft: spacing.xs,
   },
   quickGpsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: spacing.xs,
+  },
+  quickGpsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   quickGpsText: {
-    color: '#2563eb',
-    fontSize: 14,
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[500],
   },
   infoBox: {
-    backgroundColor: '#f0f9ff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.info.light,
+    borderRadius: radii.m,
+    padding: spacing.m,
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: colors.info.main,
   },
   infoBoxText: {
-    fontSize: 14,
-    color: '#0369a1',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.info.dark,
     textAlign: 'center',
   },
-  // ─── Toggle / Incident ───
+
+  // Toggle / Incident
   toggleContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s,
   },
   toggleButton: {
     flex: 1,
-    padding: 16,
+    padding: spacing.m,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
+    borderColor: colors.border.light,
+    borderRadius: radii.m,
     alignItems: 'center',
   },
   toggleActive: {
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
   },
   toggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
   },
   toggleTextActive: {
-    color: '#2563eb',
+    color: colors.primary[500],
   },
   toggleSubtext: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginTop: spacing.micro,
   },
   incidentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.xs,
   },
   incidentButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.s,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 20,
-    backgroundColor: '#f9fafb',
+    borderColor: colors.border.light,
+    borderRadius: radii.full,
+    backgroundColor: colors.background.secondary,
   },
   incidentActive: {
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
   },
   incidentText: {
-    fontSize: 14,
-    color: '#374151',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
   },
   incidentTextActive: {
-    color: '#2563eb',
-    fontWeight: '600',
+    color: colors.primary[500],
+    fontFamily: typography.fonts.bodySemiBold,
   },
-  // ─── Gallon selector ───
+
+  // Gallon selector
   gallonSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
-    marginTop: 8,
+    gap: spacing.xl,
+    marginTop: spacing.xs,
   },
   gallonBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     alignItems: 'center',
     justifyContent: 'center',
   },
   gallonBtnText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    color: colors.white,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
   },
   gallonValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.text.primary,
     minWidth: 40,
     textAlign: 'center',
   },
   extraFeeNote: {
-    fontSize: 12,
-    color: '#f59e0b',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.warning.main,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: spacing.micro,
   },
-  // ─── Photo ───
+
+  // Photo
   photoButtons: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  photoButton: {
-    flex: 1,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  photoButtonText: {
-    color: '#2563eb',
-    fontWeight: '600',
+    gap: spacing.s,
   },
   photoPreview: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
-    marginTop: 8,
+    borderRadius: radii.s,
+    marginTop: spacing.xs,
   },
-  // ─── Navigation ───
+
+  // Navigation
   navButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
+    gap: spacing.s,
+    marginTop: spacing.xl,
   },
-  backButton: {
+  navBack: {
     flex: 1,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    alignItems: 'center',
   },
-  backButtonText: {
-    color: '#374151',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  nextButton: {
+  navNext: {
     flex: 2,
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
   },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  // ─── Summary ───
-  summaryCard: {
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
+
+  // Summary
+  summaryContent: {
+    gap: spacing.s,
   },
   summaryRow: {
-    gap: 4,
+    gap: spacing.micro,
+  },
+  summaryServiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   summaryLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
   },
   summaryValue: {
-    fontSize: 15,
-    color: '#111827',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
   },
-  // ─── Price ───
+
+  // Price
   priceCard: {
-    backgroundColor: '#eff6ff',
-    padding: 20,
-    borderRadius: 12,
+    backgroundColor: colors.primary[50],
+    padding: spacing.l,
+    borderRadius: radii.m,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: spacing.m,
   },
-  priceLabel: {
-    fontSize: 14,
-    color: '#1e40af',
-    fontWeight: '500',
+  priceLabelText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[500],
   },
   priceValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#1e40af',
-    marginVertical: 8,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.hero,
+    color: colors.accent[600],
+    marginVertical: spacing.xs,
   },
   priceNote: {
-    fontSize: 14,
-    color: '#3b82f6',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[400],
   },
   priceDisclaimer: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: spacing.xs,
   },
-  submitButton: {
-    flex: 2,
-    backgroundColor: '#16a34a',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
+  // Loading / Error
   loadingContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: spacing.m,
   },
   loadingText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   errorContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.s,
+    gap: spacing.xs,
   },
   errorText: {
-    fontSize: 14,
-    color: '#dc2626',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.error.main,
     textAlign: 'center',
-    marginBottom: 8,
-  },
-  retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   fallbackNote: {
-    fontSize: 11,
-    color: '#f59e0b',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    color: colors.warning.main,
     fontStyle: 'italic',
-    marginTop: 4,
+    marginTop: spacing.micro,
   },
 });

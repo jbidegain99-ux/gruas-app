@@ -2,8 +2,6 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
@@ -13,6 +11,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { BudiLogo, Button, Input } from '@/components/ui';
+import { colors, typography, spacing } from '@/theme';
 
 export default function Login() {
   const router = useRouter();
@@ -62,45 +62,43 @@ export default function Login() {
         style={styles.container}
       >
         <View style={styles.inner}>
-          <Text style={styles.title}>Iniciar Sesión</Text>
+          <View style={styles.header}>
+            <BudiLogo variant="icon" height={48} />
+            <Text style={styles.title}>Iniciar Sesión</Text>
+          </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#6b7280"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+          <View style={styles.form}>
+            <Input
+              label="Email"
+              placeholder="tu@email.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            placeholderTextColor="#6b7280"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+            <Input
+              label="Contraseña"
+              placeholder="Tu contraseña"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Cargando...' : 'Iniciar Sesión'}
-            </Text>
-          </TouchableOpacity>
+            <Button
+              title={loading ? 'Cargando...' : 'Iniciar Sesión'}
+              onPress={handleLogin}
+              loading={loading}
+              disabled={loading}
+            />
+          </View>
 
-          <TouchableOpacity
-            style={styles.linkButton}
+          <Button
+            title="¿No tienes cuenta? Regístrate"
             onPress={() => router.push('/(auth)/register')}
-          >
-            <Text style={styles.linkText}>
-              ¿No tienes cuenta? Regístrate
-            </Text>
-          </TouchableOpacity>
+            variant="tertiary"
+            size="small"
+          />
         </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -110,52 +108,26 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.background.secondary,
   },
   inner: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: spacing.l,
     justifyContent: 'center',
   },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
+    gap: spacing.s,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
     textAlign: 'center',
-    color: '#111827',
   },
-  input: {
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
-    color: '#111827',
-    letterSpacing: 0,
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#93c5fd',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#2563eb',
-    fontSize: 14,
+  form: {
+    gap: spacing.m,
+    marginBottom: spacing.xl,
   },
 });

@@ -7,6 +7,35 @@ interface Coordinates {
   lng: number;
 }
 
+// Haversine formula for local fallback ETA calculation
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c * 1.3; // 1.3 factor to approximate road distance
+}
+
+function calculateLocalFallback(
+  operator: Coordinates,
+  destination: Coordinates
+): ETAResult {
+  const distanceKm = haversineDistanceKm(operator.lat, operator.lng, destination.lat, destination.lng);
+  const etaMinutes = Math.max(1, Math.round((distanceKm / 25) * 60)); // 25 km/h urban avg
+  return {
+    etaMinutes,
+    etaText: `~${etaMinutes} min`,
+    distanceKm: Math.round(distanceKm * 10) / 10,
+    distanceText: `~${Math.round(distanceKm)} km`,
+    isFallback: true,
+    overviewPolyline: null,
+  };
+}
+
 interface ETAResult {
   etaMinutes: number;
   etaText: string;
@@ -79,14 +108,21 @@ export function useETA(
       });
 
       if (fnError) {
-        console.error('[ETA] Edge function error:', fnError);
-        setError('No se pudo calcular el tiempo estimado');
+        console.warn('[ETA] Edge function unavailable, using local fallback');
+        const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
+        setEta(fallback);
+        setLastUpdated(new Date());
+        lastFetchedPositionRef.current = { ...operatorLocation };
         setLoading(false);
         return;
       }
 
       if (!data.success) {
-        setError(data.error || 'Error al calcular ETA');
+        console.warn('[ETA] Edge function returned error, using local fallback');
+        const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
+        setEta(fallback);
+        setLastUpdated(new Date());
+        lastFetchedPositionRef.current = { ...operatorLocation };
         setLoading(false);
         return;
       }
@@ -105,8 +141,11 @@ export function useETA(
       lastFetchedPositionRef.current = { ...operatorLocation };
       console.log('[ETA] Updated:', result);
     } catch (err) {
-      console.error('[ETA] Error:', err);
-      setError('Error de conexion');
+      console.warn('[ETA] Connection error, using local fallback');
+      const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
+      setEta(fallback);
+      setLastUpdated(new Date());
+      lastFetchedPositionRef.current = { ...operatorLocation };
     } finally {
       setLoading(false);
     }

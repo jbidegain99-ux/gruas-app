@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -8,8 +9,39 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-heading: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Budi Primary (Blue) */
+  --color-budi-primary-50: #eff6ff;
+  --color-budi-primary-100: #dbeafe;
+  --color-budi-primary-200: #bfdbfe;
+  --color-budi-primary-300: #93c5fd;
+  --color-budi-primary-400: #60a5fa;
+  --color-budi-primary-500: #3b82f6;
+  --color-budi-primary-600: #2563eb;
+  --color-budi-primary-700: #1d4ed8;
+  --color-budi-primary-800: #1e40af;
+  --color-budi-primary-900: #1e3a8a;
+
+  /* Budi Accent (Orange) */
+  --color-budi-accent-50: #fff7ed;
+  --color-budi-accent-100: #ffedd5;
+  --color-budi-accent-200: #fed7aa;
+  --color-budi-accent-300: #fdba74;
+  --color-budi-accent-400: #fb923c;
+  --color-budi-accent-500: #f97316;
+  --color-budi-accent-600: #ea580c;
+  --color-budi-accent-700: #c2410c;
+  --color-budi-accent-800: #9a3412;
+  --color-budi-accent-900: #7c2d12;
+
+  /* Budi Semantic */
+  --color-budi-success: #22c55e;
+  --color-budi-error: #ef4444;
+  --color-budi-warning: #f59e0b;
+  --color-budi-info: #3b82f6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +54,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }

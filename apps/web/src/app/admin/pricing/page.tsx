@@ -83,7 +83,7 @@ export default function PricingPage() {
             setEditingRule(null);
             setShowForm(true);
           }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600"
         >
           Nueva Regla
         </button>
@@ -235,7 +235,7 @@ export default function PricingPage() {
                           setEditingRule(rule);
                           setShowForm(true);
                         }}
-                        className="mr-2 text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                        className="mr-2 text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
                       >
                         Editar
                       </button>
@@ -405,7 +405,7 @@ function PricingForm({
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
           >
             {loading ? 'Guardando...' : 'Guardar'}
           </button>

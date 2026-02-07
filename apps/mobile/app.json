@@ -16,7 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gruasapp.mobile",
       "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY"
+        "googleMapsApiKey": "AIzaSyAp0pMWmRn6bFMccjkU0t75MpKuAbNWYOo"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We need your location to show nearby tow truck requests and provide real-time tracking.",
@@ -32,7 +32,7 @@
       "package": "com.gruasapp.mobile",
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyAp0pMWmRn6bFMccjkU0t75MpKuAbNWYOo"
         }
       },
       "permissions": [
@@ -68,7 +68,8 @@
           "color": "#FF7B00",
           "sounds": []
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

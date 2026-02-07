@@ -2,8 +2,7 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
@@ -15,6 +14,8 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { UserRole } from '@gruas-app/shared';
+import { BudiLogo, Button, Input } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 export default function Register() {
   const router = useRouter();
@@ -76,82 +77,78 @@ export default function Register() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Crear Cuenta</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Nombre completo"
-            placeholderTextColor="#6b7280"
-            value={fullName}
-            onChangeText={setFullName}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#6b7280"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Teléfono"
-            placeholderTextColor="#6b7280"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            placeholderTextColor="#6b7280"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <Text style={styles.label}>Tipo de cuenta:</Text>
-          <View style={styles.roleContainer}>
-            <TouchableOpacity
-              style={[styles.roleButton, role === 'USER' && styles.roleButtonActive]}
-              onPress={() => setRole('USER')}
-            >
-              <Text style={[styles.roleText, role === 'USER' && styles.roleTextActive]}>
-                Usuario
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.roleButton, role === 'OPERATOR' && styles.roleButtonActive]}
-              onPress={() => setRole('OPERATOR')}
-            >
-              <Text style={[styles.roleText, role === 'OPERATOR' && styles.roleTextActive]}>
-                Operador
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.header}>
+            <BudiLogo variant="icon" height={44} />
+            <Text style={styles.title}>Crear Cuenta</Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Registrando...' : 'Registrarse'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.form}>
+            <Input
+              label="Nombre completo"
+              placeholder="Juan Pérez"
+              value={fullName}
+              onChangeText={setFullName}
+            />
 
-          <TouchableOpacity
-            style={styles.linkButton}
+            <Input
+              label="Email"
+              placeholder="tu@email.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Input
+              label="Teléfono"
+              placeholder="+503 7000-0000"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+
+            <Input
+              label="Contraseña"
+              placeholder="Mínimo 6 caracteres"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <Text style={styles.label}>Tipo de cuenta</Text>
+            <View style={styles.roleContainer}>
+              <Pressable
+                style={[styles.roleButton, role === 'USER' && styles.roleButtonActive]}
+                onPress={() => setRole('USER')}
+              >
+                <Text style={[styles.roleText, role === 'USER' && styles.roleTextActive]}>
+                  Usuario
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.roleButton, role === 'OPERATOR' && styles.roleButtonActive]}
+                onPress={() => setRole('OPERATOR')}
+              >
+                <Text style={[styles.roleText, role === 'OPERATOR' && styles.roleTextActive]}>
+                  Operador
+                </Text>
+              </Pressable>
+            </View>
+
+            <Button
+              title={loading ? 'Registrando...' : 'Registrarse'}
+              onPress={handleRegister}
+              loading={loading}
+              disabled={loading}
+            />
+          </View>
+
+          <Button
+            title="¿Ya tienes cuenta? Inicia sesión"
             onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.linkText}>
-              ¿Ya tienes cuenta? Inicia sesión
-            </Text>
-          </TouchableOpacity>
+            variant="tertiary"
+            size="small"
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
@@ -161,82 +158,58 @@ export default function Register() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.background.secondary,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
+    paddingHorizontal: spacing.l,
     justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    gap: spacing.s,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
     textAlign: 'center',
-    color: '#111827',
   },
-  input: {
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
-    color: '#111827',
+  form: {
+    gap: spacing.m,
+    marginBottom: spacing.xl,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#374151',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   roleContainer: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
+    gap: spacing.s,
   },
   roleButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
+    paddingVertical: spacing.s,
+    borderRadius: radii.m,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.background.primary,
   },
   roleButtonActive: {
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
   },
   roleText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
   },
   roleTextActive: {
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#93c5fd',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#2563eb',
-    fontSize: 14,
+    color: colors.primary[500],
+    fontFamily: typography.fonts.bodySemiBold,
   },
 });

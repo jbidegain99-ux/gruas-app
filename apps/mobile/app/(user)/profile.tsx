@@ -3,16 +3,19 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   ActivityIndicator,
   Alert,
-  TextInput,
   Modal,
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LogOut, Pencil, AlertCircle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
   id: string;
@@ -25,6 +28,7 @@ type Profile = {
 
 export default function Profile() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -186,23 +190,16 @@ export default function Profile() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Cargando perfil...</Text>
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorIcon}>!</Text>
+        <AlertCircle size={48} color={colors.error.main} strokeWidth={1.5} />
         <Text style={styles.errorTitle}>Error</Text>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </TouchableOpacity>
+        <Button title="Reintentar" onPress={fetchProfile} size="medium" />
       </View>
     );
   }
@@ -211,9 +208,7 @@ export default function Profile() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Perfil no encontrado</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={handleLogout}>
-          <Text style={styles.retryButtonText}>Cerrar Sesion</Text>
-        </TouchableOpacity>
+        <Button title="Cerrar Sesion" onPress={handleLogout} size="medium" />
       </View>
     );
   }
@@ -221,10 +216,15 @@ export default function Profile() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Header */}
+      {/* Header with logo */}
+      <View style={styles.headerTop}>
+        <BudiLogo variant="icon" height={28} />
+      </View>
+
+      {/* Profile Header */}
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>
@@ -243,7 +243,7 @@ export default function Profile() {
       </View>
 
       {/* Info Card */}
-      <View style={styles.card}>
+      <Card variant="default" padding="l">
         <Text style={styles.cardTitle}>Informacion Personal</Text>
 
         <View style={styles.infoRow}>
@@ -266,23 +266,29 @@ export default function Profile() {
           <Text style={styles.infoValue}>{formatDate(profile.created_at)}</Text>
         </View>
 
-        <TouchableOpacity style={styles.editButton} onPress={openEditModal}>
-          <Text style={styles.editButtonText}>Editar Perfil</Text>
-        </TouchableOpacity>
-      </View>
+        <Button
+          title="Editar Perfil"
+          onPress={openEditModal}
+          variant="secondary"
+          size="medium"
+          icon={<Pencil size={16} color={colors.primary[500]} />}
+        />
+      </Card>
 
       {/* Actions Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Cuenta</Text>
-
-        <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Cerrar Sesion</Text>
-        </TouchableOpacity>
+      <View style={styles.actionsCard}>
+        <Card variant="default" padding="l">
+          <Text style={styles.cardTitle}>Cuenta</Text>
+          <Pressable style={styles.actionRow} onPress={handleLogout}>
+            <LogOut size={18} color={colors.error.main} />
+            <Text style={styles.logoutText}>Cerrar Sesion</Text>
+          </Pressable>
+        </Card>
       </View>
 
       {/* App Info */}
       <View style={styles.appInfo}>
-        <Text style={styles.appName}>Gruas App</Text>
+        <BudiLogo variant="wordmark" height={20} color={colors.text.tertiary} />
         <Text style={styles.appVersion}>Version 1.0.0</Text>
       </View>
 
@@ -295,35 +301,35 @@ export default function Profile() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+            <Pressable onPress={() => setEditModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancelar</Text>
-            </TouchableOpacity>
+            </Pressable>
             <Text style={styles.modalTitle}>Editar Perfil</Text>
-            <TouchableOpacity onPress={handleSaveProfile} disabled={saving}>
+            <Pressable onPress={handleSaveProfile} disabled={saving}>
               {saving ? (
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={colors.primary[500]} />
               ) : (
                 <Text style={styles.modalSave}>Guardar</Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={styles.inputLabel}>Nombre Completo</Text>
-            <TextInput
-              style={styles.input}
+            <Input
+              label="Nombre Completo"
+              placeholder="Tu nombre completo"
               value={editName}
               onChangeText={setEditName}
-              placeholder="Tu nombre completo"
               autoCapitalize="words"
             />
 
-            <Text style={styles.inputLabel}>Telefono</Text>
-            <TextInput
-              style={styles.input}
+            <View style={styles.modalInputSpacer} />
+
+            <Input
+              label="Telefono"
+              placeholder="Tu numero de telefono"
               value={editPhone}
               onChangeText={setEditPhone}
-              placeholder="Tu numero de telefono"
               keyboardType="phone-pad"
             />
 
@@ -340,209 +346,162 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: spacing.l,
+    paddingBottom: spacing.xxxl,
+  },
+  headerTop: {
+    marginBottom: spacing.m,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
+    backgroundColor: colors.background.secondary,
+    gap: spacing.s,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 40,
-  },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-    color: '#dc2626',
-    fontWeight: 'bold',
+    backgroundColor: colors.background.secondary,
+    padding: spacing.xxxl,
+    gap: spacing.m,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   errorText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   avatarContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.s,
   },
   avatarText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.text.inverse,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   roleBadge: {
-    backgroundColor: '#dbeafe',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: colors.primary[50],
+    paddingVertical: spacing.micro,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.full,
   },
   roleText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#2563eb',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[500],
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    marginBottom: spacing.m,
   },
   infoRow: {
-    marginBottom: 16,
+    marginBottom: spacing.m,
   },
   infoLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginBottom: spacing.micro,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   infoValue: {
-    fontSize: 16,
-    color: '#111827',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
   },
-  editButton: {
-    backgroundColor: '#eff6ff',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  editButtonText: {
-    color: '#2563eb',
-    fontSize: 16,
-    fontWeight: '600',
+  actionsCard: {
+    marginTop: spacing.m,
   },
   actionRow: {
-    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    paddingVertical: spacing.s,
   },
   logoutText: {
-    fontSize: 16,
-    color: '#dc2626',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.error.main,
   },
   appInfo: {
     alignItems: 'center',
-    marginTop: 24,
-  },
-  appName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9ca3af',
+    marginTop: spacing.xl,
+    gap: spacing.micro,
   },
   appVersion: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 2,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    marginTop: spacing.micro,
   },
-  // Modal Styles
+  // Modal
   modalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.l,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.light,
   },
   modalCancel: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h4,
+    color: colors.text.primary,
   },
   modalSave: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
   },
   modalContent: {
-    padding: 20,
+    padding: spacing.l,
   },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
+  modalInputSpacer: {
+    height: spacing.m,
   },
   inputHint: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 16,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    marginTop: spacing.m,
     textAlign: 'center',
   },
 });

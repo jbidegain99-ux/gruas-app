@@ -1,22 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
+  Pressable,
   RefreshControl,
-  ActivityIndicator,
   Modal,
   ScrollView,
-  TextInput,
   Alert,
 } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck } from 'lucide-react-native';
+import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
-import type { ServiceType } from '@gruas-app/shared';
+import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
   id: string;
@@ -39,15 +43,6 @@ type ServiceRequest = {
 
 type FilterType = 'all' | 'active' | 'completed' | 'cancelled';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
-  initiated: { label: 'Buscando Operador', color: '#ca8a04', bgColor: '#fef9c3' },
-  assigned: { label: 'Operador Asignado', color: '#2563eb', bgColor: '#dbeafe' },
-  en_route: { label: 'Grua en Camino', color: '#7c3aed', bgColor: '#ede9fe' },
-  active: { label: 'Servicio en Curso', color: '#16a34a', bgColor: '#dcfce7' },
-  completed: { label: 'Completado', color: '#6b7280', bgColor: '#f3f4f6' },
-  cancelled: { label: 'Cancelado', color: '#dc2626', bgColor: '#fee2e2' },
-};
-
 const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'active', label: 'Activas' },
@@ -56,6 +51,8 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
 ];
 
 export default function History() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,9 +143,12 @@ export default function History() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+  // Re-fetch every time the tab gains focus (not just on mount)
+  useFocusEffect(
+    useCallback(() => {
+      fetchRequests();
+    }, [fetchRequests])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -191,11 +191,7 @@ export default function History() {
   };
 
   const handleCancelRequest = async () => {
-    console.log('=== CANCEL REQUEST STARTED ===');
-    console.log('selectedRequest:', selectedRequest?.id);
-
     if (!selectedRequest) {
-      console.error('No request selected!');
       Alert.alert('Error', 'No hay solicitud seleccionada');
       return;
     }
@@ -208,92 +204,75 @@ export default function History() {
     setCancelling(true);
 
     try {
-      console.log('Calling cancel_service_request RPC...');
       const { data, error } = await supabase.rpc('cancel_service_request', {
         p_request_id: selectedRequest.id,
         p_reason: cancelReason.trim(),
       });
 
-      console.log('RPC response - data:', data);
-      console.log('RPC response - error:', error);
-
       if (error) {
-        console.error('Supabase RPC error:', error);
         Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
         return;
       }
 
       if (data && !data.success) {
-        console.error('RPC returned error:', data.error);
         Alert.alert('Error', data.error || 'No se pudo cancelar la solicitud');
         return;
       }
 
-      console.log('Request cancelled successfully');
       Alert.alert('Solicitud Cancelada', 'Tu solicitud ha sido cancelada exitosamente');
       setCancelModalVisible(false);
       setDetailModalVisible(false);
       setSelectedRequest(null);
       await fetchRequests();
-    } catch (err: any) {
-      console.error('=== CANCEL ERROR ===');
-      console.error('Error object:', err);
-      console.error('Error message:', err?.message);
-      Alert.alert(
-        'Error',
-        err?.message || 'No se pudo cancelar la solicitud. Intenta de nuevo.'
-      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'No se pudo cancelar la solicitud. Intenta de nuevo.';
+      Alert.alert('Error', message);
     } finally {
       setCancelling(false);
-      console.log('=== CANCEL REQUEST FINISHED ===');
     }
   };
 
   const renderRequestCard = ({ item }: { item: ServiceRequest }) => {
-    const statusConfig = STATUS_CONFIG[item.status] || STATUS_CONFIG.initiated;
+    const cfg = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
+    const isTow = !item.service_type || item.service_type === 'tow';
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => openDetail(item)}>
+      <Card variant="default" padding="m" onPress={() => openDetail(item)}>
         <View style={styles.cardHeader}>
-          <View
-            style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}
-          >
-            <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
-            <Text style={[styles.statusText, { color: statusConfig.color }]}>
-              {statusConfig.label}
-            </Text>
-          </View>
+          <StatusBadge status={item.status as ServiceRequestStatus} size="small" />
           <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
         </View>
 
         <Text style={styles.incidentType}>{item.incident_type}</Text>
 
         <View style={styles.addressRow}>
-          <View style={[styles.dot, { backgroundColor: '#16a34a' }]} />
+          <MapPin size={14} color={colors.success.main} />
           <Text style={styles.addressText} numberOfLines={1}>
             {item.pickup_address}
           </Text>
         </View>
         <View style={styles.addressRow}>
-          <View style={[styles.dot, { backgroundColor: '#dc2626' }]} />
+          <MapPin size={14} color={colors.error.main} />
           <Text style={styles.addressText} numberOfLines={1}>
             {item.dropoff_address}
           </Text>
         </View>
 
         <View style={styles.cardFooter}>
-          <Text style={styles.towType}>
+          <View style={styles.serviceTypeRow}>
             {(() => {
-              const cfg = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
-              const isTow = !item.service_type || item.service_type === 'tow';
-              return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+              const SvcIcon = SERVICE_ICONS[(item.service_type || 'tow') as ServiceType] || Truck;
+              return <SvcIcon size={14} color={cfg?.color || colors.primary[500]} strokeWidth={2} />;
             })()}
-          </Text>
+            <Text style={styles.towType}>
+              {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
+            </Text>
+          </View>
           {item.total_price && (
             <Text style={styles.price}>${item.total_price.toFixed(2)}</Text>
           )}
         </View>
-      </TouchableOpacity>
+      </Card>
     );
   };
 
@@ -301,7 +280,6 @@ export default function History() {
     if (!selectedRequest) return null;
 
     // When chat is active, show ChatScreen inside the detail modal
-    // instead of opening a second Modal (which causes invisible overlay)
     if (chatModalVisible && currentUserId) {
       return (
         <Modal
@@ -310,7 +288,7 @@ export default function History() {
           presentationStyle="pageSheet"
           onRequestClose={() => setChatModalVisible(false)}
         >
-          <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+          <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
             <ChatScreen
               requestId={selectedRequest.id}
               currentUserId={currentUserId}
@@ -322,8 +300,6 @@ export default function History() {
       );
     }
 
-    const statusConfig = STATUS_CONFIG[selectedRequest.status] || STATUS_CONFIG.initiated;
-
     return (
       <Modal
         visible={detailModalVisible}
@@ -334,27 +310,17 @@ export default function History() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Detalle de Solicitud</Text>
-            <TouchableOpacity
+            <Pressable
               style={styles.closeButton}
               onPress={() => setDetailModalVisible(false)}
             >
               <Text style={styles.closeButtonText}>Cerrar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            <View
-              style={[
-                styles.detailStatusBadge,
-                { backgroundColor: statusConfig.bgColor },
-              ]}
-            >
-              <View
-                style={[styles.statusDot, { backgroundColor: statusConfig.color }]}
-              />
-              <Text style={[styles.detailStatusText, { color: statusConfig.color }]}>
-                {statusConfig.label}
-              </Text>
+            <View style={styles.detailStatusContainer}>
+              <StatusBadge status={selectedRequest.status as ServiceRequestStatus} />
             </View>
 
             <View style={styles.detailSection}>
@@ -364,13 +330,22 @@ export default function History() {
 
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Tipo de Servicio</Text>
-              <Text style={styles.detailValue}>
+              <View style={styles.serviceTypeRow}>
                 {(() => {
-                  const cfg = SERVICE_TYPE_CONFIGS[(selectedRequest.service_type || 'tow') as ServiceType];
+                  const svcType = (selectedRequest.service_type || 'tow') as ServiceType;
+                  const cfg = SERVICE_TYPE_CONFIGS[svcType];
                   const isTow = !selectedRequest.service_type || selectedRequest.service_type === 'tow';
-                  return `${cfg?.emoji || '🚛'} ${cfg?.name || 'Grua'}${isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`;
+                  const SvcIcon = SERVICE_ICONS[svcType] || Truck;
+                  return (
+                    <>
+                      <SvcIcon size={16} color={cfg?.color || colors.primary[500]} strokeWidth={2} />
+                      <Text style={styles.detailValue}>
+                        {cfg?.name || 'Grua'}{isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
+                      </Text>
+                    </>
+                  );
                 })()}
-              </Text>
+              </View>
             </View>
 
             <View style={styles.detailSection}>
@@ -455,31 +430,29 @@ export default function History() {
 
             {/* Chat Button for active requests with operator */}
             {selectedRequest.operator_id && ['assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
-              <TouchableOpacity
-                style={styles.chatButton}
-                onPress={() => {
-                  console.log('=== CHAT BUTTON PRESSED ===');
-                  console.log('selectedRequest.id:', selectedRequest?.id);
-                  console.log('selectedRequest.operator_id:', selectedRequest?.operator_id);
-                  console.log('selectedRequest.operator_name:', selectedRequest?.operator_name);
-                  console.log('currentUserId:', currentUserId);
-                  console.log('Setting chatModalVisible to true...');
-                  setChatModalVisible(true);
-                }}
-              >
-                <Text style={styles.chatButtonText}>Abrir Chat con Operador</Text>
-              </TouchableOpacity>
+              <Button
+                title="Chat con Operador"
+                onPress={() => setChatModalVisible(true)}
+                variant="secondary"
+                size="medium"
+                icon={<MessageCircle size={18} color={colors.primary[500]} />}
+              />
             )}
 
             {/* Cancel Button for active requests */}
             {['initiated', 'assigned', 'en_route'].includes(selectedRequest.status) && (
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={openCancelModal}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar Solicitud</Text>
-              </TouchableOpacity>
+              <View style={styles.cancelButtonContainer}>
+                <Button
+                  title="Cancelar Solicitud"
+                  onPress={openCancelModal}
+                  variant="tertiary"
+                  size="medium"
+                  icon={<XCircle size={18} color={colors.primary[500]} />}
+                />
+              </View>
             )}
+
+            <View style={styles.modalBottomSpacer} />
           </ScrollView>
         </View>
       </Modal>
@@ -500,35 +473,34 @@ export default function History() {
             Por favor indica el motivo de la cancelacion
           </Text>
 
-          <TextInput
-            style={styles.cancelReasonInput}
+          <Input
+            label=""
             placeholder="Escribe el motivo..."
             value={cancelReason}
             onChangeText={setCancelReason}
             multiline
             numberOfLines={3}
-            textAlignVertical="top"
           />
 
           <View style={styles.cancelModalButtons}>
-            <TouchableOpacity
-              style={styles.cancelModalButtonSecondary}
-              onPress={() => setCancelModalVisible(false)}
-              disabled={cancelling}
-            >
-              <Text style={styles.cancelModalButtonSecondaryText}>Volver</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.cancelModalButtonPrimary, cancelling && styles.buttonDisabled]}
-              onPress={handleCancelRequest}
-              disabled={cancelling}
-            >
-              {cancelling ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.cancelModalButtonPrimaryText}>Confirmar</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.cancelModalBtnHalf}>
+              <Button
+                title="Volver"
+                onPress={() => setCancelModalVisible(false)}
+                variant="secondary"
+                size="medium"
+                disabled={cancelling}
+              />
+            </View>
+            <View style={styles.cancelModalBtnHalf}>
+              <Button
+                title="Confirmar"
+                onPress={handleCancelRequest}
+                size="medium"
+                loading={cancelling}
+                disabled={cancelling}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -536,17 +508,13 @@ export default function History() {
   );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Cargando historial...</Text>
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.l }]}>
+        <BudiLogo variant="wordmark" height={28} />
         <Text style={styles.title}>Historial</Text>
         <Text style={styles.subtitle}>Tus solicitudes de servicio</Text>
       </View>
@@ -555,7 +523,7 @@ export default function History() {
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {FILTER_OPTIONS.map((option) => (
-            <TouchableOpacity
+            <Pressable
               key={option.key}
               style={[
                 styles.filterButton,
@@ -571,16 +539,14 @@ export default function History() {
               >
                 {option.label}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </ScrollView>
       </View>
 
       {filteredRequests.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>
-            {filter === 'all' ? '📋' : filter === 'active' ? '🔄' : filter === 'completed' ? '✅' : '❌'}
-          </Text>
+          <Clock size={56} color={colors.text.tertiary} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>
             {filter === 'all'
               ? 'Sin solicitudes'
@@ -595,6 +561,16 @@ export default function History() {
               ? 'Aun no has realizado ninguna solicitud de servicio.'
               : 'No hay solicitudes en esta categoria.'}
           </Text>
+          {filter === 'all' && (
+            <View style={styles.emptyCta}>
+              <Button
+                title="Solicitar Servicio"
+                onPress={() => router.push('/(user)/request')}
+                size="medium"
+                icon={<CirclePlus size={18} color={colors.white} />}
+              />
+            </View>
+          )}
         </View>
       ) : (
         <FlatList
@@ -611,7 +587,6 @@ export default function History() {
 
       {renderDetailModal()}
       {renderCancelModal()}
-
     </View>
   );
 }
@@ -619,413 +594,326 @@ export default function History() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
+    backgroundColor: colors.background.secondary,
   },
   header: {
-    padding: 20,
-    paddingBottom: 12,
-    backgroundColor: '#fff',
+    padding: spacing.l,
+    paddingTop: spacing.l,
+    paddingBottom: spacing.s,
+    backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.light,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.text.primary,
+    marginTop: spacing.s,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
+    marginTop: spacing.micro,
   },
   filterContainer: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: colors.background.primary,
+    paddingVertical: spacing.s,
+    paddingHorizontal: spacing.m,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.light,
   },
   filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    marginRight: 8,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    backgroundColor: colors.background.tertiary,
+    marginRight: spacing.xs,
   },
   filterButtonActive: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   filterTextActive: {
-    color: '#fff',
+    color: colors.text.inverse,
   },
   listContent: {
-    padding: 16,
+    padding: spacing.m,
   },
   separator: {
-    height: 12,
+    height: spacing.s,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
+  // Card
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    marginBottom: spacing.s,
   },
   cardDate: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
   },
   incidentType: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    marginBottom: spacing.s,
   },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    gap: spacing.xs,
+    marginBottom: spacing.micro + 2,
   },
   addressText: {
     flex: 1,
-    fontSize: 14,
-    color: '#4b5563',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: spacing.s,
+    paddingTop: spacing.s,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: colors.border.light,
+  },
+  serviceTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   towType: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
   },
   price: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.body,
+    color: colors.accent[600],
   },
+  // Empty state
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    padding: spacing.xxxl,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h4,
+    color: colors.text.primary,
+    marginTop: spacing.m,
+    marginBottom: spacing.xs,
     textAlign: 'center',
   },
   emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: typography.lineHeights.bodySmall,
   },
-  // Modal Styles
+  emptyCta: {
+    marginTop: spacing.l,
+    width: '100%',
+  },
+  // Modal
   modalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.l,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.light,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   closeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
   },
   closeButtonText: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
   },
   modalContent: {
     flex: 1,
-    padding: 20,
+    padding: spacing.l,
   },
-  detailStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    gap: 8,
-    marginBottom: 24,
-  },
-  detailStatusText: {
-    fontSize: 14,
-    fontWeight: '600',
+  detailStatusContainer: {
+    marginBottom: spacing.xl,
   },
   detailSection: {
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
   detailLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginBottom: spacing.micro,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   detailValue: {
-    fontSize: 16,
-    color: '#111827',
-    lineHeight: 22,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    lineHeight: typography.lineHeights.body,
   },
   detailSubvalue: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     marginTop: 2,
   },
   priceSection: {
-    backgroundColor: '#f0fdf4',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: colors.success.light,
+    padding: spacing.m,
+    borderRadius: radii.m,
+    marginBottom: spacing.l,
     alignItems: 'center',
   },
   priceSectionLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#16a34a',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
+    marginBottom: spacing.micro,
   },
   priceSectionValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#16a34a',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h1,
+    color: colors.success.dark,
   },
   timelineSection: {
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: colors.background.secondary,
+    padding: spacing.m,
+    borderRadius: radii.m,
+    marginBottom: spacing.l,
   },
   timelineTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
+    marginBottom: spacing.s,
   },
   timelineRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   timelineLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
   },
   timelineValue: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
   },
   idSection: {
-    paddingTop: 20,
+    paddingTop: spacing.l,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    marginBottom: 40,
+    borderTopColor: colors.border.light,
+    marginBottom: spacing.l,
   },
   idLabel: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    marginBottom: spacing.micro,
   },
   idValue: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontFamily: 'monospace',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
   },
   pinSection: {
-    backgroundColor: '#fef3c7',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: colors.accent[50],
+    padding: spacing.m,
+    borderRadius: radii.m,
+    marginBottom: spacing.l,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#f59e0b',
+    borderColor: colors.accent[500],
   },
   pinLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.accent[700],
+    marginBottom: spacing.xs,
     textTransform: 'uppercase',
   },
   pinValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#92400e',
+    fontFamily: typography.fonts.headingExtra,
+    fontSize: typography.sizes.hero,
+    color: colors.accent[700],
     letterSpacing: 8,
   },
   pinNote: {
-    fontSize: 12,
-    color: '#92400e',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.accent[700],
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: spacing.xs,
   },
-  chatButton: {
-    backgroundColor: '#dbeafe',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#93c5fd',
+  cancelButtonContainer: {
+    marginTop: spacing.s,
   },
-  chatButtonText: {
-    color: '#2563eb',
-    fontSize: 16,
-    fontWeight: '600',
+  modalBottomSpacer: {
+    height: spacing.xxxl,
   },
-  cancelButton: {
-    backgroundColor: '#fee2e2',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 40,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  cancelButtonText: {
-    color: '#dc2626',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  // Cancel Modal
   cancelModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.background.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.l,
   },
   cancelModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.l,
+    padding: spacing.xl,
     width: '100%',
     maxWidth: 400,
   },
   cancelModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   cancelModalSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
-  },
-  cancelReasonInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    backgroundColor: '#f9fafb',
-    marginBottom: 20,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginBottom: spacing.m,
   },
   cancelModalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s,
+    marginTop: spacing.m,
   },
-  cancelModalButtonSecondary: {
+  cancelModalBtnHalf: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  cancelModalButtonSecondaryText: {
-    color: '#374151',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelModalButtonPrimary: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#dc2626',
-  },
-  cancelModalButtonPrimaryText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
   },
 });

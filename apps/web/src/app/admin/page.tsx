@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { StatusBadge } from '@/components/StatusBadge';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -11,6 +12,7 @@ export default async function AdminDashboard() {
     { count: completedRequests },
     { count: totalProviders },
     { count: activeProviders },
+    { count: activeServices },
   ] = await Promise.all([
     supabase.from('service_requests').select('*', { count: 'exact', head: true }),
     supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('status', 'initiated'),
@@ -18,6 +20,7 @@ export default async function AdminDashboard() {
     supabase.from('service_requests').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
     supabase.from('providers').select('*', { count: 'exact', head: true }),
     supabase.from('providers').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('services').select('*', { count: 'exact', head: true }).eq('is_active', true),
   ]);
 
   // Fetch recent requests
@@ -29,6 +32,7 @@ export default async function AdminDashboard() {
       incident_type,
       pickup_address,
       tow_type,
+      service_type,
       created_at,
       profiles!service_requests_user_id_fkey(full_name)
     `)
@@ -36,20 +40,20 @@ export default async function AdminDashboard() {
     .limit(5);
 
   const stats = [
-    { label: 'Total Solicitudes', value: totalRequests || 0, color: 'bg-blue-500' },
-    { label: 'Pendientes', value: pendingRequests || 0, color: 'bg-yellow-500' },
-    { label: 'En Proceso', value: activeRequests || 0, color: 'bg-green-500' },
+    { label: 'Total Solicitudes', value: totalRequests || 0, color: 'bg-budi-primary-500' },
+    { label: 'Pendientes', value: pendingRequests || 0, color: 'bg-budi-warning' },
+    { label: 'En Proceso', value: activeRequests || 0, color: 'bg-budi-success' },
     { label: 'Completadas', value: completedRequests || 0, color: 'bg-zinc-500' },
   ];
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+        <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Vista general del sistema de gruas
+          Vista general del sistema Budi
         </p>
       </div>
 
@@ -72,8 +76,8 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      {/* Provider Stats */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      {/* Provider + Services Stats */}
+      <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
             Proveedores
@@ -91,6 +95,20 @@ export default async function AdminDashboard() {
               </p>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">Total</p>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
+            Servicios Activos
+          </h2>
+          <div className="mt-4">
+            <p className="text-3xl font-bold text-budi-primary-500">
+              {activeServices || 0}
+            </p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Tipos de servicio disponibles
+            </p>
           </div>
         </div>
 
@@ -143,7 +161,7 @@ export default async function AdminDashboard() {
                         {(request.profiles as unknown as { full_name: string } | null)?.full_name || 'N/A'}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                        {request.incident_type}
+                        {request.service_type || request.incident_type}
                       </td>
                       <td className="max-w-xs truncate px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                         {request.pickup_address}
@@ -169,31 +187,5 @@ export default async function AdminDashboard() {
         </div>
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    initiated: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    en_route: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-    active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    completed: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200',
-    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  };
-
-  const labels: Record<string, string> = {
-    initiated: 'Pendiente',
-    assigned: 'Asignada',
-    en_route: 'En Camino',
-    active: 'Activa',
-    completed: 'Completada',
-    cancelled: 'Cancelada',
-  };
-
-  return (
-    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${colors[status] || colors.initiated}`}>
-      {labels[status] || status}
-    </span>
   );
 }

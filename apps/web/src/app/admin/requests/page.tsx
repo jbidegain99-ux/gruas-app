@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { StatusBadge } from '@/components/StatusBadge';
+import { ServiceTypeBadge } from '@/components/ServiceTypeBadge';
 
 type ServiceRequest = {
   id: string;
@@ -17,14 +19,6 @@ type ServiceRequest = {
   created_at: string;
   profiles: { full_name: string } | null;
   operator: { full_name: string } | null;
-};
-
-const SERVICE_TYPE_LABELS: Record<string, string> = {
-  tow: '🚛 Grua',
-  battery: '🔋 Bateria',
-  tire: '🛞 Llanta',
-  fuel: '⛽ Combustible',
-  locksmith: '🔑 Cerrajeria',
 };
 
 export default function RequestsPage() {
@@ -95,7 +89,7 @@ export default function RequestsPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+          <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">
             Solicitudes
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -119,7 +113,7 @@ export default function RequestsPage() {
               onClick={() => setStatusFilter(status)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                 statusFilter === status
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-budi-primary-500 text-white'
                   : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
               }`}
             >
@@ -179,15 +173,19 @@ export default function RequestsPage() {
                         key={request.id}
                         onClick={() => setSelectedRequest(request)}
                         className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800 ${
-                          selectedRequest?.id === request.id ? 'bg-blue-50 dark:bg-blue-950' : ''
+                          selectedRequest?.id === request.id ? 'bg-budi-primary-50 dark:bg-budi-primary-900/20' : ''
                         }`}
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-900 dark:text-white">
                           {request.profiles?.full_name || 'N/A'}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-600 dark:text-zinc-400">
-                          {SERVICE_TYPE_LABELS[request.service_type] || SERVICE_TYPE_LABELS.tow}
-                          {(!request.service_type || request.service_type === 'tow') && ` - ${request.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <ServiceTypeBadge serviceType={request.service_type || 'tow'} />
+                          {(!request.service_type || request.service_type === 'tow') && (
+                            <span className="ml-1 text-xs text-zinc-500">
+                              {request.tow_type === 'light' ? 'Liviana' : 'Pesada'}
+                            </span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <StatusBadge status={request.status} />
@@ -235,6 +233,11 @@ export default function RequestsPage() {
                   <p className="text-sm text-zinc-900 dark:text-white">
                     {selectedRequest.operator?.full_name || 'Sin asignar'}
                   </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-zinc-500">Servicio</p>
+                  <ServiceTypeBadge serviceType={selectedRequest.service_type || 'tow'} />
                 </div>
 
                 <div>
@@ -292,31 +295,5 @@ export default function RequestsPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    initiated: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    assigned: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    en_route: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-    active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    completed: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200',
-    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  };
-
-  const labels: Record<string, string> = {
-    initiated: 'Pendiente',
-    assigned: 'Asignada',
-    en_route: 'En Camino',
-    active: 'Activa',
-    completed: 'Completada',
-    cancelled: 'Cancelada',
-  };
-
-  return (
-    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${colors[status]}`}>
-      {labels[status] || status}
-    </span>
   );
 }

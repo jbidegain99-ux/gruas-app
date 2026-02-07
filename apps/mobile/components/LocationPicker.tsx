@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { X, Search, MapPin } from 'lucide-react-native';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -352,7 +353,7 @@ export function LocationPicker({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>✕</Text>
+            <X size={20} color="#333" strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.placeholder} />
@@ -361,7 +362,7 @@ export function LocationPicker({
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <Search size={18} color="#999" strokeWidth={2} />
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar dirección..."
@@ -377,7 +378,7 @@ export function LocationPicker({
             onPress={useCurrentLocation}
             disabled={isLoading}
           >
-            <Text style={styles.currentLocationIcon}>📍</Text>
+            <MapPin size={20} color="#2563eb" strokeWidth={2} />
           </TouchableOpacity>
         </View>
 

@@ -5,9 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Star, Award } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { BudiLogo, Card, LoadingSpinner } from '@/components/ui';
+import { colors, typography, spacing, radii } from '@/theme';
 
 type Rating = {
   id: string;
@@ -25,6 +28,7 @@ type OperatorStats = {
 };
 
 export default function OperatorRatings() {
+  const insets = useSafeAreaInsets();
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [stats, setStats] = useState<OperatorStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,8 +106,20 @@ export default function OperatorRatings() {
     setRefreshing(false);
   };
 
-  const renderStars = (count: number) => {
-    return '★'.repeat(count) + '☆'.repeat(5 - count);
+  const renderStars = (count: number, size: number = 16) => {
+    return (
+      <View style={styles.starsRow}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <Star
+            key={i}
+            size={size}
+            color={colors.accent[500]}
+            fill={i <= count ? colors.accent[500] : 'transparent'}
+            strokeWidth={1.5}
+          />
+        ))}
+      </View>
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -116,29 +132,27 @@ export default function OperatorRatings() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <View style={styles.headerTop}>
+        <BudiLogo variant="icon" height={28} />
+      </View>
+
       {/* Stats Card */}
       {stats && (
-        <View style={styles.statsCard}>
+        <Card variant="elevated" padding="l">
           <View style={styles.mainStat}>
             <Text style={styles.averageRating}>
               {stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '-'}
             </Text>
-            <Text style={styles.starsDisplay}>
-              {renderStars(Math.round(stats.averageRating))}
-            </Text>
+            {renderStars(Math.round(stats.averageRating), 24)}
             <Text style={styles.totalRatings}>
               {stats.totalRatings} calificacion{stats.totalRatings !== 1 ? 'es' : ''}
             </Text>
@@ -167,6 +181,7 @@ export default function OperatorRatings() {
               return (
                 <View key={star} style={styles.distributionRow}>
                   <Text style={styles.distributionStar}>{star}</Text>
+                  <Star size={12} color={colors.accent[500]} fill={colors.accent[500]} strokeWidth={1.5} />
                   <View style={styles.distributionBarContainer}>
                     <View
                       style={[
@@ -180,32 +195,34 @@ export default function OperatorRatings() {
               );
             })}
           </View>
-        </View>
+        </Card>
       )}
 
       {/* Ratings List */}
       <Text style={styles.sectionTitle}>Resenas Recientes</Text>
 
       {ratings.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>⭐</Text>
-          <Text style={styles.emptyTitle}>Sin calificaciones aun</Text>
-          <Text style={styles.emptyText}>
-            Las calificaciones de tus clientes apareceran aqui
-          </Text>
-        </View>
+        <Card variant="default" padding="l">
+          <View style={styles.emptyState}>
+            <Award size={56} color={colors.text.tertiary} strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>Sin calificaciones aun</Text>
+            <Text style={styles.emptyText}>
+              Las calificaciones de tus clientes apareceran aqui
+            </Text>
+          </View>
+        </Card>
       ) : (
         ratings.map(rating => (
-          <View key={rating.id} style={styles.ratingCard}>
+          <Card key={rating.id} variant="default" padding="m">
             <View style={styles.ratingHeader}>
-              <Text style={styles.ratingStars}>{renderStars(rating.stars)}</Text>
+              {renderStars(rating.stars, 18)}
               <Text style={styles.ratingDate}>{formatDate(rating.created_at)}</Text>
             </View>
             <Text style={styles.raterName}>{rating.rater_name || 'Cliente'}</Text>
             {rating.comment && (
               <Text style={styles.ratingComment}>{rating.comment}</Text>
             )}
-          </View>
+          </Card>
         ))
       )}
     </ScrollView>
@@ -215,169 +232,140 @@ export default function OperatorRatings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: spacing.l,
+    paddingBottom: spacing.xxxxl,
+    gap: spacing.m,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
+  headerTop: {
+    marginBottom: spacing.xs,
   },
-  statsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  starsRow: {
+    flexDirection: 'row',
+    gap: 2,
   },
   mainStat: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
   averageRating: {
+    fontFamily: typography.fonts.heading,
     fontSize: 56,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  starsDisplay: {
-    fontSize: 24,
-    color: '#f59e0b',
-    marginTop: 4,
+    color: colors.text.primary,
   },
   totalRatings: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 8,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: spacing.s,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: spacing.m,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    marginBottom: 16,
+    borderTopColor: colors.border.light,
+    marginBottom: spacing.m,
   },
   statItem: {
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xxl,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
   },
   statLabel: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    marginTop: spacing.micro,
   },
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.border.light,
   },
   distribution: {
-    gap: 8,
+    gap: spacing.xs,
   },
   distributionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs,
   },
   distributionStar: {
     width: 16,
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   distributionBarContainer: {
     flex: 1,
     height: 8,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 4,
+    backgroundColor: colors.background.secondary,
+    borderRadius: radii.s,
     overflow: 'hidden',
   },
   distributionBar: {
     height: '100%',
-    backgroundColor: '#f59e0b',
-    borderRadius: 4,
+    backgroundColor: colors.accent[500],
+    borderRadius: radii.s,
   },
   distributionCount: {
     width: 24,
-    fontSize: 13,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
     textAlign: 'right',
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   emptyState: {
     alignItems: 'center',
-    padding: 40,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+    paddingVertical: spacing.xl,
+    gap: spacing.s,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
     textAlign: 'center',
-  },
-  ratingCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   ratingHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  ratingStars: {
-    fontSize: 18,
-    color: '#f59e0b',
+    marginBottom: spacing.xs,
   },
   ratingDate: {
-    fontSize: 13,
-    color: '#9ca3af',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
   },
   raterName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#111827',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
   },
   ratingComment: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginTop: 8,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
     lineHeight: 20,
   },
 });

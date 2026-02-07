@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gruas App - El Salvador",
-  description: "Plataforma de solicitud de servicios de grua para El Salvador",
+  title: "Budi - Admin Portal",
+  description: "Plataforma de gestion de servicios de asistencia vehicular",
 };
 
 export default function RootLayout({

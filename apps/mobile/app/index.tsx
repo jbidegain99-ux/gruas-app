@@ -1,30 +1,40 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Palette } from 'lucide-react-native';
+import { BudiLogo, Button } from '@/components/ui';
+import { colors, typography, spacing } from '@/theme';
 
 export default function Home() {
-  // Flatten style arrays to prevent "CSSStyleDeclaration" crash on web
-  // When using Link asChild, expo-router (via Radix Slot) forwards styles to DOM
-  // DOM cannot handle style arrays, only objects
-  const secondaryButtonStyle = StyleSheet.flatten([styles.button, styles.secondaryButton]);
-  const secondaryTextStyle = StyleSheet.flatten([styles.buttonText, styles.secondaryButtonText]);
+  const router = useRouter();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Gruas App</Text>
-      <Text style={styles.subtitle}>El Salvador</Text>
+      <View style={styles.hero}>
+        <BudiLogo variant="full" height={56} />
+        <Text style={styles.subtitle}>Asistencia vial en El Salvador</Text>
+      </View>
 
       <View style={styles.buttonContainer}>
-        <Link href="/(auth)/login" asChild>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Iniciar Sesión</Text>
-          </TouchableOpacity>
-        </Link>
+        <Button
+          title="Iniciar Sesión"
+          onPress={() => router.push('/(auth)/login')}
+        />
+        <Button
+          title="Registrarse"
+          onPress={() => router.push('/(auth)/register')}
+          variant="secondary"
+        />
+      </View>
 
-        <Link href="/(auth)/register" asChild>
-          <TouchableOpacity style={secondaryButtonStyle}>
-            <Text style={secondaryTextStyle}>Registrarse</Text>
-          </TouchableOpacity>
-        </Link>
+      {/* TODO: Remove - temporary Design System QA link */}
+      <View style={styles.dsLink}>
+        <Button
+          title="Ver Design System"
+          icon={<Palette size={16} color={colors.primary[500]} strokeWidth={2} />}
+          onPress={() => router.push('/design-system')}
+          variant="tertiary"
+          size="small"
+        />
       </View>
     </View>
   );
@@ -35,41 +45,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
+    paddingHorizontal: spacing.l,
+    backgroundColor: colors.background.primary,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  hero: {
+    alignItems: 'center',
+    marginBottom: spacing.xxxxl,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 48,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
+    marginTop: spacing.s,
   },
   buttonContainer: {
     width: '100%',
-    gap: 16,
+    gap: spacing.m,
   },
-  button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#2563eb',
-  },
-  secondaryButtonText: {
-    color: '#2563eb',
+  dsLink: {
+    position: 'absolute',
+    bottom: spacing.xxxl,
+    alignSelf: 'center',
   },
 });

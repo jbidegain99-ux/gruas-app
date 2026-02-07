@@ -114,7 +114,7 @@ export default function UsersPage() {
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">Operadores</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.OPERATOR}</p>
+          <p className="text-2xl font-bold text-budi-primary-500">{stats.OPERATOR}</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">MOP</p>
@@ -207,7 +207,7 @@ export default function UsersPage() {
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                       <button
                         onClick={() => setEditingUser(profile)}
-                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                        className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
                       >
                         Editar Rol
                       </button>
@@ -336,7 +336,7 @@ function EditUserModal({
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
             >
               {loading ? 'Guardando...' : 'Guardar Cambios'}
             </button>

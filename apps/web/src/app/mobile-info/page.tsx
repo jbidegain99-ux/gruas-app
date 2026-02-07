@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { Truck, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { LogoutButton } from '@/components/LogoutButton';
+import { BudiLogo } from '@/components/BudiLogo';
 
 type UserRole = 'USER' | 'OPERATOR' | 'MOP' | 'ADMIN';
 
@@ -33,27 +35,19 @@ export default function MobileInfoPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-budi-primary-500 border-t-transparent" />
       </div>
     );
   }
 
   const roleInfo = profile?.role === 'OPERATOR' ? {
-    title: 'Operador de Grua',
+    title: 'Operador',
     description: 'Como operador, puedes recibir y aceptar solicitudes de servicio desde la aplicacion movil.',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-16 w-16">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-      </svg>
-    ),
+    icon: <Truck className="h-16 w-16" />,
   } : {
     title: 'Usuario',
-    description: 'Como usuario, puedes solicitar servicios de grua desde la aplicacion movil.',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-16 w-16">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-      </svg>
-    ),
+    description: 'Como usuario, puedes solicitar servicios de asistencia desde la aplicacion movil.',
+    icon: <User className="h-16 w-16" />,
   };
 
   return (
@@ -62,9 +56,9 @@ export default function MobileInfoPage() {
       <header className="border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-600" />
-            <span className="text-xl font-bold text-zinc-900 dark:text-white">
-              Gruas App
+            <BudiLogo />
+            <span className="font-heading text-xl font-bold text-zinc-900 dark:text-white">
+              Budi
             </span>
           </Link>
           <LogoutButton />
@@ -74,11 +68,11 @@ export default function MobileInfoPage() {
       {/* Main Content */}
       <main className="flex flex-1 items-center justify-center px-4 py-16">
         <div className="mx-auto max-w-lg text-center">
-          <div className="mb-6 flex justify-center text-blue-600">
+          <div className="mb-6 flex justify-center text-budi-primary-500">
             {roleInfo.icon}
           </div>
 
-          <div className="mb-2 inline-flex rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+          <div className="mb-2 inline-flex rounded-full bg-budi-primary-100 px-3 py-1 text-sm font-medium text-budi-primary-800 dark:bg-budi-primary-900 dark:text-budi-primary-200">
             {roleInfo.title}
           </div>
 
@@ -135,7 +129,7 @@ export default function MobileInfoPage() {
           <div className="mt-6">
             <Link
               href="/"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+              className="text-sm font-medium text-budi-primary-500 hover:text-budi-primary-400"
             >
               Volver al inicio
             </Link>
