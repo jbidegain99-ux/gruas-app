@@ -73,23 +73,31 @@ export function useETA(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFetchedPositionRef = useRef<Coordinates | null>(null);
+  const fallbackLoggedRef = useRef(false);
+
+  // Use refs so fetchETA always reads the latest values without needing
+  // them in its dependency array (prevents infinite re-creation).
+  const operatorRef = useRef(operatorLocation);
+  operatorRef.current = operatorLocation;
+  const destinationRef = useRef(destinationLocation);
+  destinationRef.current = destinationLocation;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   const fetchETA = useCallback(async (forceUpdate: boolean = false) => {
-    if (!operatorLocation || !destinationLocation || !enabled) {
+    const op = operatorRef.current;
+    const dest = destinationRef.current;
+    if (!op || !dest || !enabledRef.current) {
       return;
     }
 
     // Check if operator has moved enough to warrant a new ETA calculation
     if (!forceUpdate && lastFetchedPositionRef.current) {
-      const shouldUpdate = movementThrottle.shouldUpdate(
-        operatorLocation.lat,
-        operatorLocation.lng
-      );
+      const shouldUpdate = movementThrottle.shouldUpdate(op.lat, op.lng);
 
       if (!shouldUpdate) {
-        console.log('[ETA] Skipping update - operator has not moved enough');
         return;
       }
     }
@@ -100,29 +108,35 @@ export function useETA(
     try {
       const { data, error: fnError } = await supabase.functions.invoke('get-eta', {
         body: {
-          operator_lat: operatorLocation.lat,
-          operator_lng: operatorLocation.lng,
-          destination_lat: destinationLocation.lat,
-          destination_lng: destinationLocation.lng,
+          operator_lat: op.lat,
+          operator_lng: op.lng,
+          destination_lat: dest.lat,
+          destination_lng: dest.lng,
         },
       });
 
       if (fnError) {
-        console.warn('[ETA] Edge function unavailable, using local fallback');
-        const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
+        if (!fallbackLoggedRef.current) {
+          console.warn('[ETA] Edge function unavailable, using local fallback');
+          fallbackLoggedRef.current = true;
+        }
+        const fallback = calculateLocalFallback(op, dest);
         setEta(fallback);
         setLastUpdated(new Date());
-        lastFetchedPositionRef.current = { ...operatorLocation };
+        lastFetchedPositionRef.current = { ...op };
         setLoading(false);
         return;
       }
 
       if (!data.success) {
-        console.warn('[ETA] Edge function returned error, using local fallback');
-        const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
+        if (!fallbackLoggedRef.current) {
+          console.warn('[ETA] Edge function returned error, using local fallback');
+          fallbackLoggedRef.current = true;
+        }
+        const fallback = calculateLocalFallback(op, dest);
         setEta(fallback);
         setLastUpdated(new Date());
-        lastFetchedPositionRef.current = { ...operatorLocation };
+        lastFetchedPositionRef.current = { ...op };
         setLoading(false);
         return;
       }
@@ -138,27 +152,41 @@ export function useETA(
 
       setEta(result);
       setLastUpdated(new Date());
-      lastFetchedPositionRef.current = { ...operatorLocation };
+      lastFetchedPositionRef.current = { ...op };
       console.log('[ETA] Updated:', result);
     } catch (err) {
-      console.warn('[ETA] Connection error, using local fallback');
-      const fallback = calculateLocalFallback(operatorLocation, destinationLocation);
-      setEta(fallback);
-      setLastUpdated(new Date());
-      lastFetchedPositionRef.current = { ...operatorLocation };
+      if (!fallbackLoggedRef.current) {
+        console.warn('[ETA] Connection error, using local fallback');
+        fallbackLoggedRef.current = true;
+      }
+      const op2 = operatorRef.current;
+      const dest2 = destinationRef.current;
+      if (op2 && dest2) {
+        const fallback = calculateLocalFallback(op2, dest2);
+        setEta(fallback);
+        setLastUpdated(new Date());
+        lastFetchedPositionRef.current = { ...op2 };
+      }
     } finally {
       setLoading(false);
     }
-  }, [operatorLocation, destinationLocation, enabled]);
+  }, []); // Stable — reads latest values from refs
 
-  // Initial fetch and periodic updates
+  // Extract primitive values for stable effect dependencies
+  const opLat = operatorLocation?.lat;
+  const opLng = operatorLocation?.lng;
+  const destLat = destinationLocation?.lat;
+  const destLng = destinationLocation?.lng;
+
+  // Initial fetch, periodic updates, and refetch on significant location change
   useEffect(() => {
-    if (!enabled || !operatorLocation || !destinationLocation) {
+    if (!enabled || opLat == null || opLng == null || destLat == null || destLng == null) {
       // Clear ETA when disabled or missing coordinates
       setEta(null);
       setError(null);
       movementThrottle.reset();
       lastFetchedPositionRef.current = null;
+      fallbackLoggedRef.current = false;
 
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -181,17 +209,7 @@ export function useETA(
         intervalRef.current = null;
       }
     };
-  }, [enabled, operatorLocation?.lat, operatorLocation?.lng, destinationLocation?.lat, destinationLocation?.lng, fetchETA]);
-
-  // Refetch on operator location change (with throttle)
-  useEffect(() => {
-    if (!enabled || !operatorLocation || !destinationLocation) {
-      return;
-    }
-
-    // The throttle check happens inside fetchETA
-    fetchETA(false);
-  }, [operatorLocation?.lat, operatorLocation?.lng, enabled, fetchETA]);
+  }, [enabled, opLat, opLng, destLat, destLng, fetchETA]);
 
   const refetch = useCallback(() => {
     // Force refetch regardless of movement

@@ -15,10 +15,12 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking';
 import { useETA } from '@/hooks/useETA';
+import { useGPSSimulator } from '@/hooks/useGPSSimulator';
 import { RatingModal } from '@/components/RatingModal';
 import { ChatScreen } from '@/components/ChatScreen';
 import { decodePolyline } from '@/lib/geoUtils';
 import type { LatLng } from '@/lib/geoUtils';
+import { DEMO_CONFIG } from '@/config/demo';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,6 +70,7 @@ type ActiveRequest = {
   operator_name: string | null;
   provider_name: string | null;
   service_type: string;
+  route_polyline: string | null;
 };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -102,7 +105,7 @@ export default function UserHome() {
 
   // Map state
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
-  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
+  // routeCoordinatesForMap is derived via useMemo below — no state needed
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,39 +131,135 @@ export default function UserHome() {
     operatorLocation &&
     operatorLocation.is_online;
 
-  const pickupLocation = activeRequest ? {
-    lat: activeRequest.pickup_lat,
-    lng: activeRequest.pickup_lng,
-  } : null;
+  const pickupLocation = useMemo(() =>
+    activeRequest ? { lat: activeRequest.pickup_lat, lng: activeRequest.pickup_lng } : null,
+    [activeRequest?.pickup_lat, activeRequest?.pickup_lng]
+  );
 
-  const operatorCoords = operatorLocation ? {
-    lat: operatorLocation.lat,
-    lng: operatorLocation.lng,
-  } : null;
+  const operatorCoords = useMemo(() =>
+    operatorLocation ? { lat: operatorLocation.lat, lng: operatorLocation.lng } : null,
+    [operatorLocation?.lat, operatorLocation?.lng]
+  );
 
-  const { eta, loading: etaLoading } = useETA(
+  const { eta: realEta, loading: etaLoading } = useETA(
     operatorCoords,
     pickupLocation,
     canCalculateETA || false
   );
 
-  // Decode polyline when ETA updates
-  useEffect(() => {
-    if (eta?.overviewPolyline) {
-      const decoded = decodePolyline(eta.overviewPolyline);
-      setRouteCoordinates(decoded);
-    } else if (operatorLocation && operatorLocation.is_online && activeRequest) {
-      // Fallback: straight line between operator and pickup
-      setRouteCoordinates([
+  // --- Demo Mode: GPS Simulation ---
+  // Demo mode activates when: config enabled + operator assigned + trackable status
+  const isDemoMode = DEMO_CONFIG.ENABLED &&
+    activeRequest !== null &&
+    ['assigned', 'en_route'].includes(activeRequest.status) &&
+    activeRequest.operator_id !== null;
+
+  // Decode stored route polyline (saved when operator accepted)
+  const storedRoutePolyline = activeRequest?.route_polyline;
+  const decodedStoredRoute = useMemo(() =>
+    storedRoutePolyline ? decodePolyline(storedRoutePolyline) : [],
+    [storedRoutePolyline]
+  );
+
+  // Use ETA polyline as fallback if no stored route
+  const etaPolyline = realEta?.overviewPolyline;
+  const decodedEtaRoute = useMemo(() =>
+    etaPolyline ? decodePolyline(etaPolyline) : [],
+    [etaPolyline]
+  );
+
+  // Straight-line fallback: generate intermediate points from a nearby offset to pickup
+  // Used when no real polyline is available (edge function down, no stored route)
+  const straightLineFallback = useMemo(() => {
+    if (!activeRequest) return [];
+    const pickup = { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng };
+    // Offset ~2km south-west as simulated operator start position
+    const simulatedStart = {
+      latitude: pickup.latitude - 0.015,
+      longitude: pickup.longitude - 0.012,
+    };
+    // Create intermediate waypoints for smoother simulation
+    const steps = 20;
+    const points: LatLng[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      points.push({
+        latitude: simulatedStart.latitude + (pickup.latitude - simulatedStart.latitude) * t,
+        longitude: simulatedStart.longitude + (pickup.longitude - simulatedStart.longitude) * t,
+      });
+    }
+    return points;
+  }, [activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
+
+  // Pick best available route for simulation: stored polyline > ETA polyline > straight line
+  const simulationRoute = useMemo(() => {
+    if (decodedStoredRoute.length >= 2) return decodedStoredRoute;
+    if (decodedEtaRoute.length >= 2) return decodedEtaRoute;
+    if (isDemoMode && straightLineFallback.length >= 2) return straightLineFallback;
+    return [];
+  }, [decodedStoredRoute, decodedEtaRoute, isDemoMode, straightLineFallback]);
+
+  const simulator = useGPSSimulator({
+    route: simulationRoute,
+    enabled: isDemoMode && simulationRoute.length >= 2,
+    speedKmh: DEMO_CONFIG.AVERAGE_SPEED_KMH,
+  });
+
+  // In demo mode, use simulated position; otherwise use real tracking
+  const effectiveOperatorPosition = isDemoMode && simulator.currentPosition
+    ? simulator.currentPosition
+    : operatorLocation
+      ? { latitude: operatorLocation.lat, longitude: operatorLocation.lng }
+      : null;
+
+  // In demo mode, use simulated ETA; otherwise use real ETA
+  const eta = isDemoMode
+    ? (realEta ? {
+        ...realEta,
+        etaMinutes: simulator.etaMinutes,
+        etaText: `~${simulator.etaMinutes} min`,
+        distanceKm: simulator.remainingDistanceKm,
+        distanceText: `${simulator.remainingDistanceKm} km`,
+        isFallback: false,
+      } : {
+        etaMinutes: simulator.etaMinutes,
+        etaText: `~${simulator.etaMinutes} min`,
+        distanceKm: simulator.remainingDistanceKm,
+        distanceText: `${simulator.remainingDistanceKm} km`,
+        isFallback: false,
+        overviewPolyline: storedRoutePolyline ?? null,
+      })
+    : realEta;
+
+  // Compute route coordinates for map display (memoized, no setState needed)
+  // Priority: demo simulation > stored DB polyline > ETA polyline > straight-line fallback
+  const routeCoordinatesForMap = useMemo(() => {
+    if (isDemoMode && simulationRoute.length >= 2) {
+      return simulationRoute;
+    }
+    if (decodedStoredRoute.length >= 2) {
+      return decodedStoredRoute;
+    }
+    if (decodedEtaRoute.length >= 2) {
+      return decodedEtaRoute;
+    }
+    if (realEta?.overviewPolyline) {
+      return decodePolyline(realEta.overviewPolyline);
+    }
+    if (operatorLocation && operatorLocation.is_online && activeRequest) {
+      return [
         { latitude: operatorLocation.lat, longitude: operatorLocation.lng },
         { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng },
-      ]);
-    } else {
-      setRouteCoordinates([]);
+      ];
     }
-  }, [eta?.overviewPolyline, operatorLocation?.lat, operatorLocation?.lng, activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
+    return [];
+  }, [isDemoMode, simulationRoute, decodedStoredRoute, decodedEtaRoute, realEta?.overviewPolyline, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online, activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
 
   // Fit map to coordinates when they change
+  // Use primitive values for stable deps (avoid object reference churn from simulator)
+  const simLat = simulator.currentPosition?.latitude;
+  const simLng = simulator.currentPosition?.longitude;
+
   const visibleCoordinates = useMemo(() => {
     const coords: LatLng[] = [];
     if (activeRequest) {
@@ -169,11 +268,13 @@ export default function UserHome() {
         coords.push({ latitude: activeRequest.dropoff_lat, longitude: activeRequest.dropoff_lng });
       }
     }
-    if (operatorLocation && operatorLocation.is_online) {
+    if (isDemoMode && simLat != null && simLng != null) {
+      coords.push({ latitude: simLat, longitude: simLng });
+    } else if (operatorLocation && operatorLocation.is_online) {
       coords.push({ latitude: operatorLocation.lat, longitude: operatorLocation.lng });
     }
     return coords;
-  }, [activeRequest?.pickup_lat, activeRequest?.pickup_lng, activeRequest?.dropoff_lat, activeRequest?.dropoff_lng, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online]);
+  }, [activeRequest?.pickup_lat, activeRequest?.pickup_lng, activeRequest?.dropoff_lat, activeRequest?.dropoff_lng, isDemoMode, simLat, simLng, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online]);
 
   useEffect(() => {
     if (visibleCoordinates.length >= 2 && mapRef.current?.fitToCoordinates) {
@@ -186,29 +287,39 @@ export default function UserHome() {
     }
   }, [visibleCoordinates, isMapFullscreen]);
 
-  // Animate operator marker
+  // Animate operator marker (uses simulated position in demo mode)
+  const markerLat = isDemoMode && simulator.currentPosition
+    ? simulator.currentPosition.latitude
+    : operatorLocation?.lat;
+  const markerLng = isDemoMode && simulator.currentPosition
+    ? simulator.currentPosition.longitude
+    : operatorLocation?.lng;
+  const markerOnline = isDemoMode ? (simulator.currentPosition !== null) : operatorLocation?.is_online;
+
   useEffect(() => {
-    if (!operatorLocation || !operatorLocation.is_online || !AnimatedRegion) return;
+    if ((!markerLat || !markerLng || !markerOnline) && !isDemoMode) return;
+    if (!markerLat || !markerLng) return;
+    if (!AnimatedRegion) return;
 
     if (!animatedInitialized.current) {
       animatedCoordinate.current = new AnimatedRegion({
-        latitude: operatorLocation.lat,
-        longitude: operatorLocation.lng,
+        latitude: markerLat,
+        longitude: markerLng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
       animatedInitialized.current = true;
     } else if (animatedCoordinate.current) {
       animatedCoordinate.current.timing({
-        latitude: operatorLocation.lat,
-        longitude: operatorLocation.lng,
+        latitude: markerLat,
+        longitude: markerLng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
         duration: 1000,
         useNativeDriver: false,
       }).start();
     }
-  }, [operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online]);
+  }, [markerLat, markerLng, markerOnline, isDemoMode]);
 
   const fetchActiveRequest = useCallback(async () => {
     const {
@@ -249,6 +360,7 @@ export default function UserHome() {
         created_at,
         operator_id,
         service_type,
+        route_polyline,
         operator:profiles!service_requests_operator_id_fkey (full_name),
         providers (name)
       `)
@@ -276,6 +388,7 @@ export default function UserHome() {
         operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         service_type: req.service_type || 'tow',
+        route_polyline: (req as Record<string, unknown>).route_polyline as string | null ?? null,
       });
     } else {
       setActiveRequest(null);
@@ -368,12 +481,15 @@ export default function UserHome() {
     const OperatorMarkerComponent = MarkerAnimated && animatedCoordinate.current ? MarkerAnimated : Marker;
     const operatorCoordinate = animatedCoordinate.current && MarkerAnimated
       ? animatedCoordinate.current
-      : operatorLocation
-        ? { latitude: operatorLocation.lat, longitude: operatorLocation.lng }
-        : null;
+      : effectiveOperatorPosition ?? null;
 
-    const isFallback = eta?.isFallback ?? true;
+    const hasRealRoute = decodedStoredRoute.length >= 2 || decodedEtaRoute.length >= 2;
+    const isFallback = isDemoMode ? false : (hasRealRoute ? false : (eta?.isFallback ?? true));
     const hasDropoff = activeRequest.dropoff_lat && activeRequest.dropoff_lng;
+    const showOperatorMarker = isDemoMode
+      ? (simulator.currentPosition !== null)
+      : (operatorLocation && operatorLocation.is_online);
+    const operatorHeading = isDemoMode ? simulator.heading : (operatorLocation?.heading ?? 0);
 
     return (
       <MapView
@@ -412,14 +528,14 @@ export default function UserHome() {
         )}
 
         {/* Operator Marker (truck) */}
-        {operatorLocation && operatorLocation.is_online && operatorCoordinate && (
+        {showOperatorMarker && operatorCoordinate && (
           <OperatorMarkerComponent
             coordinate={operatorCoordinate}
             title="Tu grua"
             description={activeRequest.operator_name || 'Operador'}
             anchor={{ x: 0.5, y: 0.5 }}
             flat={true}
-            rotation={operatorLocation.heading ?? 0}
+            rotation={operatorHeading}
           >
             <View style={styles.truckMarker}>
               <Truck size={20} color={colors.primary[600]} strokeWidth={2.5} />
@@ -428,9 +544,9 @@ export default function UserHome() {
         )}
 
         {/* Route Polyline */}
-        {Polyline && routeCoordinates.length >= 2 && (
+        {Polyline && routeCoordinatesForMap.length >= 2 && (
           <Polyline
-            coordinates={routeCoordinates}
+            coordinates={routeCoordinatesForMap}
             strokeColor={colors.primary[500]}
             strokeWidth={4}
             lineDashPattern={isFallback ? [10, 5] : undefined}
@@ -479,7 +595,7 @@ export default function UserHome() {
           <StatusBadge status={activeRequest.status as ServiceRequestStatus} />
 
           {/* Live Map Tracking - PROMINENT, outside Card (Native only) */}
-          {showTracking && MapView && Marker && (
+          {(showTracking || isDemoMode) && MapView && Marker && (
             <View style={styles.mapSection}>
               <View style={styles.mapContainer}>
                 {renderMapContent(false)}
@@ -493,12 +609,12 @@ export default function UserHome() {
                 </Pressable>
               </View>
 
-              {operatorLocation && operatorLocation.is_online ? (
+              {(isDemoMode && simulator.currentPosition) || (operatorLocation && operatorLocation.is_online) ? (
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
-                    Ubicacion en vivo
-                    {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                    {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
@@ -512,7 +628,15 @@ export default function UserHome() {
               {/* ETA overlay on map */}
               {showETASection && (
                 <View style={styles.etaContainer}>
-                  {!operatorLocation || !operatorLocation.is_online ? (
+                  {isDemoMode && eta ? (
+                    <>
+                      <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                      <Text style={styles.etaValue}>{eta.etaText}</Text>
+                      <Text style={styles.etaDistance}>
+                        {eta.distanceText} de distancia
+                      </Text>
+                    </>
+                  ) : !operatorLocation || !operatorLocation.is_online ? (
                     <View style={styles.etaLoading}>
                       <ActivityIndicator size="small" color={colors.primary[400]} />
                       <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
@@ -538,11 +662,30 @@ export default function UserHome() {
                   )}
                 </View>
               )}
+
+              {/* Demo mode progress bar */}
+              {isDemoMode && simulator.progress > 0 && (
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${Math.min(simulator.progress * 100, 100)}%` },
+                    ]}
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Demo mode badge */}
+          {isDemoMode && (
+            <View style={styles.demoBadge}>
+              <Text style={styles.demoBadgeText}>DEMO</Text>
             </View>
           )}
 
           {/* Fullscreen Map Modal */}
-          {showTracking && MapView && (
+          {(showTracking || isDemoMode) && MapView && (
             <Modal
               visible={isMapFullscreen}
               animationType="slide"
@@ -561,12 +704,12 @@ export default function UserHome() {
 
                 {/* Tracking info overlay */}
                 <View style={styles.fullscreenTrackingOverlay}>
-                  {operatorLocation && operatorLocation.is_online ? (
+                  {(isDemoMode && simulator.currentPosition) || (operatorLocation && operatorLocation.is_online) ? (
                     <View style={styles.trackingInfo}>
                       <MapPin size={14} color={colors.success.main} />
                       <Text style={styles.trackingText}>
-                        Ubicacion en vivo
-                        {lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                        {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                       </Text>
                     </View>
                   ) : (
@@ -589,7 +732,7 @@ export default function UserHome() {
           )}
 
           {/* Web fallback - show tracking status without map */}
-          {showTracking && !MapView && (
+          {(showTracking || isDemoMode) && !MapView && (
             <View style={styles.webTrackingContainer}>
               <Text style={styles.webTrackingTitle}>Seguimiento en tiempo real</Text>
               {operatorLocation && operatorLocation.is_online ? (
@@ -618,7 +761,7 @@ export default function UserHome() {
           )}
 
           {/* ETA when no map (status assigned/en_route but MapView unavailable) */}
-          {showETASection && !showTracking && (
+          {showETASection && !showTracking && !isDemoMode && (
             <View style={styles.etaContainer}>
               {!operatorLocation || !operatorLocation.is_online ? (
                 <View style={styles.etaLoading}>
@@ -1006,6 +1149,30 @@ const styles = StyleSheet.create({
     borderColor: colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Demo mode
+  demoBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accent[500],
+    paddingVertical: 2,
+    paddingHorizontal: spacing.s,
+    borderRadius: radii.s,
+  },
+  demoBadgeText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.micro,
+    color: colors.white,
+    letterSpacing: 1,
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: colors.primary[100],
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.accent[500],
+    borderRadius: 2,
   },
 
   // Tracking info

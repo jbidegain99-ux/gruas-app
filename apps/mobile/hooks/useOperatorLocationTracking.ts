@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { Alert, AppState, AppStateStatus } from 'react-native';
+import { DEMO_CONFIG } from '@/config/demo';
 
 interface UseOperatorLocationTrackingOptions {
   /** Whether tracking should be active */
@@ -48,6 +49,8 @@ export function useOperatorLocationTracking({
 
   // Set operator offline
   const setOffline = useCallback(async () => {
+    if (DEMO_CONFIG.ENABLED) return;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -68,6 +71,12 @@ export function useOperatorLocationTracking({
   // Start location tracking
   const startTracking = useCallback(async () => {
     if (isTrackingRef.current) return;
+
+    // In demo mode, skip real GPS tracking and Supabase updates entirely
+    if (DEMO_CONFIG.ENABLED) {
+      console.log('[LocationTracking] Demo mode active — skipping real tracking');
+      return;
+    }
 
     try {
       // Request foreground permissions

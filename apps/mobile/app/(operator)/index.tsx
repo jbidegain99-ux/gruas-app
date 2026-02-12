@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { MapPin, Zap, ClipboardList, Truck } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
@@ -171,6 +172,11 @@ export default function OperatorRequests() {
 
     // Note: Audit event is logged automatically by DB trigger on status change
 
+    // Fetch route polyline from operator location to pickup (non-blocking)
+    fetchAndSaveRoutePolyline(requestId).catch((err) =>
+      console.warn('[Route] Failed to save polyline (non-critical):', err)
+    );
+
     Alert.alert('Solicitud Aceptada', 'Has aceptado el servicio. Dirigete al lugar de recogida.', [
       {
         text: 'Ver Servicio',
@@ -180,6 +186,51 @@ export default function OperatorRequests() {
 
     setAcceptingId(null);
     await fetchData();
+  };
+
+  /**
+   * Fetch route directions from operator's current location to the request pickup,
+   * then save the encoded polyline to service_requests for demo mode simulation.
+   */
+  const fetchAndSaveRoutePolyline = async (requestId: string) => {
+    // Get operator's current location
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+
+    // Find the request to get pickup coordinates
+    const request = requests.find((r) => r.id === requestId);
+    if (!request) return;
+
+    // Fetch route via get-eta edge function (returns polyline)
+    const { data, error: fnError } = await supabase.functions.invoke('get-eta', {
+      body: {
+        operator_lat: location.coords.latitude,
+        operator_lng: location.coords.longitude,
+        destination_lat: request.pickup_lat,
+        destination_lng: request.pickup_lng,
+      },
+    });
+
+    if (fnError || !data?.success || !data?.overview_polyline) {
+      console.warn('[Route] Edge function did not return polyline');
+      return;
+    }
+
+    // Save polyline to service_requests
+    const { error: updateError } = await supabase
+      .from('service_requests')
+      .update({ route_polyline: data.overview_polyline })
+      .eq('id', requestId);
+
+    if (updateError) {
+      console.warn('[Route] Failed to save polyline:', updateError.message);
+    } else {
+      console.log('[Route] Polyline saved for request', requestId);
+    }
   };
 
   const formatTime = (dateString: string) => {
