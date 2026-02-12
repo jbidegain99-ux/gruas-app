@@ -49,7 +49,7 @@ export function useDistanceCalculation(
   const [error, setError] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
 
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCacheKeyRef = useRef<string | null>(null);
 
   const calculateDistance = useCallback(async () => {

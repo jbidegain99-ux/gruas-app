@@ -21,7 +21,7 @@ import { LocationPicker } from '@/components/LocationPicker';
 import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, Battery, CircleDot, Fuel, KeyRound, MapPin, Flag, LocateFixed } from 'lucide-react-native';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed } from 'lucide-react-native';
 import { BudiLogo, Button, Card, Input } from '@/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -33,6 +33,8 @@ const SERVICE_ICONS: Record<ServiceType, LucideIconComponent> = {
   tire: CircleDot,
   fuel: Fuel,
   locksmith: KeyRound,
+  mechanic: Wrench,
+  winch: ChevronsUp,
 };
 
 type TowType = 'light' | 'heavy';
@@ -55,6 +57,8 @@ const SERVICE_INCIDENT_MAP: Record<ServiceType, string> = {
   tire: 'Llantas ponchadas',
   fuel: 'Sin combustible',
   locksmith: 'Llaves dentro del vehiculo',
+  mechanic: 'Averia mecanica',
+  winch: 'Vehiculo varado',
 };
 
 type PricingRule = {

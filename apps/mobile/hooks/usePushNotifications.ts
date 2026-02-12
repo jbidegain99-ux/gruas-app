@@ -12,6 +12,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -39,8 +41,8 @@ export function usePushNotifications(): UsePushNotificationsResult {
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   // Register for push notifications
   const registerForPushNotifications = useCallback(async (): Promise<string | null> => {
@@ -199,17 +201,12 @@ export function usePushNotifications(): UsePushNotificationsResult {
     return () => {
       try {
         if (notificationListener.current) {
-          // Check if function exists before calling (not available in Expo Go SDK 53+)
-          if (typeof Notifications.removeNotificationSubscription === 'function') {
-            Notifications.removeNotificationSubscription(notificationListener.current);
-          }
+          notificationListener.current.remove();
         }
         if (responseListener.current) {
-          if (typeof Notifications.removeNotificationSubscription === 'function') {
-            Notifications.removeNotificationSubscription(responseListener.current);
-          }
+          responseListener.current.remove();
         }
-      } catch (error) {
+      } catch {
         // Ignore cleanup errors in Expo Go
         console.log('Notification cleanup skipped (Expo Go limitation)');
       }
