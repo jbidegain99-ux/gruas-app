@@ -49,4 +49,4 @@ enable_confirmations = false
 enabled = false
 
 [functions.get-eta]
-verify_jwt = true
+verify_jwt = false
