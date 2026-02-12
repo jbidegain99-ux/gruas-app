@@ -130,13 +130,18 @@ serve(async (req: Request) => {
 
     // Check if API key is configured
     if (!GOOGLE_MAPS_API_KEY) {
-      console.error('GOOGLE_MAPS_API_KEY not configured, using fallback');
+      console.error('[get-eta] GOOGLE_MAPS_API_KEY not configured — returning fallback (NO polyline)');
       const fallbackResult = calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('[get-eta] API key present, calling Google Directions:', {
+      origin: `${operator_lat},${operator_lng}`,
+      destination: `${destination_lat},${destination_lng}`,
+    });
 
     // Call Google Directions API with traffic data
     const apiUrl = new URL('https://maps.googleapis.com/maps/api/directions/json');
@@ -170,13 +175,20 @@ serve(async (req: Request) => {
     const data: GoogleDirectionsResponse = await googleResponse.json();
 
     if (data.status !== 'OK') {
-      console.error('Google API error:', data.status, data.error_message);
+      console.error('[get-eta] Google API error:', data.status, data.error_message);
       const fallbackResult = calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('[get-eta] Google Directions response:', {
+      status: data.status,
+      routeCount: data.routes?.length,
+      hasPolyline: !!data.routes[0]?.overview_polyline?.points,
+      polylineLength: data.routes[0]?.overview_polyline?.points?.length || 0,
+    });
 
     const leg = data.routes[0]?.legs[0];
     if (!leg) {
@@ -205,7 +217,13 @@ serve(async (req: Request) => {
       overview_polyline: overviewPolyline,
     };
 
-    console.log('ETA calculated:', result);
+    console.log('[get-eta] Returning result:', {
+      eta_minutes: result.eta_minutes,
+      distance_km: result.distance_km,
+      is_fallback: result.is_fallback,
+      has_polyline: !!result.overview_polyline,
+      polyline_preview: result.overview_polyline?.substring(0, 60) || 'NONE',
+    });
 
     return new Response(
       JSON.stringify(result),

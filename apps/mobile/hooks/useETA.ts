@@ -62,11 +62,14 @@ const UPDATE_INTERVAL_MS = 60 * 1000;
 /**
  * Hook to fetch and maintain ETA with traffic data
  * Updates every 60 seconds, but only if operator has moved >100m
+ *
+ * @param requestId - If provided, saves the first polyline to service_requests.route_polyline
  */
 export function useETA(
   operatorLocation: Coordinates | null,
   destinationLocation: Coordinates | null,
-  enabled: boolean = true
+  enabled: boolean = true,
+  requestId?: string | null
 ): UseETAResult {
   const [eta, setEta] = useState<ETAResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,6 +79,7 @@ export function useETA(
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFetchedPositionRef = useRef<Coordinates | null>(null);
   const fallbackLoggedRef = useRef(false);
+  const polylineSavedRef = useRef(false);
 
   // Use refs so fetchETA always reads the latest values without needing
   // them in its dependency array (prevents infinite re-creation).
@@ -85,11 +89,40 @@ export function useETA(
   destinationRef.current = destinationLocation;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const requestIdRef = useRef(requestId);
+  requestIdRef.current = requestId;
+
+  // Save polyline to DB once (first time we get a real one)
+  const savePolylineToDB = useCallback(async (polyline: string) => {
+    const rid = requestIdRef.current;
+    if (!rid || polylineSavedRef.current) return;
+
+    try {
+      const { error: updateError } = await supabase
+        .from('service_requests')
+        .update({ route_polyline: polyline })
+        .eq('id', rid);
+
+      if (updateError) {
+        console.warn('[ETA] Failed to save polyline to DB:', updateError.message);
+      } else {
+        polylineSavedRef.current = true;
+        console.log('[ETA] Polyline saved to DB for request:', rid, '(length:', polyline.length, ')');
+      }
+    } catch (e) {
+      console.warn('[ETA] Exception saving polyline to DB:', e);
+    }
+  }, []);
 
   const fetchETA = useCallback(async (forceUpdate: boolean = false) => {
     const op = operatorRef.current;
     const dest = destinationRef.current;
     if (!op || !dest || !enabledRef.current) {
+      console.log('[ETA] Skipping fetch — missing data:', {
+        hasOperator: !!op,
+        hasDestination: !!dest,
+        enabled: enabledRef.current,
+      });
       return;
     }
 
@@ -105,6 +138,12 @@ export function useETA(
     setLoading(true);
     setError(null);
 
+    console.log('[ETA] Calling get-eta Edge Function:', {
+      operator: `${op.lat.toFixed(5)},${op.lng.toFixed(5)}`,
+      destination: `${dest.lat.toFixed(5)},${dest.lng.toFixed(5)}`,
+      forceUpdate,
+    });
+
     try {
       const { data, error: fnError } = await supabase.functions.invoke('get-eta', {
         body: {
@@ -116,8 +155,8 @@ export function useETA(
       });
 
       if (fnError) {
+        console.warn('[ETA] Edge function error:', fnError.message || fnError);
         if (!fallbackLoggedRef.current) {
-          console.warn('[ETA] Edge function unavailable, using local fallback');
           fallbackLoggedRef.current = true;
         }
         const fallback = calculateLocalFallback(op, dest);
@@ -128,9 +167,18 @@ export function useETA(
         return;
       }
 
+      console.log('[ETA] Edge Function response:', {
+        success: data.success,
+        isFallback: data.is_fallback,
+        hasPolyline: !!data.overview_polyline,
+        polylineLength: data.overview_polyline?.length || 0,
+        etaMinutes: data.eta_minutes,
+        distanceKm: data.distance_km,
+      });
+
       if (!data.success) {
+        console.warn('[ETA] Edge function returned error:', data.error);
         if (!fallbackLoggedRef.current) {
-          console.warn('[ETA] Edge function returned error, using local fallback');
           fallbackLoggedRef.current = true;
         }
         const fallback = calculateLocalFallback(op, dest);
@@ -150,13 +198,19 @@ export function useETA(
         overviewPolyline: data.overview_polyline || null,
       };
 
+      // Save polyline to DB on first successful fetch
+      if (result.overviewPolyline && !polylineSavedRef.current) {
+        savePolylineToDB(result.overviewPolyline);
+      }
+
       setEta(result);
       setLastUpdated(new Date());
       lastFetchedPositionRef.current = { ...op };
-      console.log('[ETA] Updated:', result);
+      fallbackLoggedRef.current = false; // Reset so next fallback is logged
+      console.log('[ETA] Updated — isFallback:', result.isFallback, 'hasPolyline:', !!result.overviewPolyline);
     } catch (err) {
+      console.warn('[ETA] Connection error:', err);
       if (!fallbackLoggedRef.current) {
-        console.warn('[ETA] Connection error, using local fallback');
         fallbackLoggedRef.current = true;
       }
       const op2 = operatorRef.current;
@@ -170,7 +224,7 @@ export function useETA(
     } finally {
       setLoading(false);
     }
-  }, []); // Stable — reads latest values from refs
+  }, [savePolylineToDB]); // Stable — reads latest values from refs
 
   // Extract primitive values for stable effect dependencies
   const opLat = operatorLocation?.lat;
@@ -187,6 +241,7 @@ export function useETA(
       movementThrottle.reset();
       lastFetchedPositionRef.current = null;
       fallbackLoggedRef.current = false;
+      polylineSavedRef.current = false;
 
       if (intervalRef.current) {
         clearInterval(intervalRef.current);

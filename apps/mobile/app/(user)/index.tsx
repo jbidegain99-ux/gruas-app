@@ -164,7 +164,8 @@ export default function UserHome() {
   const { eta: realEta, loading: etaLoading } = useETA(
     operatorCoords,
     pickupLocation,
-    canCalculateETA || false
+    canCalculateETA || false,
+    activeRequest?.id
   );
 
   // --- Demo Mode: GPS Simulation ---
@@ -255,23 +256,30 @@ export default function UserHome() {
   // Priority: demo simulation > stored DB polyline > ETA polyline > straight-line fallback
   const routeCoordinatesForMap = useMemo(() => {
     if (isDemoMode && simulationRoute.length >= 2) {
+      console.log('[Route] Using demo simulation route:', simulationRoute.length, 'points');
       return simulationRoute;
     }
     if (decodedStoredRoute.length >= 2) {
+      console.log('[Route] Using stored DB polyline:', decodedStoredRoute.length, 'points');
       return decodedStoredRoute;
     }
     if (decodedEtaRoute.length >= 2) {
+      console.log('[Route] Using ETA polyline:', decodedEtaRoute.length, 'points');
       return decodedEtaRoute;
     }
     if (realEta?.overviewPolyline) {
-      return decodePolyline(realEta.overviewPolyline);
+      const decoded = decodePolyline(realEta.overviewPolyline);
+      console.log('[Route] Using raw ETA polyline (decoded on fly):', decoded.length, 'points');
+      return decoded;
     }
     if (operatorLocation && operatorLocation.is_online && activeRequest) {
+      console.log('[Route] FALLBACK: straight line (operator → pickup)');
       return [
         { latitude: operatorLocation.lat, longitude: operatorLocation.lng },
         { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng },
       ];
     }
+    console.log('[Route] No route data available');
     return [];
   }, [isDemoMode, simulationRoute, decodedStoredRoute, decodedEtaRoute, realEta?.overviewPolyline, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online, activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
 
@@ -523,7 +531,7 @@ export default function UserHome() {
       ? animatedCoordinate.current
       : effectiveOperatorPosition ?? null;
 
-    const hasRealRoute = decodedStoredRoute.length >= 2 || decodedEtaRoute.length >= 2;
+    const hasRealRoute = decodedStoredRoute.length >= 2 || decodedEtaRoute.length >= 2 || !!realEta?.overviewPolyline;
     const isFallback = isDemoMode ? false : (hasRealRoute ? false : (eta?.isFallback ?? true));
     const hasDropoff = activeRequest.dropoff_lat && activeRequest.dropoff_lng;
     const showOperatorMarker = isDemoMode
