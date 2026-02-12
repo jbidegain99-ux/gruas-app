@@ -29,7 +29,7 @@ import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking
 import { ChatScreen } from '@/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner } from '@/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ActiveService = {
@@ -709,12 +709,9 @@ export default function ActiveService() {
             </Text>
 
             <View style={styles.pinInputWrapper}>
-              <Input
-                placeholder="----"
+              <PINInput
                 value={pinInput}
                 onChangeText={setPinInput}
-                keyboardType="number-pad"
-                maxLength={4}
               />
             </View>
 

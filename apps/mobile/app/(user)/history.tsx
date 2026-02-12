@@ -19,7 +19,7 @@ import { supabase } from '@/lib/supabase';
 import { ChatScreen } from '@/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input } from '@/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput } from '@/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -381,7 +381,11 @@ export default function History() {
             {selectedRequest.pin && ['initiated', 'assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
               <View style={styles.pinSection}>
                 <Text style={styles.pinLabel}>PIN de Verificacion</Text>
-                <Text style={styles.pinValue}>{selectedRequest.pin}</Text>
+                <PINInput
+                  value={selectedRequest.pin}
+                  onChangeText={() => {}}
+                  displayOnly
+                />
                 <Text style={styles.pinNote}>
                   Muestra este PIN al operador cuando llegue la grua
                 </Text>
@@ -861,12 +865,6 @@ const styles = StyleSheet.create({
     color: colors.accent[700],
     marginBottom: spacing.xs,
     textTransform: 'uppercase',
-  },
-  pinValue: {
-    fontFamily: typography.fonts.headingExtra,
-    fontSize: typography.sizes.hero,
-    color: colors.accent[700],
-    letterSpacing: 8,
   },
   pinNote: {
     fontFamily: typography.fonts.body,

@@ -10,7 +10,10 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { colors, typography, spacing, radii } from '@/theme';
 
 interface Message {
   id: string;
@@ -33,6 +36,7 @@ export function ChatScreen({
   otherUserName,
   onClose,
 }: ChatScreenProps) {
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -250,9 +254,10 @@ export function ChatScreen({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Volver</Text>
+          <ArrowLeft size={20} color={colors.primary[500]} strokeWidth={2} />
+          <Text style={styles.backButtonText}>Volver</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Chat</Text>
@@ -281,11 +286,11 @@ export function ChatScreen({
       />
 
       {/* Input Area */}
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>
         <TextInput
           style={styles.textInput}
           placeholder="Escribe un mensaje..."
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.text.tertiary}
           value={newMessage}
           onChangeText={setNewMessage}
           multiline
@@ -301,7 +306,7 @@ export function ChatScreen({
           disabled={!newMessage.trim() || sending}
         >
           {sending ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.text.inverse} />
           ) : (
             <Text style={styles.sendButtonText}>Enviar</Text>
           )}
@@ -314,81 +319,90 @@ export function ChatScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    gap: 12,
+    backgroundColor: colors.background.secondary,
+    gap: spacing.s,
   },
   loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 20,
+    backgroundColor: colors.background.secondary,
+    padding: spacing.l,
   },
   errorText: {
-    fontSize: 16,
-    color: '#666',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.l,
   },
   errorButton: {
-    padding: 15,
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
+    paddingVertical: spacing.s,
+    paddingHorizontal: spacing.l,
+    backgroundColor: colors.primary[500],
+    borderRadius: radii.m,
   },
   errorButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    color: colors.text.inverse,
+    fontSize: typography.sizes.body,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
+    paddingHorizontal: spacing.m,
+    paddingBottom: spacing.s,
+    backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border.light,
   },
   backButton: {
-    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.micro,
+    minHeight: 44,
+    paddingRight: spacing.xs,
   },
   backButtonText: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
   },
   headerInfo: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h4,
+    color: colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
     marginTop: 2,
   },
   headerSpacer: {
-    width: 60,
+    width: 70,
   },
   messagesList: {
-    padding: 16,
+    padding: spacing.m,
     flexGrow: 1,
   },
   messageContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.s,
   },
   ownMessage: {
     alignItems: 'flex-end',
@@ -398,88 +412,95 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '80%',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    paddingVertical: spacing.s,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.l,
   },
   ownBubble: {
-    backgroundColor: '#2563eb',
-    borderBottomRightRadius: 4,
+    backgroundColor: colors.primary[500],
+    borderBottomRightRadius: spacing.micro,
   },
   otherBubble: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
+    backgroundColor: colors.background.primary,
+    borderBottomLeftRadius: spacing.micro,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border.light,
   },
   messageText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    lineHeight: typography.lineHeights.bodySmall,
   },
   ownText: {
-    color: '#fff',
+    color: colors.text.inverse,
   },
   otherText: {
-    color: '#111827',
+    color: colors.text.primary,
   },
   messageTime: {
-    fontSize: 11,
-    marginTop: 4,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    marginTop: spacing.micro,
   },
   ownTime: {
     color: 'rgba(255, 255, 255, 0.7)',
   },
   otherTime: {
-    color: '#9ca3af',
+    color: colors.text.tertiary,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: spacing.xxxxl,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 4,
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.text.secondary,
+    marginBottom: spacing.micro,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.tertiary,
     textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 12,
-    backgroundColor: '#fff',
+    paddingHorizontal: spacing.s,
+    paddingTop: spacing.s,
+    backgroundColor: colors.background.primary,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    gap: 8,
+    borderTopColor: colors.border.light,
+    gap: spacing.xs,
   },
   textInput: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
+    fontFamily: typography.fonts.body,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.s,
+    fontSize: typography.sizes.bodySmall,
     maxHeight: 100,
+    color: colors.text.primary,
   },
   sendButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    backgroundColor: colors.primary[500],
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.s,
     justifyContent: 'center',
     alignItems: 'center',
     minWidth: 70,
   },
   sendButtonDisabled: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: colors.primary[200],
   },
   sendButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    color: colors.text.inverse,
+    fontSize: typography.sizes.bodySmall,
   },
 });

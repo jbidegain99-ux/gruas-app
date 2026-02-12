@@ -42,15 +42,21 @@ let Polyline: React.ComponentType<any> | null = null;
 let AnimatedRegion: (new (...args: unknown[]) => { timing: (config: Record<string, unknown>) => { start: () => void } }) | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PROVIDER_GOOGLE: any = null;
+let mapsLoadError: string | null = null;
 
 if (Platform.OS !== 'web') {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  MarkerAnimated = Maps.MarkerAnimated;
-  Polyline = Maps.Polyline;
-  AnimatedRegion = Maps.AnimatedRegion;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  try {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+    MarkerAnimated = Maps.MarkerAnimated;
+    Polyline = Maps.Polyline;
+    AnimatedRegion = Maps.AnimatedRegion;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  } catch (e) {
+    mapsLoadError = e instanceof Error ? e.message : 'Failed to load react-native-maps';
+    console.error('[Maps] Failed to load react-native-maps:', e);
+  }
 }
 
 type ActiveRequest = {
@@ -117,6 +123,20 @@ export default function UserHome() {
   const showTracking = activeRequest &&
     ['assigned', 'en_route', 'active'].includes(activeRequest.status) &&
     operatorId;
+
+  // Debug: log map rendering conditions when active request exists
+  useEffect(() => {
+    if (activeRequest) {
+      console.log('=== MAP TRACKING DEBUG ===');
+      console.log('Status:', activeRequest.status);
+      console.log('Operator ID:', operatorId);
+      console.log('showTracking:', !!showTracking);
+      console.log('MapView loaded:', !!MapView);
+      console.log('Marker loaded:', !!Marker);
+      console.log('Maps load error:', mapsLoadError);
+      console.log('Platform:', Platform.OS);
+    }
+  }, [activeRequest?.status, operatorId, showTracking]);
 
   const { location: operatorLocation, lastUpdated } = useOperatorRealtimeTracking(
     showTracking ? operatorId : null
@@ -342,32 +362,52 @@ export default function UserHome() {
       setUserName(profile.full_name.split(' ')[0]);
     }
 
-    // Get active requests
-    const { data: requests } = await supabase
+    // Get active requests - try with route_polyline first, fallback without it
+    const baseSelect = `
+      id,
+      status,
+      tow_type,
+      incident_type,
+      pickup_address,
+      pickup_lat,
+      pickup_lng,
+      dropoff_address,
+      dropoff_lat,
+      dropoff_lng,
+      total_price,
+      created_at,
+      operator_id,
+      service_type,
+      operator:profiles!service_requests_operator_id_fkey (full_name),
+      providers (name)
+    `;
+
+    let { data: requests, error: fetchError } = await supabase
       .from('service_requests')
-      .select(`
-        id,
-        status,
-        tow_type,
-        incident_type,
-        pickup_address,
-        pickup_lat,
-        pickup_lng,
-        dropoff_address,
-        dropoff_lat,
-        dropoff_lng,
-        total_price,
-        created_at,
-        operator_id,
-        service_type,
-        route_polyline,
-        operator:profiles!service_requests_operator_id_fkey (full_name),
-        providers (name)
-      `)
+      .select(`${baseSelect}, route_polyline`)
       .eq('user_id', user.id)
       .in('status', ['initiated', 'assigned', 'en_route', 'active'])
       .order('created_at', { ascending: false })
       .limit(1);
+
+    // Fallback: if query failed (e.g. route_polyline column missing), retry without it
+    if (fetchError) {
+      console.warn('[UserHome] Query with route_polyline failed, retrying without:', fetchError.message);
+      const fallback = await supabase
+        .from('service_requests')
+        .select(baseSelect)
+        .eq('user_id', user.id)
+        .in('status', ['initiated', 'assigned', 'en_route', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requests = fallback.data as typeof requests;
+      fetchError = fallback.error;
+    }
+
+    if (fetchError) {
+      console.error('[UserHome] Failed to fetch active requests:', fetchError.message);
+    }
 
     if (requests && requests.length > 0) {
       const req = requests[0];
@@ -731,10 +771,15 @@ export default function UserHome() {
             </Modal>
           )}
 
-          {/* Web fallback - show tracking status without map */}
+          {/* Fallback when MapView unavailable (web or native load error) */}
           {(showTracking || isDemoMode) && !MapView && (
             <View style={styles.webTrackingContainer}>
               <Text style={styles.webTrackingTitle}>Seguimiento en tiempo real</Text>
+              {mapsLoadError && Platform.OS !== 'web' && (
+                <Text style={styles.trackingTextOffline}>
+                  Mapa no disponible: {mapsLoadError}
+                </Text>
+              )}
               {operatorLocation && operatorLocation.is_online ? (
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
@@ -750,7 +795,7 @@ export default function UserHome() {
                   </Text>
                 </View>
               )}
-              {/* ETA for web */}
+              {/* ETA for web/fallback */}
               {showETASection && eta && (
                 <View style={styles.etaContainerWeb}>
                   <Text style={styles.etaLabel}>Tiempo estimado</Text>
