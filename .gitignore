@@ -40,3 +40,6 @@ pnpm-debug.log*
 # Supabase CLI runtime (per-machine state, regenerated on `supabase start`)
 supabase/.branches/
 supabase/.temp/
+
+# Playwright ephemeral output (el reporte "de evidencia" se versiona aparte en docs/)
+**/test-results/
