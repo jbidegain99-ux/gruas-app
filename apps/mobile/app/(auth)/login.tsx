@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Button, Input } from '@/components/ui';
+import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Login() {
@@ -55,6 +55,25 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert(
+        'Recuperar contraseña',
+        'Escribe tu email arriba y vuelve a tocar "¿Olvidaste tu contraseña?".'
+      );
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+    Alert.alert(
+      'Revisa tu correo',
+      `Si existe una cuenta con ${email}, te enviamos un enlace para restablecer tu contraseña.`
+    );
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
@@ -90,6 +109,13 @@ export default function Login() {
               onPress={handleLogin}
               loading={loading}
               disabled={loading}
+            />
+
+            <Button
+              title="¿Olvidaste tu contraseña?"
+              onPress={handleForgotPassword}
+              variant="tertiary"
+              size="small"
             />
           </View>
 

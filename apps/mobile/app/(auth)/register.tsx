@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { UserRole } from '@gruas-app/shared';
-import { BudiLogo, Button, Input } from '@/components/ui';
+import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 export default function Register() {
@@ -135,6 +135,13 @@ export default function Register() {
               </Pressable>
             </View>
 
+            {role === 'OPERATOR' && (
+              <Text style={styles.operatorNote}>
+                Los operadores son gestionados por Budi. Un administrador debe
+                asignarte un proveedor antes de que puedas recibir solicitudes.
+              </Text>
+            )}
+
             <Button
               title={loading ? 'Registrando...' : 'Registrarse'}
               onPress={handleRegister}
@@ -211,5 +218,14 @@ const styles = StyleSheet.create({
   roleTextActive: {
     color: colors.primary[500],
     fontFamily: typography.fonts.bodySemiBold,
+  },
+  operatorNote: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    backgroundColor: colors.primary[50],
+    padding: spacing.s,
+    borderRadius: radii.m,
+    lineHeight: 18,
   },
 });

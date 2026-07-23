@@ -1,19 +1,9 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Truck, Building2, Wrench, DollarSign, Users, Star } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
-import { LogoutButton } from '@/components/LogoutButton';
-import { BudiLogo } from '@/components/BudiLogo';
-
-const navLinks = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/requests', label: 'Solicitudes', icon: Truck },
-  { href: '/admin/providers', label: 'Proveedores', icon: Building2 },
-  { href: '/admin/services', label: 'Servicios', icon: Wrench },
-  { href: '/admin/pricing', label: 'Precios', icon: DollarSign },
-  { href: '/admin/users', label: 'Usuarios', icon: Users },
-  { href: '/admin/ratings', label: 'Calificaciones', icon: Star },
-];
+import { createClient } from '@/shared/lib/supabase/server';
+import { LogoutButton } from '@/shared/components/LogoutButton';
+import { BudiLogo } from '@/shared/components/BudiLogo';
+import { AdminNav } from '@/features/admin/AdminNav';
 
 export default async function AdminLayout({
   children,
@@ -53,18 +43,7 @@ export default async function AdminLayout({
           </Link>
         </div>
 
-        <nav className="space-y-1 p-4">
-          {navLinks.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <AdminNav />
 
         <div className="absolute bottom-0 left-0 right-0 border-t border-zinc-200 p-4 dark:border-zinc-800">
           <div className="mb-3 flex items-center gap-3">

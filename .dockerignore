@@ -1,0 +1,46 @@
+# Build context lives at the monorepo root; keep it tight so we don't
+# ship 200 MB of node_modules / Expo caches / git history into the daemon.
+
+**/node_modules
+**/.next
+**/.turbo
+**/.expo
+**/.expo-shared
+**/dist
+**/out
+**/coverage
+**/.vercel
+
+# Source control
+.git
+.gitignore
+.github
+
+# IDE / editor
+.vs
+.vscode
+.idea
+.claude
+
+# Env files — secrets must be injected at runtime, never baked in.
+# Match EVERY .env variant (.local, .production, .staging, .docker, ...) at any
+# depth. The build needs none of them; secrets arrive via build ARGs only.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Supabase CLI runtime
+supabase/.branches
+supabase/.temp
+
+# Mobile app — not part of the web image
+apps/mobile
+
+# Docs and CI metadata
+docs
+.github
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Home, CirclePlus, Clock, User } from 'lucide-react-native';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { usePushNotifications } from '@/features/notifications/hooks/usePushNotifications';
 import { colors, typography } from '@/theme';
 
 export default function UserLayout() {
@@ -70,6 +70,8 @@ export default function UserLayout() {
           ),
         }}
       />
+      {/* Ruta accesible desde el perfil, oculta del tab bar */}
+      <Tabs.Screen name="vehicles" options={{ href: null }} />
     </Tabs>
   );
 }

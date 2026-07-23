@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
-import { LogoutButton } from '@/components/LogoutButton';
+import { createClient } from '@/shared/lib/supabase/server';
+import { LogoutButton } from '@/shared/components/LogoutButton';
 
 export default async function MopLayout({
   children,

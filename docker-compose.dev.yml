@@ -1,0 +1,53 @@
+# Local stack for validating the production Dockerfile from a single
+# command. Brings up the web container against whatever Supabase you're
+# already pointing at (managed Budi_app or local via `supabase start`).
+#
+# Quickstart — one command, no copying. Uses the web app's own .env.local for
+# BOTH the build args and the container's runtime env:
+#   1. docker compose --env-file apps/web/.env.local -f docker-compose.dev.yml up --build
+#   2. Open http://localhost:3000
+#
+# Why --env-file: the NEXT_PUBLIC_* vars are baked into the client/edge bundle
+# at BUILD time (see build.args below); --env-file feeds that interpolation.
+# The SAME file is loaded as the container's runtime env via `env_file:` below.
+# Without it the bundle ships NEXT_PUBLIC_* empty and the app 500s ("Supabase
+# URL and Key are required"). Point --env-file at any file with your values.
+#
+# (env_file below is required:false, so a missing file doesn't abort the stack;
+# but then you MUST pass --env-file or the build args stay empty.)
+#
+# What this does NOT replace:
+#   - `supabase start` — still the right way to run Postgres + Auth +
+#     Realtime + Storage locally. Don't duplicate it here.
+#   - The production stack on the VPS — see docs/DEPLOY_VPS.md once it
+#     exists. The Supabase self-hosted compose lives upstream at
+#     https://github.com/supabase/supabase/tree/master/docker
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      # NEXT_PUBLIC_* must be baked into the client/edge bundle at BUILD time
+      # (runtime env_file is too late for them). These interpolate from the
+      # file you pass via `--env-file` (defaults to .env in this directory).
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+    image: budi-web:dev
+    container_name: budi-web
+    env_file:
+      # Runtime env for the container. required:false so the stack still comes
+      # up if the file is absent (NEXT_PUBLIC_* are already baked at build time
+      # via build.args). Pass --env-file pointing at this same file for the build.
+      - path: apps/web/.env.local
+        required: false
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    # Talk to a Supabase running on the host (managed URL works as-is;
+    # `supabase start` listens on host port 54321). Linux users get this
+    # via host.docker.internal too thanks to extra_hosts below.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

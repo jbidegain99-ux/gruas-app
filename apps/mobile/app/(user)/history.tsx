@@ -9,17 +9,22 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck } from 'lucide-react-native';
+import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck, Phone } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
-import { ChatScreen } from '@/components/ChatScreen';
+import { ChatScreen } from '@/features/chat/components/ChatScreen';
+import { MiniMap } from '@/shared/components/MiniMap';
+import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
+import { AddressText } from '@/shared/components/AddressText';
+import { isLateCancellation } from '@/lib/cancellation';
+import { getAllPins } from '@/features/pin/lib/pinStorage';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput } from '@/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -28,14 +33,21 @@ type ServiceRequest = {
   tow_type: string;
   incident_type: string;
   pickup_address: string;
+  pickup_lat: number;
+  pickup_lng: number;
   dropoff_address: string;
+  dropoff_lat: number;
+  dropoff_lng: number;
   total_price: number | null;
   created_at: string;
   completed_at: string | null;
   cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   notes: string | null;
   operator_id: string | null;
   operator_name: string | null;
+  operator_phone: string | null;
   provider_name: string | null;
   pin: string | null;
   service_type: string;
@@ -59,6 +71,8 @@ export default function History() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  // Recorrido real del servicio seleccionado (se carga al abrir el detalle).
+  const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
@@ -77,13 +91,11 @@ export default function History() {
 
     setCurrentUserId(user.id);
 
-    // Load saved PINs from local storage
+    // Load saved PINs from SecureStore (migrates from legacy AsyncStorage
+    // on first call — see features/pin/lib/pinStorage.ts).
     let savedPins: Record<string, string> = {};
     try {
-      const pinsData = await AsyncStorage.getItem('request_pins');
-      if (pinsData) {
-        savedPins = JSON.parse(pinsData);
-      }
+      savedPins = await getAllPins();
     } catch (e) {
       console.error('Error loading PINs:', e);
     }
@@ -96,15 +108,21 @@ export default function History() {
         tow_type,
         incident_type,
         pickup_address,
+        pickup_lat,
+        pickup_lng,
         dropoff_address,
+        dropoff_lat,
+        dropoff_lng,
         total_price,
         created_at,
         completed_at,
         cancelled_at,
+        cancelled_by,
+        cancellation_reason,
         notes,
         operator_id,
         service_type,
-        operator:profiles!service_requests_operator_id_fkey (full_name),
+        operator:profiles!service_requests_operator_id_fkey (full_name, phone),
         providers (name)
       `)
       .eq('user_id', user.id)
@@ -125,14 +143,21 @@ export default function History() {
         tow_type: req.tow_type,
         incident_type: req.incident_type,
         pickup_address: req.pickup_address,
+        pickup_lat: req.pickup_lat,
+        pickup_lng: req.pickup_lng,
         dropoff_address: req.dropoff_address,
+        dropoff_lat: req.dropoff_lat,
+        dropoff_lng: req.dropoff_lng,
         total_price: req.total_price,
         created_at: req.created_at,
         completed_at: req.completed_at,
         cancelled_at: req.cancelled_at,
+        cancelled_by: (req as Record<string, unknown>).cancelled_by as string | null ?? null,
+        cancellation_reason: (req as Record<string, unknown>).cancellation_reason as string | null ?? null,
         notes: req.notes,
         operator_id: req.operator_id,
-        operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
+        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || null,
+        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         pin: savedPins[req.id] || null,
         service_type: req.service_type || 'tow',
@@ -183,6 +208,17 @@ export default function History() {
   const openDetail = (request: ServiceRequest) => {
     setSelectedRequest(request);
     setDetailModalVisible(true);
+  };
+
+  // Quien cancelo la solicitud, deducido comparando cancelled_by con el propio
+  // usuario / el operador asignado. Si no coincide con ninguno, fue el equipo
+  // (admin). currentUserId es el usuario que ve su historial.
+  const cancelledByLabel = (req: ServiceRequest): string => {
+    if (req.cancelled_by && req.cancelled_by === currentUserId) return 'Cancelada por ti';
+    if (req.cancelled_by && req.cancelled_by === req.operator_id) {
+      return req.operator_name ? `Cancelada por el operador (${req.operator_name})` : 'Cancelada por el operador';
+    }
+    return 'Cancelada por el equipo Budi';
   };
 
   const openCancelModal = () => {
@@ -247,15 +283,23 @@ export default function History() {
 
         <View style={styles.addressRow}>
           <MapPin size={14} color={colors.success.main} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {item.pickup_address}
-          </Text>
+          <AddressText
+            style={styles.addressText}
+            numberOfLines={1}
+            address={item.pickup_address}
+            lat={item.pickup_lat}
+            lng={item.pickup_lng}
+          />
         </View>
         <View style={styles.addressRow}>
           <MapPin size={14} color={colors.error.main} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {item.dropoff_address}
-          </Text>
+          <AddressText
+            style={styles.addressText}
+            numberOfLines={1}
+            address={item.dropoff_address}
+            lat={item.dropoff_lat}
+            lng={item.dropoff_lng}
+          />
         </View>
 
         <View style={styles.cardFooter}>
@@ -323,6 +367,21 @@ export default function History() {
               <StatusBadge status={selectedRequest.status as ServiceRequestStatus} />
             </View>
 
+            {/* Motivo de cancelacion (solo canceladas) */}
+            {selectedRequest.status === 'cancelled' && (
+              <View style={styles.cancelInfoSection}>
+                <View style={styles.cancelInfoHeader}>
+                  <XCircle size={16} color={colors.error.main} />
+                  <Text style={styles.cancelInfoTitle}>{cancelledByLabel(selectedRequest)}</Text>
+                </View>
+                <Text style={styles.cancelInfoReason}>
+                  {selectedRequest.cancellation_reason?.trim()
+                    ? selectedRequest.cancellation_reason
+                    : 'No se indico un motivo.'}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Tipo de Incidente</Text>
               <Text style={styles.detailValue}>{selectedRequest.incident_type}</Text>
@@ -348,14 +407,39 @@ export default function History() {
               </View>
             </View>
 
+            {!!selectedRequest.pickup_lat && !!selectedRequest.pickup_lng && (
+              <View style={styles.detailSection}>
+                <MiniMap
+                  pickup={{ lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng }}
+                  dropoff={
+                    selectedRequest.dropoff_lat && selectedRequest.dropoff_lng
+                      ? { lat: selectedRequest.dropoff_lat, lng: selectedRequest.dropoff_lng }
+                      : null
+                  }
+                  route={trail}
+                  height={160}
+                />
+              </View>
+            )}
+
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Ubicacion de Recogida</Text>
-              <Text style={styles.detailValue}>{selectedRequest.pickup_address}</Text>
+              <AddressText
+                style={styles.detailValue}
+                address={selectedRequest.pickup_address}
+                lat={selectedRequest.pickup_lat}
+                lng={selectedRequest.pickup_lng}
+              />
             </View>
 
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Destino</Text>
-              <Text style={styles.detailValue}>{selectedRequest.dropoff_address}</Text>
+              <AddressText
+                style={styles.detailValue}
+                address={selectedRequest.dropoff_address}
+                lat={selectedRequest.dropoff_lat}
+                lng={selectedRequest.dropoff_lng}
+              />
             </View>
 
             {selectedRequest.notes && (
@@ -432,15 +516,34 @@ export default function History() {
               <Text style={styles.idValue}>{selectedRequest.id}</Text>
             </View>
 
-            {/* Chat Button for active requests with operator */}
+            {/* Contacto con el operador (chat + llamada) en servicios activos */}
             {selectedRequest.operator_id && ['assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
-              <Button
-                title="Chat con Operador"
-                onPress={() => setChatModalVisible(true)}
-                variant="secondary"
-                size="medium"
-                icon={<MessageCircle size={18} color={colors.primary[500]} />}
-              />
+              <View style={styles.contactRow}>
+                <View style={styles.contactBtn}>
+                  <Button
+                    title="Chat"
+                    onPress={() => setChatModalVisible(true)}
+                    variant="secondary"
+                    size="medium"
+                    icon={<MessageCircle size={18} color={colors.primary[500]} />}
+                  />
+                </View>
+                <View style={styles.contactBtn}>
+                  <Button
+                    title="Llamar"
+                    onPress={() => {
+                      if (selectedRequest.operator_phone) {
+                        Linking.openURL(`tel:${selectedRequest.operator_phone}`);
+                      } else {
+                        Alert.alert('Sin telefono', 'El operador no tiene un telefono registrado.');
+                      }
+                    }}
+                    variant="secondary"
+                    size="medium"
+                    icon={<Phone size={18} color={colors.primary[500]} />}
+                  />
+                </View>
+              </View>
             )}
 
             {/* Cancel Button for active requests */}
@@ -473,6 +576,11 @@ export default function History() {
       <View style={styles.cancelModalOverlay}>
         <View style={styles.cancelModalContent}>
           <Text style={styles.cancelModalTitle}>Cancelar Solicitud</Text>
+          {selectedRequest && isLateCancellation(selectedRequest.status) && (
+            <Text style={styles.cancelModalWarning}>
+              El operador ya fue despachado. Cancelar ahora puede generar un cargo por el desplazamiento.
+            </Text>
+          )}
           <Text style={styles.cancelModalSubtitle}>
             Por favor indica el motivo de la cancelacion
           </Text>
@@ -765,6 +873,32 @@ const styles = StyleSheet.create({
   detailStatusContainer: {
     marginBottom: spacing.xl,
   },
+  cancelInfoSection: {
+    backgroundColor: colors.error.light,
+    borderRadius: radii.m,
+    padding: spacing.m,
+    marginBottom: spacing.l,
+    borderWidth: 1,
+    borderColor: colors.error.main,
+  },
+  cancelInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  cancelInfoTitle: {
+    flex: 1,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.error.dark,
+  },
+  cancelInfoReason: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    lineHeight: typography.lineHeights.body,
+  },
   detailSection: {
     marginBottom: spacing.l,
   },
@@ -873,6 +1007,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
   },
+  contactRow: {
+    flexDirection: 'row',
+    gap: spacing.s,
+  },
+  contactBtn: {
+    flex: 1,
+  },
   cancelButtonContainer: {
     marginTop: spacing.s,
   },
@@ -905,6 +1046,15 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.bodySmall,
     color: colors.text.secondary,
     marginBottom: spacing.m,
+  },
+  cancelModalWarning: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.warning.dark,
+    backgroundColor: colors.warning.light,
+    padding: spacing.s,
+    borderRadius: radii.m,
+    marginBottom: spacing.s,
   },
   cancelModalButtons: {
     flexDirection: 'row',

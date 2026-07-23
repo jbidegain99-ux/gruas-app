@@ -2,6 +2,9 @@
 
 [api]
 enabled = true
+# Using Supabase defaults (54321+). If Hyper-V reserves this range again
+# (check via `netsh interface ipv4 show excludedportrange protocol=tcp`),
+# shift to a different free range and update apps/web/.env.local + apps/mobile/.env.
 port = 54321
 schemas = ["public", "storage"]
 extra_search_path = ["public", "extensions"]
@@ -49,4 +52,8 @@ enable_confirmations = false
 enabled = false
 
 [functions.get-eta]
-verify_jwt = false
+# Was false to ease early development; flipped 2026-05-25 to close the
+# privacy leak (anyone with a request_id could pull operator coords).
+# Authorization is also enforced inside the function via
+# requireRequestParticipant.
+verify_jwt = true

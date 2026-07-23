@@ -14,15 +14,19 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
-import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
-import { LocationPicker } from '@/components/LocationPicker';
+import { reverseGeocode } from '@/lib/geocoding';
+import { useDistanceCalculation } from '@/shared/hooks/useDistanceCalculation';
+import { LocationPicker } from '@/features/tracking/components/LocationPicker';
+import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
+import { isWithinCoverage, COVERAGE } from '@/config/coverage';
+import { savePin } from '@/features/pin/lib/pinStorage';
+import { DEFAULT_LOCATION } from '@/config/location';
 import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed } from 'lucide-react-native';
-import { BudiLogo, Button, Card, Input } from '@/components/ui';
+import { BudiLogo, Button, Card, Input } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type LucideIconComponent = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
@@ -94,6 +98,7 @@ export default function RequestService() {
   const [towType, setTowType] = useState<TowType>('light');
   const [incidentType, setIncidentType] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
+  const [savedVehicles, setSavedVehicles] = useState<Vehicle[]>([]);
   const [notes, setNotes] = useState('');
 
   // Tire-specific
@@ -112,6 +117,13 @@ export default function RequestService() {
 
   const requiresDestination = serviceType === 'tow';
   const currentPricingType = serviceTypePricing.find(p => p.service_type === serviceType);
+
+  // Datos visuales del servicio, tomados de la DB con fallback seguro. Asi un
+  // service_type nuevo (agregado en service_type_pricing) fluye por todo el
+  // wizard sin romperse aunque no exista en SERVICE_TYPE_CONFIGS (7 fijos).
+  const currentConfig = SERVICE_TYPE_CONFIGS[serviceType];
+  const serviceName = currentPricingType?.display_name || currentConfig?.name || 'Servicio';
+  const serviceColor = currentConfig?.color || colors.primary[500];
 
   // Distance calculation (only for tow)
   const {
@@ -164,6 +176,21 @@ export default function RequestService() {
     fetchPricing();
   }, []);
 
+  // Cargar vehículos guardados para ofrecerlos como acceso rápido.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('vehicles')
+        .select('id, make, model, plate, color, is_default')
+        .order('is_default', { ascending: false });
+      if (data && data.length > 0) {
+        setSavedVehicles(data);
+        const def = data.find((v) => v.is_default) || data[0];
+        setVehicleDescription((prev) => prev || vehicleLabel(def));
+      }
+    })();
+  }, []);
+
   const getCurrentLocation = async () => {
     setGettingLocation(true);
     try {
@@ -181,21 +208,12 @@ export default function RequestService() {
       };
       setPickupCoords(coords);
 
-      const [addressResult] = await Location.reverseGeocodeAsync({
-        latitude: coords.lat,
-        longitude: coords.lng,
-      });
-
-      if (addressResult) {
-        const address = [
-          addressResult.street,
-          addressResult.city,
-          addressResult.region,
-        ]
-          .filter(Boolean)
-          .join(', ');
-        setPickupAddress(address || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
-      }
+      // reverseGeocode nunca lanza y trae direccion legible via Expo -> Nominatim
+      // (OSM, gratis) -> coords como ultimo recurso. Asi pickupAddress nunca
+      // queda vacio (un valor vacio mantiene "Siguiente" deshabilitado aunque
+      // haya coords GPS validas).
+      const address = await reverseGeocode(coords.lat, coords.lng);
+      setPickupAddress(address);
     } catch {
       Alert.alert('Error', 'No se pudo obtener la ubicacion');
     }
@@ -315,6 +333,15 @@ export default function RequestService() {
       return;
     }
 
+    // Zona de cobertura: el punto de recogida debe estar dentro del área servida.
+    if (pickupCoords && !isWithinCoverage(pickupCoords.lat, pickupCoords.lng)) {
+      Alert.alert(
+        'Fuera de cobertura',
+        `Por ahora solo damos servicio en ${COVERAGE.areaName}. El punto de recogida está fuera de la zona de cobertura.`
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -370,12 +397,15 @@ export default function RequestService() {
       ].filter(Boolean).join('\n') || null;
 
       // For non-tow: dropoff = pickup
-      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat || 13.6929) : (pickupCoords?.lat || 13.6929);
-      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng || -89.2182) : (pickupCoords?.lng || -89.2182);
+      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat || DEFAULT_LOCATION.latitude) : (pickupCoords?.lat || DEFAULT_LOCATION.latitude);
+      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng || DEFAULT_LOCATION.longitude) : (pickupCoords?.lng || DEFAULT_LOCATION.longitude);
       const effectiveDropoffAddress = requiresDestination ? dropoffAddress : pickupAddress;
 
-      // Auto-assign incident for non-tow
-      const effectiveIncident = serviceType === 'tow' ? incidentType : SERVICE_INCIDENT_MAP[serviceType];
+      // Auto-assign incident for non-tow. Fallback al nombre del servicio (DB)
+      // para tipos que no esten en SERVICE_INCIDENT_MAP.
+      const effectiveIncident = serviceType === 'tow'
+        ? incidentType
+        : (SERVICE_INCIDENT_MAP[serviceType] || currentPricingType?.display_name || serviceName);
 
       const { data, error } = await supabase.rpc('create_service_request', {
         p_dropoff_address: effectiveDropoffAddress,
@@ -384,8 +414,8 @@ export default function RequestService() {
         p_incident_type: effectiveIncident,
         p_notes: combinedNotes,
         p_pickup_address: pickupAddress,
-        p_pickup_lat: pickupCoords?.lat || 13.6929,
-        p_pickup_lng: pickupCoords?.lng || -89.2182,
+        p_pickup_lat: pickupCoords?.lat || DEFAULT_LOCATION.latitude,
+        p_pickup_lng: pickupCoords?.lng || DEFAULT_LOCATION.longitude,
         p_service_details: buildServiceDetails(),
         p_service_type: serviceType,
         p_tow_type: towType,
@@ -405,20 +435,16 @@ export default function RequestService() {
         return;
       }
 
-      // Save PIN
+      // Save PIN to SecureStore (encrypted) — see features/pin/lib/pinStorage.ts
       try {
-        const requestPins = await AsyncStorage.getItem('request_pins');
-        const pins = requestPins ? JSON.parse(requestPins) : {};
-        pins[data.request_id] = data.pin;
-        await AsyncStorage.setItem('request_pins', JSON.stringify(pins));
+        await savePin(data.request_id, data.pin);
       } catch (storageError) {
         console.error('Error saving PIN:', storageError);
       }
 
-      const svcName = SERVICE_TYPE_CONFIGS[serviceType].name;
       Alert.alert(
         'Solicitud Enviada',
-        `Tu solicitud de ${svcName} ha sido registrada.\n\nPIN de verificacion: ${data.pin}\n\nGuarda este PIN. Lo necesitaras cuando llegue el operador.`,
+        `Tu solicitud de ${serviceName} ha sido registrada.\n\nPIN de verificacion: ${data.pin}\n\nGuarda este PIN. Lo necesitaras cuando llegue el operador.`,
         [{
           text: 'Ver Estado',
           onPress: () => {
@@ -469,7 +495,12 @@ export default function RequestService() {
                   styles.serviceCard,
                   isSelected && { borderColor: colors.accent[500], backgroundColor: colors.accent[50] },
                 ]}
-                onPress={() => setServiceType(stp.service_type as ServiceType)}
+                onPress={() => {
+                  // Seleccionar el servicio y avanzar directo al paso 2
+                  // (el usuario no tiene que buscar el boton "Siguiente").
+                  setServiceType(stp.service_type as ServiceType);
+                  setStep(2);
+                }}
               >
                 <View style={[
                   styles.serviceIconContainer,
@@ -492,12 +523,6 @@ export default function RequestService() {
           })}
         </View>
       )}
-
-      <Button
-        title="Siguiente"
-        onPress={() => setStep(2)}
-        disabled={!serviceType}
-      />
     </View>
   );
 
@@ -709,12 +734,15 @@ export default function RequestService() {
       </>
     );
 
+    // Detalle generico para servicios sin campos propios (bateria, cerrajeria,
+    // mecanico, winche, o cualquier servicio nuevo de la DB). Usa la descripcion
+    // de service_type_pricing para no quedar vacio.
     const renderSimpleDetails = () => (
       <View style={styles.infoBox}>
         <Text style={styles.infoBoxText}>
-          {serviceType === 'battery'
-            ? 'Un operador llegara a diagnosticar y cargar o reemplazar tu bateria.'
-            : 'Un cerrajero llegara para abrir tu vehiculo de forma segura.'}
+          {currentPricingType?.description
+            ? `${currentPricingType.description}. Un operador llegara para atender tu solicitud en el lugar.`
+            : 'Un operador llegara para atender tu solicitud en el lugar.'}
         </Text>
       </View>
     );
@@ -735,7 +763,7 @@ export default function RequestService() {
         {serviceType === 'tow' && renderTowDetails()}
         {serviceType === 'tire' && renderTireDetails()}
         {serviceType === 'fuel' && renderFuelDetails()}
-        {(serviceType === 'battery' || serviceType === 'locksmith') && renderSimpleDetails()}
+        {!(['tow', 'tire', 'fuel'] as ServiceType[]).includes(serviceType) && renderSimpleDetails()}
 
         <Input
           label="Notas Adicionales (opcional)"
@@ -762,6 +790,27 @@ export default function RequestService() {
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Detalles del Vehiculo</Text>
+
+      {savedVehicles.length > 0 && (
+        <View style={styles.vehicleChips}>
+          <Text style={styles.label}>Tus vehiculos</Text>
+          <View style={styles.chipsRow}>
+            {savedVehicles.map((v) => {
+              const label = vehicleLabel(v);
+              const selected = vehicleDescription === label;
+              return (
+                <Pressable
+                  key={v.id}
+                  onPress={() => setVehicleDescription(label)}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <Input
         label="Descripcion del Vehiculo (opcional)"
@@ -799,7 +848,6 @@ export default function RequestService() {
   const renderStep5 = () => {
     const flatPrice = !requiresDestination ? calculateFlatPrice() : null;
     const displayPrice = requiresDestination ? estimatedPrice : flatPrice;
-    const config = SERVICE_TYPE_CONFIGS[serviceType];
 
     return (
       <View style={styles.stepContainer}>
@@ -812,9 +860,9 @@ export default function RequestService() {
               <View style={styles.summaryServiceRow}>
                 {(() => {
                   const SvcIcon = SERVICE_ICONS[serviceType] || Truck;
-                  return <SvcIcon size={16} color={config.color || colors.primary[500]} strokeWidth={2} />;
+                  return <SvcIcon size={16} color={serviceColor} strokeWidth={2} />;
                 })()}
-                <Text style={styles.summaryValue}>{config.name}</Text>
+                <Text style={styles.summaryValue}>{serviceName}</Text>
               </View>
             </View>
             <View style={styles.summaryRow}>
@@ -1019,6 +1067,37 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.bodySmall,
     color: colors.text.primary,
     marginTop: spacing.xs,
+  },
+
+  // Vehicle quick-pick chips
+  vehicleChips: {
+    marginBottom: spacing.s,
+    gap: spacing.xs,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  chip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.primary,
+  },
+  chipSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
+  },
+  chipText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+  },
+  chipTextSelected: {
+    color: colors.primary[600],
   },
 
   // Service Type Grid

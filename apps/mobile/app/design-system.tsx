@@ -10,7 +10,7 @@ import {
   Card,
   StatusBadge,
   LoadingSpinner,
-} from '@/components/ui';
+} from '@/shared/components/ui';
 
 function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;

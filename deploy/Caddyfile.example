@@ -1,0 +1,43 @@
+# Caddyfile template. Copy to deploy/Caddyfile on the VPS and replace
+# app.budi.sv with the real domain. Caddy will obtain and renew a
+# Let's Encrypt certificate automatically — no certbot needed.
+#
+# Reload after edits:
+#   docker compose -f docker-compose.prod.yml exec caddy caddy reload \
+#       --config /etc/caddy/Caddyfile
+
+app.budi.sv {
+    encode gzip zstd
+
+    # Forward everything to the web container on the internal network.
+    # Hostname "web" resolves to the service in docker-compose.prod.yml.
+    reverse_proxy web:3000
+
+    # Hardening headers. Tune in production once you know what you ship.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "geolocation=(self), camera=(), microphone=()"
+        # Remove the server fingerprint.
+        -Server
+    }
+
+    # Drop noisy /favicon.ico requests from access logs without losing
+    # actual errors.
+    @favicon path /favicon.ico
+    log {
+        output stdout
+        format console
+        level  INFO
+    }
+    log_skip @favicon
+}
+
+# Optional: redirect apex (budi.sv) to the app subdomain.
+# Uncomment and adjust when you set up the DNS for the apex.
+#
+# budi.sv {
+#     redir https://app.budi.sv{uri}
+# }

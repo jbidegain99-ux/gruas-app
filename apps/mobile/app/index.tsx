@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Palette } from 'lucide-react-native';
-import { BudiLogo, Button } from '@/components/ui';
+import { BudiLogo, Button } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Home() {

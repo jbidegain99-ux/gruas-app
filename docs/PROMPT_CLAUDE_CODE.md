@@ -413,7 +413,7 @@ pnpm start
 **Resultado:** Iconografía profesional alineada con branding Budi
 ```
 
-### Actualizar `tasks/lessons.md`
+### Actualizar `docs/lessons.md`
 
 ```markdown
 ## Lección: Importance of Real-Time Feature Testing
@@ -486,7 +486,7 @@ pnpm start
 - [x] 0 nuevos errores TypeScript (mantenemos los 9 pre-existentes)
 - [x] Código documentado con comments claros
 - [x] `tasks/completed.md` actualizado
-- [x] `tasks/lessons.md` actualizado
+- [x] `docs/lessons.md` actualizado
 - [x] Testing manual exitoso reportado
 
 ---
@@ -550,7 +550,7 @@ Testing:
 
 Documentación:
 ✅ tasks/completed.md actualizado
-✅ tasks/lessons.md actualizado
+✅ docs/lessons.md actualizado
 
 La app está lista para:
 - App Icons

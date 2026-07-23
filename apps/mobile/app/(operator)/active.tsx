@@ -12,6 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MapPin,
@@ -25,11 +26,15 @@ import {
 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
-import { useOperatorLocationTracking } from '@/hooks/useOperatorLocationTracking';
-import { ChatScreen } from '@/components/ChatScreen';
+import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
+import { haversineKm } from '@/lib/distance';
+import { osrmLegs, osrmRoutePath } from '@/lib/osrm';
+import { MiniMap } from '@/shared/components/MiniMap';
+import { AddressText } from '@/shared/components/AddressText';
+import { ChatScreen } from '@/features/chat/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner } from '@/components/ui';
+import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ActiveService = {
@@ -77,6 +82,10 @@ export default function ActiveService() {
   const [showChat, setShowChat] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // Ruta real por carretera recogida->destino para dibujar en el mapa. null
+  // hasta que OSRM responde; el MiniMap cae a una línea recta mientras tanto.
+  const [routePath, setRoutePath] = useState<{ lat: number; lng: number }[] | null>(null);
+
   // Track operator location when service is active
   const isServiceActive = service !== null &&
     ['assigned', 'en_route', 'active'].includes(service.status);
@@ -92,7 +101,13 @@ export default function ActiveService() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) {
+      // Token expired/not hydrated: don't strand the screen on the full-screen
+      // spinner — clear and stop loading so pull-to-refresh becomes reachable.
+      setService(null);
+      setLoading(false);
+      return;
+    }
 
     setCurrentUserId(user.id);
 
@@ -175,6 +190,64 @@ export default function ActiveService() {
     };
   }, [fetchActiveService]);
 
+  // Calcula la ruta real por carretera a dibujar en el mapa: operador->recogida
+  // (->destino si es grúa con destino). La posición del operador es best-effort
+  // (si ya hay permiso y un fix reciente); si no, la ruta arranca en la recogida.
+  // Si OSRM no responde, routePath queda null y el mapa cae a la línea recta.
+  useEffect(() => {
+    if (!service) {
+      setRoutePath(null);
+      return;
+    }
+    const isTow = !service.service_type || service.service_type === 'tow';
+    const hasDropoff = isTow && !!service.dropoff_lat && !!service.dropoff_lng;
+
+    let cancelled = false;
+    (async () => {
+      const points: { lat: number; lng: number }[] = [];
+
+      // Tramo operador->recogida: usamos la última posición conocida del operador
+      // (el tracking ya pidió permiso). Best-effort, no bloquea si no hay fix.
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const last = await Location.getLastKnownPositionAsync();
+          if (last) {
+            points.push({ lat: last.coords.latitude, lng: last.coords.longitude });
+          }
+        }
+      } catch {
+        // Sin ubicación del operador: la ruta simplemente arranca en la recogida.
+      }
+      if (cancelled) return;
+
+      points.push({ lat: service.pickup_lat, lng: service.pickup_lng });
+      if (hasDropoff) {
+        points.push({ lat: service.dropoff_lat!, lng: service.dropoff_lng! });
+      }
+
+      if (points.length < 2) {
+        setRoutePath(null);
+        return;
+      }
+
+      const path = await osrmRoutePath(points);
+      if (!cancelled) setRoutePath(path);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    service?.id,
+    service?.status,
+    service?.service_type,
+    service?.pickup_lat,
+    service?.pickup_lng,
+    service?.dropoff_lat,
+    service?.dropoff_lng,
+  ]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchActiveService();
@@ -237,28 +310,45 @@ export default function ActiveService() {
       return;
     }
 
-    const updateData: Record<string, unknown> = { status: newStatus };
-
+    let opError = null;
     if (newStatus === 'completed') {
-      updateData.completed_at = new Date().toISOString();
+      // Completar vía RPC: calcula y guarda el precio (grúa por distancia,
+      // otros servicios tarifa fija). Un UPDATE directo dejaría total_price NULL.
+      const isTow = !service.service_type || service.service_type === 'tow';
+      let tripKm = 0;
+      if (isTow && service.dropoff_lat && service.dropoff_lng) {
+        // Distancia real por carretera (OSRM) recogida->destino. Si OSRM no
+        // responde a tiempo, caemos al haversine*1.3 para no bloquear el cierre.
+        const legs = await osrmLegs([
+          { lat: service.pickup_lat, lng: service.pickup_lng },
+          { lat: service.dropoff_lat, lng: service.dropoff_lng },
+        ]);
+        tripKm =
+          legs?.[0]?.km ??
+          haversineKm(service.pickup_lat, service.pickup_lng, service.dropoff_lat, service.dropoff_lng);
+      }
+      const { error } = await supabase.rpc('complete_service_request', {
+        p_request_id: service.id,
+        p_distance_pickup_to_dropoff: Math.round(tripKm * 100) / 100,
+      });
+      opError = error;
+    } else {
+      const { error } = await supabase
+        .from('service_requests')
+        .update({ status: newStatus })
+        .eq('id', service.id);
+      opError = error;
     }
 
-    const { error } = await supabase
-      .from('service_requests')
-      .update(updateData)
-      .eq('id', service.id);
-
-    if (error) {
-      Alert.alert('Error', 'No se pudo actualizar el estado');
+    if (opError) {
+      Alert.alert('Error', opError.message || 'No se pudo actualizar el estado');
       setUpdating(false);
       return;
     }
 
-    await supabase.from('request_events').insert({
-      request_id: service.id,
-      event_type: newStatus === 'en_route' ? 'en_route' : newStatus === 'active' ? 'arrived' : 'service_completed',
-      created_by: user.id,
-    });
+    // El evento de auditoría (OPERATOR_EN_ROUTE / PIN_VERIFIED / STATUS_CHANGED)
+    // lo registra el trigger `log_service_request_changes_trigger` de la DB al
+    // cambiar el status, con actor_id/actor_role correctos. No lo insertamos acá.
 
     const notification = getStatusNotification(newStatus);
     if (notification && service.user_id) {
@@ -314,7 +404,22 @@ export default function ActiveService() {
 
     if (error || !data?.valid) {
       setUpdating(false);
-      Alert.alert('PIN Incorrecto', 'El PIN no coincide. Verifica con el cliente.');
+
+      if (data?.locked) {
+        const seconds = Number(data.retry_after_seconds) || 0;
+        const minutes = Math.ceil(seconds / 60);
+        Alert.alert(
+          'Bloqueado temporalmente',
+          `Demasiados intentos fallidos. Intenta de nuevo en ${minutes} minuto${minutes === 1 ? '' : 's'}.`
+        );
+      } else if (typeof data?.attempts_remaining === 'number') {
+        Alert.alert(
+          'PIN Incorrecto',
+          `El PIN no coincide. Te quedan ${data.attempts_remaining} intento${data.attempts_remaining === 1 ? '' : 's'} antes del bloqueo.`
+        );
+      } else {
+        Alert.alert('PIN Incorrecto', data?.error ?? 'El PIN no coincide. Verifica con el cliente.');
+      }
       return;
     }
 
@@ -367,7 +472,12 @@ export default function ActiveService() {
       return;
     }
 
-    Alert.alert('Servicio Cancelado', 'El servicio ha sido cancelado.', [
+    Alert.alert(
+      'Servicio Cancelado',
+      data?.released
+        ? 'El servicio fue liberado y volverá a ofrecerse a otros operadores.'
+        : 'El servicio ha sido cancelado.',
+      [
       {
         text: 'OK',
         onPress: () => router.replace('/(operator)'),
@@ -535,6 +645,22 @@ export default function ActiveService() {
         ))}
       </View>
 
+      {/* Mapa de recogida y destino */}
+      {!!service.pickup_lat && !!service.pickup_lng && (
+        <View style={styles.mapSection}>
+          <MiniMap
+            pickup={{ lat: service.pickup_lat, lng: service.pickup_lng }}
+            dropoff={
+              service.dropoff_lat && service.dropoff_lng
+                ? { lat: service.dropoff_lat, lng: service.dropoff_lng }
+                : null
+            }
+            route={routePath}
+            height={200}
+          />
+        </View>
+      )}
+
       {/* Service Details Card */}
       <Card variant="elevated" padding="l">
         <View style={styles.cardHeader}>
@@ -560,7 +686,12 @@ export default function ActiveService() {
             <MapPin size={14} color={colors.success.main} strokeWidth={2} />
             <View style={styles.addressContent}>
               <Text style={styles.addressLabel}>Recogida</Text>
-              <Text style={styles.addressText}>{service.pickup_address}</Text>
+              <AddressText
+                style={styles.addressText}
+                address={service.pickup_address}
+                lat={service.pickup_lat}
+                lng={service.pickup_lng}
+              />
               <Text style={styles.navigationHint}>Toca para navegar</Text>
             </View>
           </Pressable>
@@ -578,7 +709,12 @@ export default function ActiveService() {
             <MapPin size={14} color={colors.error.main} strokeWidth={2} />
             <View style={styles.addressContent}>
               <Text style={styles.addressLabel}>Destino</Text>
-              <Text style={styles.addressText}>{service.dropoff_address}</Text>
+              <AddressText
+                style={styles.addressText}
+                address={service.dropoff_address}
+                lat={service.dropoff_lat}
+                lng={service.dropoff_lng}
+              />
               {service.dropoff_lat && (
                 <Text style={styles.navigationHint}>Toca para navegar</Text>
               )}
@@ -850,6 +986,9 @@ const styles = StyleSheet.create({
   },
   progressLineActive: {
     backgroundColor: colors.accent[500],
+  },
+  mapSection: {
+    marginBottom: spacing.l,
   },
   cardHeader: {
     flexDirection: 'row',

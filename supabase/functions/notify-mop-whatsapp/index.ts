@@ -2,6 +2,7 @@
 // This function sends a WhatsApp notification to MOP when a service request is created or completed
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
 const WHATSAPP_TOKEN = Deno.env.get('WHATSAPP_TOKEN');
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
@@ -22,16 +23,10 @@ interface RequestPayload {
 }
 
 serve(async (req: Request) => {
-  // CORS headers
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
+  const cors = corsHeaders(req);
 
   try {
     // Validate environment variables
@@ -39,7 +34,7 @@ serve(async (req: Request) => {
       console.error('Missing WhatsApp configuration');
       return new Response(
         JSON.stringify({ error: 'WhatsApp not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -110,7 +105,7 @@ _Grúas App - El Salvador_`;
       console.error('WhatsApp API error:', result);
       return new Response(
         JSON.stringify({ error: 'Failed to send WhatsApp message', details: result }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -118,13 +113,13 @@ _Grúas App - El Salvador_`;
 
     return new Response(
       JSON.stringify({ success: true, message_id: result.messages?.[0]?.id }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Error sending WhatsApp notification:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   }
 });

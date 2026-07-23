@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, Award } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Card, LoadingSpinner } from '@/components/ui';
+import { BudiLogo, Card, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Rating = {

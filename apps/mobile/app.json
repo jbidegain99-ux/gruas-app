@@ -21,7 +21,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We need your location to show nearby tow truck requests and provide real-time tracking.",
         "NSLocationAlwaysUsageDescription": "We need your location to provide continuous tracking while you're on a job.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to provide tracking for tow truck services."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to provide tracking for tow truck services.",
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
@@ -52,7 +53,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Gruas App to use your location for tracking services."
+          "locationAlwaysAndWhenInUsePermission": "Budi usa tu ubicación para que los clientes vean tu grúa en tiempo real, incluso con la app en segundo plano.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -69,7 +72,8 @@
           "sounds": []
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

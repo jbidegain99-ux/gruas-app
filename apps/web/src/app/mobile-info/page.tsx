@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Truck, User } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { LogoutButton } from '@/components/LogoutButton';
-import { BudiLogo } from '@/components/BudiLogo';
+import { createClient } from '@/shared/lib/supabase/client';
+import { LogoutButton } from '@/shared/components/LogoutButton';
+import { BudiLogo } from '@/shared/components/BudiLogo';
 
 type UserRole = 'USER' | 'OPERATOR' | 'MOP' | 'ADMIN';
 

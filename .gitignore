@@ -28,3 +28,15 @@ pnpm-debug.log*
 
 # Migration artifacts (contain auth dumps + password hashes)
 .migration-backup/
+
+# IDE / editor
+.vs/
+.idea/
+
+# Local Claude Code settings (but version shared project skills)
+.claude/*
+!.claude/skills/
+
+# Supabase CLI runtime (per-machine state, regenerated on `supabase start`)
+supabase/.branches/
+supabase/.temp/

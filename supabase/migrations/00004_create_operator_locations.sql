@@ -30,23 +30,9 @@ CREATE POLICY "Operators can update own location"
   USING (operator_id = auth.uid())
   WITH CHECK (operator_id = auth.uid());
 
--- Users can view online operator locations (for tracking assigned operator)
-CREATE POLICY "Users can view operator locations"
-  ON operator_locations FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role IN ('USER', 'ADMIN', 'MOP')
-    )
-    OR
-    -- Or if user has an active request with this operator
-    EXISTS (
-      SELECT 1 FROM service_requests sr
-      WHERE sr.operator_id = operator_locations.operator_id
-        AND sr.user_id = auth.uid()
-        AND sr.status IN ('assigned', 'en_route', 'active')
-    )
-  );
+-- "Users can view operator locations" lives in the later
+-- fix_recursive_rls migration — it forward-references service_requests
+-- which doesn't exist yet at this point.
 
 -- Admins can view all locations
 CREATE POLICY "Admins can view all locations"

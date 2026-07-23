@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogOut, Pencil, AlertCircle } from 'lucide-react-native';
+import { LogOut, Pencil, AlertCircle, HelpCircle, Car } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { openSupportMenu } from '@/lib/support';
+import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
@@ -279,6 +280,16 @@ export default function Profile() {
       <View style={styles.actionsCard}>
         <Card variant="default" padding="l">
           <Text style={styles.cardTitle}>Cuenta</Text>
+          <Pressable style={styles.actionRow} onPress={() => router.push('/(user)/vehicles')}>
+            <Car size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Mis Vehículos</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
+          <Pressable style={styles.actionRow} onPress={openSupportMenu}>
+            <HelpCircle size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Ayuda y Soporte</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={handleLogout}>
             <LogOut size={18} color={colors.error.main} />
             <Text style={styles.logoutText}>Cerrar Sesion</Text>
@@ -451,6 +462,16 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.bodyMedium,
     fontSize: typography.sizes.body,
     color: colors.error.main,
+  },
+  helpText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing.xs,
   },
   appInfo: {
     alignItems: 'center',

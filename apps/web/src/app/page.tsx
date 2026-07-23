@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin, DollarSign, MessageCircle, ClipboardList } from "lucide-react";
-import { BudiLogo } from "@/components/BudiLogo";
+import { BudiLogo } from "@/shared/components/BudiLogo";
 
 export default function Home() {
   return (

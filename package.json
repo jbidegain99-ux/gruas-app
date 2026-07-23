@@ -16,6 +16,7 @@
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:seed": "supabase db seed",
-    "db:types": "supabase gen types typescript --local > packages/shared/src/database.types.ts"
+    "db:types": "supabase gen types typescript --linked > packages/shared/src/database.types.ts",
+    "db:types:local": "supabase gen types typescript --local > packages/shared/src/database.types.ts"
   }
 }
