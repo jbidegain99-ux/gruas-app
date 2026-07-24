@@ -64,6 +64,7 @@ export default function AdminRequestsPage() {
   const [pickupDisplay, setPickupDisplay] = useState('');
   const [dropoffDisplay, setDropoffDisplay] = useState('');
   const selectedIdRef = useRef<string | null>(null);
+  const deepLinkedRef = useRef(false);
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -142,6 +143,23 @@ export default function AdminRequestsPage() {
   };
 
   const refetch = () => setRefreshKey((k) => k + 1);
+
+  // Deep-link (?request=<id>): abrir el drawer de esa solicitud una sola vez, p. ej.
+  // al tocar "servicio en curso" en el Mapa de flota. Se difiere para no llamar
+  // setState de forma síncrona dentro del efecto.
+  useEffect(() => {
+    if (deepLinkedRef.current || loading) return;
+    const reqId = new URLSearchParams(window.location.search).get('request');
+    if (!reqId) {
+      deepLinkedRef.current = true;
+      return;
+    }
+    const found = requests.find((r) => r.id === reqId);
+    if (found) {
+      deepLinkedRef.current = true;
+      queueMicrotask(() => selectRequest(found));
+    }
+  }, [loading, requests]);
 
   const handleCancelRequest = async (requestId: string) => {
     const ok = await confirm({

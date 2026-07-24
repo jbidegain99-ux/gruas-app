@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Radio, RefreshCw, Truck, ArrowRight } from 'lucide-react';
+import { Radio, RefreshCw, Truck, ArrowRight, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { fetchFleet, OPERATOR_STATE_META, type FleetOperator, type OperatorState } from './fleet-data';
 
@@ -23,6 +23,7 @@ export default function AdminFleetPage() {
   const supabase = useMemo(() => createClient(), []);
   const [operators, setOperators] = useState<FleetOperator[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   // Contador de recargas: lo incrementan el botón, el realtime y el intervalo.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -31,11 +32,18 @@ export default function AdminFleetPage() {
   useEffect(() => {
     let active = true;
     const loadFleet = async () => {
-      const fleet = await fetchFleet(supabase, Date.now());
-      if (!active) return;
-      setOperators(fleet);
-      setUpdatedAt(new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' }));
-      setLoading(false);
+      try {
+        const fleet = await fetchFleet(supabase, Date.now());
+        if (!active) return;
+        setOperators(fleet);
+        setError(false);
+        setUpdatedAt(new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' }));
+      } catch (e) {
+        console.error('Error cargando flota:', e);
+        if (active) setError(true);
+      } finally {
+        if (active) setLoading(false);
+      }
     };
     loadFleet();
     return () => {
@@ -110,6 +118,18 @@ export default function AdminFleetPage() {
             <div className="flex h-full items-center justify-center text-sm text-zinc-500">
               Cargando flota…
             </div>
+          ) : error ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <AlertTriangle className="h-10 w-10 text-red-400" />
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">No se pudo cargar la flota</p>
+              <p className="max-w-xs text-sm text-zinc-500">Revisa tu conexión e intenta de nuevo.</p>
+              <button
+                onClick={reload}
+                className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600"
+              >
+                Reintentar
+              </button>
+            </div>
           ) : operators.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
               <Truck className="h-10 w-10 text-zinc-300 dark:text-zinc-700" />
@@ -150,7 +170,7 @@ export default function AdminFleetPage() {
                     <p className="mt-0.5 text-xs text-zinc-500">Visto {op.lastSeenLabel}</p>
                     {op.activeRequestId && (
                       <Link
-                        href="/admin/requests"
+                        href={`/admin/requests?request=${op.activeRequestId}`}
                         className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
                       >
                         {op.activeRequestAddress || 'Servicio en curso'}
