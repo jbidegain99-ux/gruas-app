@@ -28,9 +28,19 @@ import { savePin } from '@/features/pin/lib/pinStorage';
 import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2 } from 'lucide-react-native';
-import { BudiLogo, Button, Card, Input } from '@/shared/components/ui';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2, X, Check } from 'lucide-react-native';
+import { Button, Card, Input } from '@/shared/components/ui';
+import { MiniMap } from '@/shared/components/MiniMap';
 import { colors, typography, spacing, radii } from '@/theme';
+
+// Pasos del wizard, con etiqueta para el indicador de progreso.
+const STEP_META = [
+  { n: 1, label: 'Servicio' },
+  { n: 2, label: 'Ubicación' },
+  { n: 3, label: 'Detalles' },
+  { n: 4, label: 'Vehículo' },
+  { n: 5, label: 'Resumen' },
+] as const;
 
 type LucideIconComponent = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -513,6 +523,28 @@ export default function RequestService() {
     router.replace('/(user)');
   };
 
+  // Salir del wizard: si hay datos ingresados, confirma para no perderlos.
+  const handleClose = () => {
+    const hasData = !!(pickupAddress || dropoffAddress || incidentType || vehicleDescription || notes || photo) || step > 1;
+    if (!hasData) {
+      router.replace('/(user)');
+      return;
+    }
+    Alert.alert(
+      '¿Salir de la solicitud?',
+      'Se perderá la información que ingresaste.',
+      [
+        { text: 'Seguir aquí', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: () => { resetForm(); router.replace('/(user)'); } },
+      ]
+    );
+  };
+
+  // Ir a un paso ya visitado (retroceder para editar desde el indicador o el resumen).
+  const goToStep = (n: number) => {
+    if (n >= 1 && n <= step) setStep(n);
+  };
+
   // ─── STEP 1: Service Type Selection ───
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
@@ -540,6 +572,9 @@ export default function RequestService() {
                   setServiceType(stp.service_type as ServiceType);
                   setStep(2);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Servicio: ${stp.display_name}. Desde $${stp.base_price.toFixed(2)}`}
+                accessibilityState={{ selected: isSelected }}
               >
                 <View style={[
                   styles.serviceIconContainer,
@@ -574,6 +609,8 @@ export default function RequestService() {
       <Pressable
         style={styles.locationSelector}
         onPress={() => setShowPickupPicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel={pickupAddress ? `Punto de recogida: ${pickupAddress}. Toca para cambiar` : 'Seleccionar punto de recogida'}
       >
         <View style={styles.locationSelectorIconWrap}>
           <MapPin size={20} color={colors.primary[500]} strokeWidth={2} />
@@ -590,6 +627,8 @@ export default function RequestService() {
         style={styles.quickGpsButton}
         onPress={getCurrentLocation}
         disabled={gettingLocation}
+        accessibilityRole="button"
+        accessibilityLabel="Usar mi ubicación actual"
       >
         {gettingLocation ? (
           <ActivityIndicator color={colors.primary[500]} size="small" />
@@ -607,6 +646,8 @@ export default function RequestService() {
           <Pressable
             style={styles.locationSelector}
             onPress={() => setShowDestinationPicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={dropoffAddress ? `Destino: ${dropoffAddress}. Toca para cambiar` : 'Seleccionar destino'}
           >
             <View style={styles.locationSelectorIconWrap}>
               <Flag size={20} color={colors.error.main} strokeWidth={2} />
@@ -631,7 +672,7 @@ export default function RequestService() {
 
       <View style={styles.navButtons}>
         <View style={styles.navBack}>
-          <Button title="Atras" onPress={() => setStep(1)} variant="secondary" size="medium" />
+          <Button title="Atrás" onPress={() => setStep(1)} variant="secondary" size="medium" />
         </View>
         <View style={styles.navNext}>
           <Button
@@ -675,11 +716,14 @@ export default function RequestService() {
   const renderStep3 = () => {
     const renderTowDetails = () => (
       <>
-        <Text style={styles.label}>Tipo de Grua</Text>
+        <Text style={styles.label}>Tipo de Grúa</Text>
         <View style={styles.toggleContainer}>
           <Pressable
             style={[styles.toggleButton, towType === 'light' && styles.toggleActive]}
             onPress={() => setTowType('light')}
+            accessibilityRole="button"
+            accessibilityLabel="Grúa liviana, para autos y camionetas"
+            accessibilityState={{ selected: towType === 'light' }}
           >
             <Text style={[styles.toggleText, towType === 'light' && styles.toggleTextActive]}>Liviana</Text>
             <Text style={styles.toggleSubtext}>Autos, camionetas</Text>
@@ -687,6 +731,9 @@ export default function RequestService() {
           <Pressable
             style={[styles.toggleButton, towType === 'heavy' && styles.toggleActive]}
             onPress={() => setTowType('heavy')}
+            accessibilityRole="button"
+            accessibilityLabel="Grúa pesada, para camiones y buses"
+            accessibilityState={{ selected: towType === 'heavy' }}
           >
             <Text style={[styles.toggleText, towType === 'heavy' && styles.toggleTextActive]}>Pesada</Text>
             <Text style={styles.toggleSubtext}>Camiones, buses</Text>
@@ -700,6 +747,9 @@ export default function RequestService() {
               key={type}
               style={[styles.incidentButton, incidentType === type && styles.incidentActive]}
               onPress={() => setIncidentType(type)}
+              accessibilityRole="button"
+              accessibilityLabel={type}
+              accessibilityState={{ selected: incidentType === type }}
             >
               <Text style={[styles.incidentText, incidentType === type && styles.incidentTextActive]}>
                 {type}
@@ -712,18 +762,24 @@ export default function RequestService() {
 
     const renderTireDetails = () => (
       <>
-        <Text style={styles.label}>Tienes llanta de repuesto?</Text>
+        <Text style={styles.label}>¿Tienes llanta de repuesto?</Text>
         <View style={styles.toggleContainer}>
           <Pressable
             style={[styles.toggleButton, hasSpare === true && styles.toggleActive]}
             onPress={() => setHasSpare(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Sí tengo llanta de repuesto"
+            accessibilityState={{ selected: hasSpare === true }}
           >
-            <Text style={[styles.toggleText, hasSpare === true && styles.toggleTextActive]}>Si tengo</Text>
+            <Text style={[styles.toggleText, hasSpare === true && styles.toggleTextActive]}>Sí tengo</Text>
             <Text style={styles.toggleSubtext}>Solo cambio</Text>
           </Pressable>
           <Pressable
             style={[styles.toggleButton, hasSpare === false && styles.toggleActive]}
             onPress={() => setHasSpare(false)}
+            accessibilityRole="button"
+            accessibilityLabel="No tengo llanta de repuesto"
+            accessibilityState={{ selected: hasSpare === false }}
           >
             <Text style={[styles.toggleText, hasSpare === false && styles.toggleTextActive]}>No tengo</Text>
             <Text style={styles.toggleSubtext}>+${currentPricingType?.extra_fee?.toFixed(2) || '15.00'}</Text>
@@ -736,17 +792,23 @@ export default function RequestService() {
       <>
         <Text style={styles.label}>Tipo de Combustible</Text>
         <View style={styles.toggleContainer}>
-          {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => (
-            <Pressable
-              key={ft}
-              style={[styles.toggleButton, fuelType === ft && styles.toggleActive]}
-              onPress={() => setFuelType(ft)}
-            >
-              <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
-                {ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel'}
-              </Text>
-            </Pressable>
-          ))}
+          {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => {
+            const ftLabel = ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel';
+            return (
+              <Pressable
+                key={ft}
+                style={[styles.toggleButton, fuelType === ft && styles.toggleActive]}
+                onPress={() => setFuelType(ft)}
+                accessibilityRole="button"
+                accessibilityLabel={`Combustible ${ftLabel}`}
+                accessibilityState={{ selected: fuelType === ft }}
+              >
+                <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
+                  {ftLabel}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Text style={styles.label}>Cantidad (galones)</Text>
@@ -819,7 +881,7 @@ export default function RequestService() {
 
         <View style={styles.navButtons}>
           <View style={styles.navBack}>
-            <Button title="Atras" onPress={() => setStep(2)} variant="secondary" size="medium" />
+            <Button title="Atrás" onPress={() => setStep(2)} variant="secondary" size="medium" />
           </View>
           <View style={styles.navNext}>
             <Button title="Siguiente" onPress={() => setStep(4)} size="medium" disabled={!canProceed} />
@@ -832,7 +894,7 @@ export default function RequestService() {
   // ─── STEP 4: Vehicle + Photo ───
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Detalles del Vehiculo</Text>
+      <Text style={styles.stepTitle}>Detalles del Vehículo</Text>
 
       {savedVehicles.length > 0 && (
         <View style={styles.vehicleChips}>
@@ -846,6 +908,9 @@ export default function RequestService() {
                   key={v.id}
                   onPress={() => setVehicleDescription(label)}
                   style={[styles.chip, selected && styles.chipSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Vehículo ${label}`}
+                  accessibilityState={{ selected }}
                 >
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
                 </Pressable>
@@ -856,19 +921,19 @@ export default function RequestService() {
       )}
 
       <Input
-        label="Descripcion del Vehiculo (opcional)"
+        label="Descripción del Vehículo (opcional)"
         placeholder="Ej: Toyota Corolla 2020, color blanco"
         value={vehicleDescription}
         onChangeText={setVehicleDescription}
       />
 
-      <Text style={styles.label}>Foto del Vehiculo (opcional)</Text>
+      <Text style={styles.label}>Foto del Vehículo (opcional)</Text>
       <View style={styles.photoButtons}>
         <View style={{ flex: 1 }}>
           <Button title="Tomar Foto" onPress={takePhoto} variant="secondary" size="medium" />
         </View>
         <View style={{ flex: 1 }}>
-          <Button title="Galeria" onPress={pickImage} variant="secondary" size="medium" />
+          <Button title="Galería" onPress={pickImage} variant="secondary" size="medium" />
         </View>
       </View>
 
@@ -878,7 +943,7 @@ export default function RequestService() {
 
       <View style={styles.navButtons}>
         <View style={styles.navBack}>
-          <Button title="Atras" onPress={() => setStep(3)} variant="secondary" size="medium" />
+          <Button title="Atrás" onPress={() => setStep(3)} variant="secondary" size="medium" />
         </View>
         <View style={styles.navNext}>
           <Button title="Ver Resumen" onPress={() => setStep(5)} size="medium" />
@@ -895,6 +960,16 @@ export default function RequestService() {
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
+
+        {pickupCoords && (
+          <View style={styles.summaryMap}>
+            <MiniMap
+              pickup={pickupCoords}
+              dropoff={requiresDestination ? dropoffCoords : null}
+              height={160}
+            />
+          </View>
+        )}
 
         <Card variant="outlined" padding="m">
           <View style={styles.summaryContent}>
@@ -920,7 +995,7 @@ export default function RequestService() {
             )}
             {serviceType === 'tow' && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tipo de Grua:</Text>
+                <Text style={styles.summaryLabel}>Tipo de Grúa:</Text>
                 <Text style={styles.summaryValue}>{towType === 'light' ? 'Liviana' : 'Pesada'}</Text>
               </View>
             )}
@@ -933,7 +1008,7 @@ export default function RequestService() {
             {serviceType === 'tire' && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Repuesto:</Text>
-                <Text style={styles.summaryValue}>{hasSpare ? 'Si' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
+                <Text style={styles.summaryValue}>{hasSpare ? 'Sí' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
               </View>
             )}
             {serviceType === 'fuel' && (
@@ -950,12 +1025,16 @@ export default function RequestService() {
             )}
             {vehicleDescription && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Vehiculo:</Text>
+                <Text style={styles.summaryLabel}>Vehículo:</Text>
                 <Text style={styles.summaryValue}>{vehicleDescription}</Text>
               </View>
             )}
           </View>
         </Card>
+
+        <Text style={styles.editHint}>
+          ¿Necesitas cambiar algo? Toca un paso arriba para editarlo.
+        </Text>
 
         <View style={styles.priceCard}>
           <Text style={styles.priceLabelText}>Precio Estimado</Text>
@@ -1012,7 +1091,7 @@ export default function RequestService() {
 
         <View style={styles.navButtons}>
           <View style={styles.navBack}>
-            <Button title="Atras" onPress={() => setStep(4)} variant="secondary" size="medium" />
+            <Button title="Atrás" onPress={() => setStep(4)} variant="secondary" size="medium" />
           </View>
           <View style={styles.navNext}>
             <Button
@@ -1029,20 +1108,53 @@ export default function RequestService() {
   };
 
   return (
-    <>
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}>
-        <View style={styles.wizardHeader}>
-          <BudiLogo variant="icon" height={28} />
-        </View>
-        <View style={styles.progressContainer}>
-          {[1, 2, 3, 4, 5].map((s) => (
-            <View
-              key={s}
-              style={[styles.progressDot, s <= step && styles.progressDotActive]}
-            />
-          ))}
-        </View>
+    <View style={styles.screen}>
+      {/* Barra superior: cerrar + título */}
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.s }]}>
+        <Pressable
+          onPress={handleClose}
+          hitSlop={10}
+          style={styles.topBarBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar solicitud"
+        >
+          <X size={22} color={colors.text.primary} strokeWidth={2} />
+        </Pressable>
+        <Text style={styles.topBarTitle}>Solicitar servicio</Text>
+        <View style={styles.topBarBtn} />
+      </View>
 
+      {/* Indicador de progreso con etiquetas (tocable para volver a un paso) */}
+      <View style={styles.stepper}>
+        {STEP_META.map((s) => {
+          const active = s.n === step;
+          const done = s.n < step;
+          return (
+            <Pressable
+              key={s.n}
+              style={styles.stepItem}
+              onPress={() => goToStep(s.n)}
+              disabled={s.n > step}
+              accessibilityRole="button"
+              accessibilityLabel={`Paso ${s.n} de 5: ${s.label}`}
+              accessibilityState={{ selected: active, disabled: s.n > step }}
+            >
+              <View style={[styles.stepCircle, active && styles.stepCircleActive, done && styles.stepCircleDone]}>
+                {done ? (
+                  <Check size={14} color={colors.white} strokeWidth={3} />
+                ) : (
+                  <Text style={[styles.stepNum, active && styles.stepNumActive]}>{s.n}</Text>
+                )}
+              </View>
+              <Text style={[styles.stepLabel, (active || done) && styles.stepLabelActive]} numberOfLines={1}>
+                {s.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
@@ -1088,12 +1200,16 @@ export default function RequestService() {
           </View>
         </View>
       </Modal>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   // Layout
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
@@ -1103,26 +1219,73 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxxl,
   },
 
-  // Wizard header
-  wizardHeader: {
-    marginBottom: spacing.s,
+  // Barra superior
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.l,
+    paddingBottom: spacing.s,
+  },
+  topBarBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
 
-  // Progress
-  progressContainer: {
+  // Stepper con etiquetas
+  stepper: {
     flexDirection: 'row',
+    paddingHorizontal: spacing.m,
+    paddingBottom: spacing.m,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
+  },
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.micro,
+  },
+  stepCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xl,
+    backgroundColor: colors.background.tertiary,
+    borderWidth: 1,
+    borderColor: colors.border.light,
   },
-  progressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.border.light,
+  stepCircleActive: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[500],
   },
-  progressDotActive: {
+  stepCircleDone: {
     backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  stepNum: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.tertiary,
+  },
+  stepNumActive: {
+    color: colors.primary[600],
+  },
+  stepLabel: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    color: colors.text.tertiary,
+  },
+  stepLabelActive: {
+    color: colors.text.primary,
+    fontFamily: typography.fonts.bodyMedium,
   },
 
   // Step
@@ -1403,8 +1566,20 @@ const styles = StyleSheet.create({
   },
 
   // Summary
+  summaryMap: {
+    borderRadius: radii.l,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
   summaryContent: {
     gap: spacing.s,
+  },
+  editHint: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    textAlign: 'center',
   },
   summaryRow: {
     gap: spacing.micro,

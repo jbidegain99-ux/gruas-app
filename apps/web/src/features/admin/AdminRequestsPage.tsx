@@ -30,6 +30,9 @@ type ServiceRequest = {
   incident_type: string;
   total_price: number | null;
   created_at: string;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   profiles: { full_name: string; phone: string | null } | null;
   operator: { full_name: string; phone: string | null } | null;
 };
@@ -502,6 +505,30 @@ export default function AdminRequestsPage() {
                   <p className="text-xs text-zinc-500">Estado</p>
                   <StatusBadge status={selectedRequest.status} />
                 </div>
+
+                {selectedRequest.status === 'cancelled' && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-300">
+                      Cancelación
+                    </p>
+                    <p className="mt-1 text-sm text-red-800 dark:text-red-200">
+                      Cancelada por{' '}
+                      {selectedRequest.cancelled_by === selectedRequest.user_id
+                        ? 'el usuario'
+                        : selectedRequest.cancelled_by === selectedRequest.operator_id
+                        ? 'el operador'
+                        : selectedRequest.cancelled_by
+                        ? 'el equipo Budi (admin)'
+                        : 'origen desconocido'}
+                      {selectedRequest.cancelled_at
+                        ? ` · ${new Date(selectedRequest.cancelled_at).toLocaleString('es-SV')}`
+                        : ''}
+                    </p>
+                    <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                      Motivo: {selectedRequest.cancellation_reason || 'No especificado'}
+                    </p>
+                  </div>
+                )}
 
                 {selectedRequest.total_price && (
                   <div>
