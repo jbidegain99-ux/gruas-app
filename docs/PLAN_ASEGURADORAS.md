@@ -31,13 +31,13 @@
 **Objetivo:** dejar la operación diaria sólida y medible antes de sumar la capa
 de seguros. Ninguna aseguradora contrata a quien no puede demostrar operación y
 tiempos.
-pareciera que no esta corriendo
-**Entregables**
-- Panel de dueño con métricas reales: servicios de **hoy / semana**, ingresos y **tiempo de respuesta promedio**.
-- **Mapa de flota**: todos los operadores en vivo en un solo mapa.
-- Tracking del operador en **segundo plano** (no depender de la app abierta).
-- Ganancias del operador (hoy / semana) en su app.
-- Notificaciones push confiables + distribución a testers (EAS).
+
+**Entregables** _(estado al 2026-07-24)_
+- ✅ **Hecho** — Panel de dueño con métricas reales: servicios de **hoy / semana**, ingresos y **tiempo de respuesta promedio**. _(B-01, S1 27–31 jul)_
+- ✅ **Hecho** — **Mapa de flota**: todos los operadores en vivo en un solo mapa.
+- ✅ **Hecho** — Tracking del operador en **segundo plano** (no depender de la app abierta).
+- ✅ **Hecho** — Ganancias del operador (hoy / semana) en su app.
+- ⏳ **Pendiente** — Notificaciones push confiables + distribución a testers (EAS). _(requiere `eas init` + build EAS)_
 
 **Datos:** reutiliza `operator_locations` · `request_events`.
 

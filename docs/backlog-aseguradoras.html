@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Budi — Backlog aseguradoras</title>
+<style>
+  :root {
+    --budi: #2D5F8B; --budi-600: #244d73; --accent: #F5A25B;
+    --bg: #f6f8fb; --card: #ffffff; --ink: #1a1a2e; --muted: #6b7280; --line: #e5e7eb;
+    --done: #16a34a; --done-bg: #dcfce7; --prog: #d97706; --prog-bg: #fef3c7;
+    --pend: #6b7280; --pend-bg: #f1f5f9; --block: #dc2626; --block-bg: #fee2e2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: var(--budi); color: #fff; padding: 20px 24px; }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; opacity: .85; font-size: 13px; }
+  .wrap { padding: 20px 24px 60px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 16px 0 20px; }
+  .progress { flex: 1; min-width: 220px; }
+  .bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--done); width: 0; transition: width .3s; }
+  .progress small { color: var(--muted); font-size: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+  .pill { padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+  .s-Hecho { color: var(--done); background: var(--done-bg); }
+  .s-Enprogreso { color: var(--prog); background: var(--prog-bg); }
+  .s-Pendiente { color: var(--pend); background: var(--pend-bg); }
+  .s-Bloqueado { color: var(--block); background: var(--block-bg); }
+  .btn { border: 1px solid var(--line); background: #fff; color: var(--budi); border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn:hover { background: #f1f5f9; }
+  .phase { margin: 26px 0 8px; font-size: 15px; font-weight: 700; color: var(--budi-600); border-left: 4px solid var(--accent); padding-left: 10px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 1000px; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { background: #eef2f7; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; }
+  tr:last-child td { border-bottom: none; }
+  td.id { font-weight: 700; color: var(--budi); white-space: nowrap; }
+  td.sem { white-space: nowrap; color: var(--muted); }
+  td.entregable { min-width: 240px; font-weight: 600; }
+  td.crit, td.notas { color: var(--muted); min-width: 200px; }
+  td.prio, td.esf { text-align: center; white-space: nowrap; }
+  .status-cell { cursor: pointer; user-select: none; white-space: nowrap; }
+  .status-cell:hover .pill { outline: 2px solid var(--budi); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .note { background: #fff8e1; border: 1px solid #f5d67a; color: #7a5b00; border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1720; --card:#151e29; --ink:#e6edf3; --muted:#94a3b8; --line:#243244; }
+    thead th { background:#1b2635; }
+    .btn { background:#151e29; } .btn:hover { background:#1b2635; }
+    .note { background:#2a2410; border-color:#5c4a12; color:#e6d08a; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Budi — Backlog de aseguradoras</h1>
+  <p>Toca la celda de <b>Estado</b> para cambiarla (Pendiente → En progreso → Hecho → Bloqueado). Los cambios se guardan en este navegador.</p>
+</header>
+
+<div class="wrap">
+  <div class="note">
+    Reconstruido desde <b>docs/Aseguradoras.pdf</b>. Los estados de <b>Fase 0</b> reflejan lo que ya está en el código;
+    el resto quedó en <b>Pendiente</b>. La extracción del PDF puede desalinear <b>Prioridad/Esfuerzo/Notas</b> en filas lejanas — verifícalas contra el PDF.
+  </div>
+
+  <div class="toolbar">
+    <div class="progress">
+      <div class="bar"><span id="barFill"></span></div>
+      <small id="progressText">—</small>
+    </div>
+    <div class="legend">
+      <span class="pill s-Hecho">Hecho</span>
+      <span class="pill s-Enprogreso">En progreso</span>
+      <span class="pill s-Pendiente">Pendiente</span>
+      <span class="pill s-Bloqueado">Bloqueado</span>
+    </div>
+    <button class="btn" id="resetBtn">Restablecer estados</button>
+  </div>
+
+  <div id="root"></div>
+  <p class="hint">Consejo: para compartir el estado con alguien, tomá una captura — los cambios viven solo en tu navegador (localStorage).</p>
+</div>
+
+<script>
+const STATUSES = ['Pendiente', 'En progreso', 'Hecho', 'Bloqueado'];
+const cls = (s) => 's-' + s.replace(/\s/g, '');
+
+// Backlog reconstruido del PDF. estado = valor inicial (editable en el navegador).
+const ROWS = [
+  // Fase 0 — Cimientos operativos + Descubrimiento
+  { id:'B-01', fase:'Fase 0', sem:'S1', fechas:'27 jul – 31 jul', epica:'Cimientos operativos', entregable:'Panel de dueño con métricas reales (servicios hoy/semana, ingresos, tiempo de respuesta promedio)', crit:'El dueño ve en un dashboard los servicios de hoy y de la semana, ingresos y TRP; datos de request_events, no hardcodeados', prio:'P0', esf:'M', estado:'Hecho', notas:'Reusa request_events · operator_locations' },
+  { id:'B-02', fase:'Fase 0', sem:'S1', fechas:'27 jul – 31 jul', epica:'Descubrimiento seguros', entregable:'Discovery: definir modelo de cobertura y conseguir aseguradora design-partner', crit:'Documento con el modelo de póliza/cobertura validado con al menos 1 aseguradora dispuesta a piloto', prio:'P0', esf:'M', estado:'Pendiente', notas:'AÑADIDO — de-risk: no construir el modelo de cobertura equivocado' },
+  { id:'B-03', fase:'Fase 0', sem:'S2', fechas:'10 ago – 14 ago', epica:'Cimientos operativos', entregable:'Mapa de flota: todos los operadores en vivo en un solo mapa', crit:'El admin ve todos los operadores activos en tiempo real en un mapa', prio:'P0', esf:'M', estado:'Hecho', notas:'Reusa operator_locations' },
+  { id:'B-04', fase:'Fase 0', sem:'S2', fechas:'10 ago – 14 ago', epica:'Cimientos operativos', entregable:'Tracking del operador en segundo plano (no depender de la app abierta)', crit:'La ubicación se actualiza con la app en background; probado en Android/iOS', prio:'P0', esf:'M', estado:'Hecho', notas:'Documentado (docs/BACKGROUND_TRACKING.md); revisar permisos y batería' },
+  { id:'B-05', fase:'Fase 0', sem:'S3', fechas:'17 ago – 21 ago', epica:'Cimientos operativos', entregable:'Ganancias del operador (hoy/semana) en su app', crit:'El operador ve sus ganancias del día y la semana en su app', prio:'P1', esf:'S', estado:'Hecho', notas:'—' },
+  { id:'B-06', fase:'Fase 0', sem:'S3', fechas:'17 ago – 21 ago', epica:'Cimientos operativos', entregable:'Notificaciones push confiables + distribución a testers (EAS)', crit:'Push llega de forma consistente; build distribuido a testers vía EAS', prio:'P1', esf:'M', estado:'Pendiente', notas:'Falta eas init + build EAS (projectId placeholder)' },
+  { id:'B-07', fase:'Fase 0', sem:'S3', fechas:'17 ago – 21 ago', epica:'Cumplimiento', entregable:'Baseline Decreto 144: designar DPO, texto de consentimiento, política de retención, checklist RLS', crit:'Consentimiento visible al usuario, política de retención escrita, DPO designado, checklist RLS iniciado', prio:'P0', esf:'M', estado:'Pendiente', notas:'ADELANTADO desde Fase 4 — se guarda PII de afiliados desde Fase 1' },
+  // Fase 1 — Pólizas y afiliados
+  { id:'B-08', fase:'Fase 1', sem:'S4', fechas:'24 ago – 28 ago', epica:'Pólizas y afiliados', entregable:'Modelo de datos: migraciones insurers · policies · members · coverage_plans · coverage_usage + RLS', crit:'Migraciones aplicadas con RLS; ERD documentado; datos semilla cargados', prio:'P0', esf:'M', estado:'Pendiente', notas:'Tablas nuevas del plan' },
+  { id:'B-09', fase:'Fase 1', sem:'S5', fechas:'31 ago – 4 sep', epica:'Pólizas y afiliados', entregable:'Admin CRUD: alta de aseguradoras, pólizas, planes de cobertura y afiliados', crit:'El admin crea aseguradora → póliza → plan → afiliado de punta a punta', prio:'P0', esf:'M', estado:'Pendiente', notas:'' },
+  { id:'B-10', fase:'Fase 1', sem:'S5', fechas:'31 ago – 4 sep', epica:'Pólizas y afiliados', entregable:'Importación masiva de afiliados (CSV) + endpoint/API para la aseguradora', crit:'Se cargan N afiliados por CSV; API documentada para carga por la aseguradora', prio:'P1', esf:'M', estado:'Pendiente', notas:'' },
+  { id:'B-11', fase:'Fase 1', sem:'S6', fechas:'7 sep – 11 sep', epica:'Pólizas y afiliados', entregable:'Verificación de afiliado activo al solicitar, con manejo resiliente de fallos', crit:'Al solicitar se valida cobertura; si la verificación falla NO permite/bloquea en silencio — comportamiento definido y logueado', prio:'P0', esf:'M', estado:'Pendiente', notas:'Lección: fallos silenciosos de Edge Functions' },
+  { id:'B-12', fase:'Fase 1', sem:'S7', fechas:'14 sep – 18 sep', epica:'Pólizas y afiliados', entregable:'Motor de reglas de cobertura (nº servicios/año, km de arrastre, tipos incluidos) + coverage_usage', crit:'Las reglas se aplican y coverage_usage se decrementa correctamente por afiliado', prio:'P0', esf:'M', estado:'Pendiente', notas:'' },
+  { id:'B-13', fase:'Fase 1', sem:'S8', fechas:'21 sep – 25 sep', epica:'Pólizas y afiliados', entregable:'Cálculo automático de copago cuando el servicio excede la cobertura', crit:'El copago se calcula y se muestra al usuario antes de confirmar el servicio', prio:'P0', esf:'M', estado:'Pendiente', notas:'HITO: cada servicio nace de una cobertura válida' },
+  // Fase 2 — Casos, SLA y despacho
+  { id:'B-14', fase:'Fase 2', sem:'S9', fechas:'28 sep – 2 oct', epica:'Casos, SLA y despacho', entregable:'Folio/caso por servicio (referencia exportable) + línea de tiempo del caso', crit:'Cada servicio genera un folio único exportable con su timeline de eventos', prio:'P0', esf:'M', estado:'Pendiente', notas:'Reusa request_events · nueva tabla cases' },
+  { id:'B-15', fase:'Fase 2', sem:'S10', fechas:'5 oct – 9 oct', epica:'Casos, SLA y despacho', entregable:'Medición de SLA (solicitud→asignación→llegada→cierre) + config de SLA por aseguradora', crit:'Se registran los 4 tiempos por caso y se comparan contra el SLA configurado', prio:'P0', esf:'M', estado:'Pendiente', notas:'cases: sla_asignacion, sla_llegada' },
+  { id:'B-16', fase:'Fase 2', sem:'S11', fechas:'12 oct – 16 oct', epica:'Casos, SLA y despacho', entregable:'Despacho al operador más cercano (sugerencia sobre el mapa de flota)', crit:'El sistema sugiere el operador más cercano disponible al despachador', prio:'P1', esf:'M', estado:'Pendiente', notas:'Reusa PostGIS + mapa de flota' },
+  { id:'B-17', fase:'Fase 2', sem:'S12', fechas:'19 oct – 23 oct', epica:'Casos, SLA y despacho', entregable:'Portal B2B v1: la aseguradora ve sus casos, SLA y estado en vivo', crit:'La aseguradora inicia sesión y ve solo sus casos con SLA y estado en tiempo real', prio:'P0', esf:'L', estado:'Pendiente', notas:'HITO: PILOT-READY (piloto con 1 aseguradora, facturación manual)' },
+  { id:'B-18', fase:'Fase 2', sem:'S12', fechas:'19 oct – 23 oct', epica:'Ventas / demo', entregable:'Modo demo/sandbox para ventas (mostrar a una aseguradora antes de firmar)', crit:'Existe un entorno con datos de demo para presentar el producto a prospectos', prio:'P1', esf:'M', estado:'Pendiente', notas:'AÑADIDO — herramienta comercial para cerrar contratos' },
+  // Piloto
+  { id:'B-19', fase:'Piloto', sem:'S13', fechas:'26 oct – 30 oct', epica:'Piloto', entregable:'Buffer de piloto + endurecimiento (arreglar lo que salga del piloto real)', crit:'Los defectos detectados en el piloto quedan resueltos y verificados', prio:'P0', esf:'L', estado:'Pendiente', notas:'Semana colchón deliberada' },
+  { id:'B-20', fase:'Piloto', sem:'S13', fechas:'26 oct – 30 oct', epica:'Medios de pago', entregable:'Spike medios de pago SV: Wompi vs Stripe vs Chivo/BTC — decisión documentada', crit:'Documento con procesador elegido para copagos y payouts, con costos y limitaciones en El Salvador', prio:'P0', esf:'M', estado:'Pendiente', notas:'AÑADIDO — SV: USD + BTC de curso legal; Stripe limitado' },
+  // Fase 3 — Facturación y liquidación
+  { id:'B-21', fase:'Fase 3', sem:'S14', fechas:'2 nov – 6 nov', epica:'Facturación y liquidación', entregable:'Modelo invoices · payments · settlements · payouts + facturación a la aseguradora (por caso y consolidado mensual)', crit:'Se genera factura por caso y consolidado mensual por aseguradora', prio:'P0', esf:'L', estado:'Pendiente', notas:'Tablas nuevas del plan' },
+  { id:'B-22', fase:'Fase 3', sem:'S15', fechas:'9 nov – 13 nov', epica:'Facturación y liquidación', entregable:'Copagos del usuario en la app (tarjeta/efectivo) con el procesador elegido', crit:'El usuario paga su copago en la app; el pago se registra contra el caso', prio:'P0', esf:'M', estado:'Pendiente', notas:'Depende de B-20' },
+  { id:'B-23', fase:'Fase 3', sem:'S16', fechas:'16 nov – 20 nov', epica:'Facturación y liquidación', entregable:'Liquidación a proveedores y operadores (payouts) + flujo de conciliación/disputa de casos', crit:'Se calculan payouts por proveedor/operador; existe flujo para disputar/ajustar un caso', prio:'P0', esf:'L', estado:'Pendiente', notas:'Conciliación/disputa AÑADIDA al plan original' },
+  { id:'B-24', fase:'Fase 3', sem:'S17', fechas:'23 nov – 27 nov', epica:'Facturación y liquidación', entregable:'Reportes financieros y de SLA exportables por aseguradora', crit:'La aseguradora exporta reporte mensual financiero + de SLA (PDF/Excel)', prio:'P1', esf:'M', estado:'Pendiente', notas:'HITO: ciclo del dinero cerrado' },
+  // Fase 4 — Escala y confianza
+  { id:'B-25', fase:'Fase 4', sem:'S18', fechas:'30 nov – 4 dic', epica:'Escala y confianza', entregable:'Seguridad/compliance: revisión completa RLS, roles finos, log de auditoría de acceso a datos de afiliados, retención automatizada', crit:'RLS revisado por tabla; roles finos; auditoría de accesos a PII; retención de datos automatizada', prio:'P0', esf:'L', estado:'Pendiente', notas:'Completa el baseline de B-07 (Decreto 144)' },
+  { id:'B-26', fase:'Fase 4', sem:'S19', fechas:'7 dic – 11 dic', epica:'Escala y confianza', entregable:'Observabilidad (Sentry + alertas de SLA) + decisión de infra (OSRM auto-hospedado vs Google pago)', crit:'Errores en Sentry; alertas cuando un SLA está en riesgo; decisión de infra documentada', prio:'P1', esf:'M', estado:'Pendiente', notas:'' },
+  { id:'B-27', fase:'Fase 4', sem:'S20', fechas:'14 dic – 18 dic', epica:'Escala y confianza', entregable:'Multi-aseguradora / white-label (marca y reglas por cliente)', crit:'Se onboarda una 2ª aseguradora con su marca y reglas sin tocar código', prio:'P1', esf:'L', estado:'Pendiente', notas:'' },
+  { id:'B-28', fase:'Fase 4', sem:'S21', fechas:'21 dic – 25 dic', epica:'Escala y confianza', entregable:'API/webhooks con aseguradoras + hook de integración con call center', crit:'Webhooks emiten eventos de caso; API documentada; enganche con el plan de call center existente', prio:'P1', esf:'L', estado:'Pendiente', notas:'Enlaza con plan call center (Asterisk/Telnyx)' },
+  { id:'B-29', fase:'Fase 4', sem:'S22', fechas:'28 dic – 1 ene', epica:'Escala y confianza', entregable:'Buffer / runbook de soporte 24-7 / holgura de fin de año', crit:'Runbook de soporte escrito; semana de colchón por fin de año', prio:'P2', esf:'M', estado:'Pendiente', notas:'HITO: plataforma multi-aseguradora lista' },
+];
+
+const LS_KEY = 'budi_backlog_estados_v1';
+const overrides = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+const stateOf = (r) => overrides[r.id] || r.estado;
+
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  const phases = [...new Set(ROWS.map(r => r.fase))];
+  for (const fase of phases) {
+    const h = document.createElement('div'); h.className = 'phase'; h.textContent = fase;
+    root.appendChild(h);
+    const scroll = document.createElement('div'); scroll.className = 'scroll';
+    const table = document.createElement('table');
+    table.innerHTML = `<thead><tr>
+      <th>ID</th><th>Semana</th><th>Fechas</th><th>Épica</th><th>Entregable</th>
+      <th>Criterio de aceptación</th><th>Prio</th><th>Esf</th><th>Estado</th><th>Notas</th>
+    </tr></thead>`;
+    const tb = document.createElement('tbody');
+    for (const r of ROWS.filter(x => x.fase === fase)) {
+      const st = stateOf(r);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="id">${r.id}</td>
+        <td class="sem">${r.sem}</td>
+        <td class="sem">${r.fechas}</td>
+        <td>${r.epica}</td>
+        <td class="entregable">${r.entregable}</td>
+        <td class="crit">${r.crit}</td>
+        <td class="prio">${r.prio}</td>
+        <td class="esf">${r.esf}</td>
+        <td class="status-cell" data-id="${r.id}"><span class="pill ${cls(st)}">${st}</span></td>
+        <td class="notas">${r.notas || ''}</td>`;
+      tb.appendChild(tr);
+    }
+    table.appendChild(tb);
+    scroll.appendChild(table);
+    root.appendChild(scroll);
+  }
+  document.querySelectorAll('.status-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const id = cell.dataset.id;
+      const row = ROWS.find(r => r.id === id);
+      const cur = stateOf(row);
+      const next = STATUSES[(STATUSES.indexOf(cur) + 1) % STATUSES.length];
+      if (next === row.estado) delete overrides[id]; else overrides[id] = next;
+      localStorage.setItem(LS_KEY, JSON.stringify(overrides));
+      cell.innerHTML = `<span class="pill ${cls(next)}">${next}</span>`;
+      updateProgress();
+    });
+  });
+  updateProgress();
+}
+
+function updateProgress() {
+  const done = ROWS.filter(r => stateOf(r) === 'Hecho').length;
+  const pct = Math.round((done / ROWS.length) * 100);
+  document.getElementById('barFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${done} de ${ROWS.length} entregables en Hecho (${pct}%)`;
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('¿Restablecer todos los estados a los valores iniciales?')) {
+    localStorage.removeItem(LS_KEY);
+    for (const k in overrides) delete overrides[k];
+    render();
+  }
+});
+
+render();
+</script>
+</body>
+</html>
