@@ -209,8 +209,11 @@ export default function AdminRequestsPage() {
       new Date(r.created_at).toISOString(),
     ]);
 
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Escapa cada celda: envuelve en comillas y duplica las comillas internas,
+    // para que las direcciones con comas/comillas/saltos no rompan el CSV.
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((row) => row.map(cell).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

@@ -245,7 +245,7 @@ export function ChatScreen({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" color={colors.primary[500]} />
         <Text style={styles.loadingText}>Cargando chat...</Text>
       </View>
     );

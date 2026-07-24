@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { Users, Truck, Briefcase, ShieldCheck, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
-import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
+import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
 
 const PAGE_SIZE = 15;
@@ -50,8 +51,6 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
   const [page, setPage] = useState(0);
-  const toast = useToast();
-  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -94,34 +93,6 @@ export default function AdminUsersPage() {
   }, [refreshKey]);
 
   const refetch = () => setRefreshKey((k) => k + 1);
-
-  const setVerification = async (operatorId: string, status: 'approved' | 'rejected') => {
-    const aprobado = status === 'approved';
-    const ok = aprobado
-      ? await confirm({
-          title: '¿Aprobar este operador?',
-          message: 'Podrá recibir solicitudes.',
-          confirmLabel: 'Aprobar',
-        })
-      : await confirm({
-          title: '¿Rechazar este operador?',
-          confirmLabel: 'Rechazar',
-          destructive: true,
-        });
-    if (!ok) return;
-
-    const supabase = createClient();
-    const { error } = await supabase.rpc('admin_set_operator_verification', {
-      p_operator_id: operatorId,
-      p_status: status,
-    });
-    if (error) {
-      toast.error('No se pudo actualizar la verificación.');
-      return;
-    }
-    toast.success(aprobado ? 'Operador aprobado.' : 'Operador rechazado.');
-    refetch();
-  };
 
   const VERIF_BADGE: Record<string, string> = {
     approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
@@ -318,22 +289,13 @@ export default function AdminUsersPage() {
                             <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${VERIF_BADGE[profile.verification_status] || VERIF_BADGE.pending}`}>
                               {VERIF_LABEL[profile.verification_status] || profile.verification_status}
                             </span>
-                            {profile.verification_status !== 'approved' && (
-                              <button
-                                onClick={() => setVerification(profile.id, 'approved')}
-                                className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
-                              >
-                                Aprobar
-                              </button>
-                            )}
-                            {profile.verification_status !== 'rejected' && (
-                              <button
-                                onClick={() => setVerification(profile.id, 'rejected')}
-                                className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
-                              >
-                                Rechazar
-                              </button>
-                            )}
+                            {/* La aprobación/rechazo ahora vive en Verificaciones (con visor de documentos) */}
+                            <Link
+                              href="/admin/verifications"
+                              className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
+                            >
+                              Ver verificación
+                            </Link>
                           </>
                         )}
                         <button

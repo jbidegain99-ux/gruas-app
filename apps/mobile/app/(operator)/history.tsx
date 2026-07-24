@@ -173,7 +173,7 @@ export default function OperatorHistory() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
+    return date.toLocaleDateString('es-SV', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
