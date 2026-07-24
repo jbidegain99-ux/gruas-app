@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Truck, Briefcase, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Users, Truck, Briefcase, ShieldCheck, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
+import { Pagination } from '@/shared/components/Pagination';
+
+const PAGE_SIZE = 15;
 
 type UserRole = 'USER' | 'OPERATOR' | 'MOP' | 'ADMIN';
 
@@ -43,6 +47,11 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  const [page, setPage] = useState(0);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -87,15 +96,30 @@ export default function AdminUsersPage() {
   const refetch = () => setRefreshKey((k) => k + 1);
 
   const setVerification = async (operatorId: string, status: 'approved' | 'rejected') => {
+    const aprobado = status === 'approved';
+    const ok = aprobado
+      ? await confirm({
+          title: '¿Aprobar este operador?',
+          message: 'Podrá recibir solicitudes.',
+          confirmLabel: 'Aprobar',
+        })
+      : await confirm({
+          title: '¿Rechazar este operador?',
+          confirmLabel: 'Rechazar',
+          destructive: true,
+        });
+    if (!ok) return;
+
     const supabase = createClient();
     const { error } = await supabase.rpc('admin_set_operator_verification', {
       p_operator_id: operatorId,
       p_status: status,
     });
     if (error) {
-      alert(`No se pudo actualizar la verificación: ${error.message}`);
+      toast.error('No se pudo actualizar la verificación.');
       return;
     }
+    toast.success(aprobado ? 'Operador aprobado.' : 'Operador rechazado.');
     refetch();
   };
 
@@ -119,6 +143,25 @@ export default function AdminUsersPage() {
   };
 
   const stats = getRoleStats();
+
+  // Búsqueda (nombre/email/teléfono) + filtro por rol, sobre la lista cargada.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return profiles.filter((p) => {
+      if (roleFilter !== 'all' && p.role !== roleFilter) return false;
+      if (!q) return true;
+      return (
+        (p.full_name || '').toLowerCase().includes(q) ||
+        (p.email || '').toLowerCase().includes(q) ||
+        (p.phone || '').toLowerCase().includes(q)
+      );
+    });
+  }, [profiles, search, roleFilter]);
+
+  // Vuelve a la primera página si el filtro cambia y la página actual queda fuera.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   return (
     <div>
@@ -172,6 +215,36 @@ export default function AdminUsersPage() {
 
       {/* Users Table */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        {/* Buscador + filtro por rol */}
+        <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Buscar por nombre, email o teléfono..."
+              className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value as 'all' | UserRole);
+              setPage(0);
+            }}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+          >
+            <option value="all">Todos los roles</option>
+            <option value="USER">Usuarios</option>
+            <option value="OPERATOR">Operadores</option>
+            <option value="MOP">MOP</option>
+            <option value="ADMIN">Administradores</option>
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-zinc-50 dark:bg-zinc-800">
@@ -183,7 +256,7 @@ export default function AdminUsersPage() {
                   Email
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Telefono
+                  Teléfono
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Rol
@@ -203,14 +276,16 @@ export default function AdminUsersPage() {
                     Cargando...
                   </td>
                 </tr>
-              ) : profiles.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
-                    No hay usuarios registrados
+                    {profiles.length === 0
+                      ? 'No hay usuarios registrados'
+                      : 'No se encontraron usuarios con esos criterios'}
                   </td>
                 </tr>
               ) : (
-                profiles.map((profile) => (
+                paged.map((profile) => (
                   <tr key={profile.id}>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -275,6 +350,12 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );
@@ -295,6 +376,7 @@ function EditUserModal({
   const [providerId, setProviderId] = useState<string>(user.provider_id || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,11 +395,13 @@ function EditUserModal({
     if (rpcError) {
       console.error('Error updating user:', rpcError);
       setError(rpcError.message);
+      toast.error('No se pudo actualizar el rol.');
       setLoading(false);
       return;
     }
 
     setLoading(false);
+    toast.success('Rol actualizado.');
     onSave();
   };
 

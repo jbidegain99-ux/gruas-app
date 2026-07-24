@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { Alert, AppState, AppStateStatus } from 'react-native';
 import { DEMO_CONFIG } from '@/config/demo';
 import {
@@ -82,7 +83,7 @@ export function useOperatorLocationTracking({
 
     // In demo mode, skip real GPS tracking and Supabase updates entirely
     if (DEMO_CONFIG.ENABLED) {
-      console.log('[LocationTracking] Demo mode active — skipping real tracking');
+      logger.log('[LocationTracking] Demo mode active — skipping real tracking');
       return;
     }
 
@@ -144,7 +145,7 @@ export function useOperatorLocationTracking({
       }
 
       watchSubscriptionRef.current = subscription;
-      console.log('Operator location tracking started');
+      logger.log('Operator location tracking started');
 
       // Segundo plano: complementa al watcher para que la ubicación siga
       // fluyendo con la app minimizada. Best-effort — en Expo Go o sin permiso
@@ -179,7 +180,7 @@ export function useOperatorLocationTracking({
     if (isTrackingRef.current) {
       isTrackingRef.current = false;
       await setOffline();
-      console.log('Operator location tracking stopped');
+      logger.log('Operator location tracking stopped');
     }
   }, [setOffline]);
 

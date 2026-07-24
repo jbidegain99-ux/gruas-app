@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { getCachedDistance, setCachedDistance } from '@/lib/distanceCache';
 
 interface Coordinates {
@@ -68,7 +69,7 @@ export function useDistanceCalculation(
     // Check in-memory cache first (fastest)
     if (cacheKey && memoryCache.has(cacheKey)) {
       const cached = memoryCache.get(cacheKey)!;
-      console.log('[Distance] Memory cache hit');
+      logger.log('[Distance] Memory cache hit');
       setDistance(cached.distance_km);
       setDistanceText(cached.distance_text);
       setDuration(cached.duration_minutes);
@@ -88,7 +89,7 @@ export function useDistanceCalculation(
     );
 
     if (persistentCached) {
-      console.log('[Distance] Persistent cache hit');
+      logger.log('[Distance] Persistent cache hit');
       // Also add to memory cache for faster subsequent lookups
       if (cacheKey) {
         memoryCache.set(cacheKey, {

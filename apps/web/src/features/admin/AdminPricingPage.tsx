@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
+import { money } from '@/shared/lib/format';
 
 type PricingRule = {
   id: string;
@@ -23,6 +25,8 @@ export default function AdminPricingPage() {
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activating, setActivating] = useState<string | null>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchRules = async () => {
@@ -40,6 +44,13 @@ export default function AdminPricingPage() {
   const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleActivate = async (rule: PricingRule) => {
+    const ok = await confirm({
+      title: '¿Activar esta tarifa?',
+      message: 'Se aplicará a todas las solicitudes nuevas de la plataforma.',
+      confirmLabel: 'Activar',
+    });
+    if (!ok) return;
+
     setActivating(rule.id);
     const supabase = createClient();
 
@@ -50,7 +61,9 @@ export default function AdminPricingPage() {
 
     if (error) {
       console.error('Error activating rule:', error);
-      alert('Error al activar la regla: ' + error.message);
+      toast.error('No se pudo activar la tarifa.');
+    } else {
+      toast.success('Tarifa activada.');
     }
 
     setActivating(null);
@@ -58,10 +71,22 @@ export default function AdminPricingPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Esta seguro de eliminar esta regla de precios?')) return;
+    const ok = await confirm({
+      title: '¿Eliminar esta regla?',
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
 
     const supabase = createClient();
-    await supabase.from('pricing_rules').delete().eq('id', id);
+    const { error } = await supabase.from('pricing_rules').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting rule:', error);
+      toast.error('No se pudo eliminar la regla.');
+      return;
+    }
+    toast.success('Regla eliminada.');
     refetch();
   };
 
@@ -75,7 +100,7 @@ export default function AdminPricingPage() {
             Reglas de Precios
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Configura las tarifas dinamicas del servicio
+            Configura las tarifas dinámicas del servicio
           </p>
         </div>
         <button
@@ -104,7 +129,7 @@ export default function AdminPricingPage() {
             <div>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">Tarifa Base</p>
               <p className="text-2xl font-bold text-zinc-900 dark:text-white">
-                ${activeRule.base_exit_fee}
+                {money(activeRule.base_exit_fee)}
               </p>
             </div>
             <div>
@@ -114,15 +139,15 @@ export default function AdminPricingPage() {
               </p>
             </div>
             <div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Grua Liviana</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">Grúa Liviana</p>
               <p className="text-2xl font-bold text-zinc-900 dark:text-white">
-                ${activeRule.price_per_km_light}/km
+                {money(activeRule.price_per_km_light)}/km
               </p>
             </div>
             <div>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Grua Pesada</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">Grúa Pesada</p>
               <p className="text-2xl font-bold text-zinc-900 dark:text-white">
-                ${activeRule.price_per_km_heavy}/km
+                {money(activeRule.price_per_km_heavy)}/km
               </p>
             </div>
           </div>
@@ -203,16 +228,16 @@ export default function AdminPricingPage() {
                       {rule.name}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      ${rule.base_exit_fee}
+                      {money(rule.base_exit_fee)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                       {rule.included_km} km
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      ${rule.price_per_km_light}/km
+                      {money(rule.price_per_km_light)}/km
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      ${rule.price_per_km_heavy}/km
+                      {money(rule.price_per_km_heavy)}/km
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       {rule.is_active ? (
@@ -275,6 +300,7 @@ function PricingForm({
   const [pricePerKmHeavy, setPricePerKmHeavy] = useState(rule?.price_per_km_heavy || 4);
   const [description, setDescription] = useState(rule?.description || '');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,13 +318,19 @@ function PricingForm({
       currency: 'USD',
     };
 
-    if (rule) {
-      await supabase.from('pricing_rules').update(data).eq('id', rule.id);
-    } else {
-      await supabase.from('pricing_rules').insert(data);
-    }
+    const { error } = rule
+      ? await supabase.from('pricing_rules').update(data).eq('id', rule.id)
+      : await supabase.from('pricing_rules').insert(data);
 
     setLoading(false);
+
+    if (error) {
+      console.error('Error saving rule:', error);
+      toast.error('No se pudo guardar la regla.');
+      return;
+    }
+
+    toast.success('Regla guardada.');
     onSave();
   };
 
@@ -318,7 +350,7 @@ function PricingForm({
             onChange={(e) => setName(e.target.value)}
             required
             className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-            placeholder="Tarifa Estandar"
+            placeholder="Tarifa Estándar"
           />
         </div>
 
@@ -383,14 +415,14 @@ function PricingForm({
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Descripcion
+            Descripción
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
             className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-            placeholder="Descripcion de la tarifa..."
+            placeholder="Descripción de la tarifa..."
           />
         </div>
 

@@ -21,10 +21,11 @@ import { MiniMap } from '@/shared/components/MiniMap';
 import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
 import { AddressText } from '@/shared/components/AddressText';
 import { isLateCancellation } from '@/lib/cancellation';
+import { friendlyError } from '@/lib/errorMessages';
 import { getAllPins } from '@/features/pin/lib/pinStorage';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -67,6 +68,7 @@ export default function History() {
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
@@ -80,6 +82,7 @@ export default function History() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async () => {
+    setLoadError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -132,6 +135,7 @@ export default function History() {
 
     if (error) {
       console.error('Error fetching requests:', error);
+      setLoadError(true);
       setLoading(false);
       return;
     }
@@ -246,7 +250,7 @@ export default function History() {
       });
 
       if (error) {
-        Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
+        Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
         return;
       }
 
@@ -261,8 +265,7 @@ export default function History() {
       setSelectedRequest(null);
       await fetchRequests();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'No se pudo cancelar la solicitud. Intenta de nuevo.';
-      Alert.alert('Error', message);
+      Alert.alert('Error', friendlyError(err as { message?: string }, 'No se pudo cancelar la solicitud. Intenta de nuevo.'));
     } finally {
       setCancelling(false);
     }
@@ -423,7 +426,7 @@ export default function History() {
             )}
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Ubicacion de Recogida</Text>
+              <Text style={styles.detailLabel}>Ubicación de Recogida</Text>
               <AddressText
                 style={styles.detailValue}
                 address={selectedRequest.pickup_address}
@@ -464,14 +467,14 @@ export default function History() {
             {/* Show PIN for active requests */}
             {selectedRequest.pin && ['initiated', 'assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
               <View style={styles.pinSection}>
-                <Text style={styles.pinLabel}>PIN de Verificacion</Text>
+                <Text style={styles.pinLabel}>PIN para el operador</Text>
                 <PINInput
                   value={selectedRequest.pin}
                   onChangeText={() => {}}
                   displayOnly
                 />
                 <Text style={styles.pinNote}>
-                  Muestra este PIN al operador cuando llegue la grua
+                  Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
                 </Text>
               </View>
             )}
@@ -535,7 +538,7 @@ export default function History() {
                       if (selectedRequest.operator_phone) {
                         Linking.openURL(`tel:${selectedRequest.operator_phone}`);
                       } else {
-                        Alert.alert('Sin telefono', 'El operador no tiene un telefono registrado.');
+                        Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
                       }
                     }}
                     variant="secondary"
@@ -621,6 +624,18 @@ export default function History() {
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tu historial"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchRequests}
+      />
+    );
   }
 
   return (

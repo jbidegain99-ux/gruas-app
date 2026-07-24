@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { friendlyError } from '@/lib/errorMessages';
 import type { UserRole } from '@gruas-app/shared';
 import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -29,6 +30,16 @@ export default function Register() {
   const handleRegister = async () => {
     if (!email || !password || !fullName || !phone) {
       Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    // Validación básica antes de llamar a Supabase (evita errores crudos)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Email inválido', 'Escribe un email con un formato válido (ej. tu@correo.com).');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -49,12 +60,7 @@ export default function Register() {
 
     if (error) {
       console.error('Registration error:', JSON.stringify(error, null, 2));
-      const errorDetails = error.message || 'Error desconocido al registrar';
-      const errorCode = (error as { code?: string }).code;
-      const fullMessage = errorCode
-        ? `${errorDetails}\n\nCódigo: ${errorCode}`
-        : errorDetails;
-      Alert.alert('Error de Registro', fullMessage);
+      Alert.alert('Error de Registro', friendlyError(error, 'No se pudo crear la cuenta. Intenta de nuevo.'));
       return;
     }
 

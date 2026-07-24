@@ -9,10 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { colors, typography, spacing, radii } from '@/theme';
 
 interface Message {
@@ -47,16 +49,16 @@ export function ChatScreen({
 
   // Log props only on mount or when they change
   useEffect(() => {
-    console.log('=== ChatScreen MOUNTED ===');
-    console.log('requestId:', requestId);
-    console.log('currentUserId:', currentUserId);
-    console.log('otherUserName:', otherUserName);
+    logger.log('=== ChatScreen MOUNTED ===');
+    logger.log('requestId:', requestId);
+    logger.log('currentUserId:', currentUserId);
+    logger.log('otherUserName:', otherUserName);
   }, [requestId, currentUserId, otherUserName]);
 
   // Fetch initial messages
   const fetchMessages = useCallback(async () => {
     try {
-      console.log('Fetching messages for request:', requestId);
+      logger.log('Fetching messages for request:', requestId);
 
       if (!requestId) {
         console.error('No requestId provided!');
@@ -74,7 +76,7 @@ export function ChatScreen({
         console.error('Error fetching messages:', error);
         setHasError(true);
       } else {
-        console.log('Messages fetched:', data?.length || 0);
+        logger.log('Messages fetched:', data?.length || 0);
         setMessages(data || []);
       }
     } catch (err) {
@@ -88,7 +90,7 @@ export function ChatScreen({
   // Subscribe to new messages
   useEffect(() => {
     if (!requestId) {
-      console.log('No requestId, skipping initialization');
+      logger.log('No requestId, skipping initialization');
       setLoading(false);
       return;
     }
@@ -102,7 +104,7 @@ export function ChatScreen({
       if (!isMounted) return;
 
       try {
-        console.log('Setting up realtime subscription for:', requestId);
+        logger.log('Setting up realtime subscription for:', requestId);
 
         channel = supabase
           .channel(`chat:${requestId}`)
@@ -115,7 +117,7 @@ export function ChatScreen({
               filter: `request_id=eq.${requestId}`,
             },
             (payload) => {
-              console.log('New message received:', payload);
+              logger.log('New message received:', payload);
               if (isMounted) {
                 const newMsg = payload.new as Message;
                 setMessages((prev) => [...prev, newMsg]);
@@ -123,7 +125,7 @@ export function ChatScreen({
             }
           )
           .subscribe((status) => {
-            console.log('Realtime subscription status:', status);
+            logger.log('Realtime subscription status:', status);
           });
       } catch (err) {
         console.error('Error setting up realtime:', err);
@@ -133,7 +135,7 @@ export function ChatScreen({
     init();
 
     return () => {
-      console.log('Cleaning up ChatScreen');
+      logger.log('Cleaning up ChatScreen');
       isMounted = false;
       if (channel) {
         supabase.removeChannel(channel);
@@ -158,7 +160,7 @@ export function ChatScreen({
     setNewMessage('');
 
     try {
-      console.log('Sending message:', trimmedMessage);
+      logger.log('Sending message');
       const { error } = await supabase.rpc('send_message', {
         p_request_id: requestId,
         p_message: trimmedMessage,
@@ -167,12 +169,14 @@ export function ChatScreen({
       if (error) {
         console.error('Error sending message:', error);
         setNewMessage(trimmedMessage); // Restore message on error
+        Alert.alert('No se pudo enviar', 'Revisa tu conexión e intenta de nuevo.');
       } else {
-        console.log('Message sent successfully');
+        logger.log('Message sent successfully');
       }
     } catch (err) {
       console.error('Send message exception:', err);
       setNewMessage(trimmedMessage);
+      Alert.alert('No se pudo enviar', 'Revisa tu conexión e intenta de nuevo.');
     } finally {
       setSending(false);
     }
@@ -304,6 +308,9 @@ export function ChatScreen({
           ]}
           onPress={sendMessage}
           disabled={!newMessage.trim() || sending}
+          accessibilityRole="button"
+          accessibilityLabel="Enviar mensaje"
+          accessibilityState={{ disabled: !newMessage.trim() || sending, busy: sending }}
         >
           {sending ? (
             <ActivityIndicator size="small" color={colors.text.inverse} />

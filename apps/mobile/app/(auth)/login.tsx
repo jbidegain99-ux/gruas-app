@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { friendlyError } from '@/lib/errorMessages';
 import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
@@ -35,7 +36,7 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', friendlyError(error, 'No se pudo iniciar sesión.'));
       return;
     }
 
@@ -65,7 +66,7 @@ export default function Login() {
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', friendlyError(error, 'No se pudo enviar el enlace de recuperación.'));
       return;
     }
     Alert.alert(

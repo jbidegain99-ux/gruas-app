@@ -9,7 +9,7 @@ import {
   Image,
   Switch,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -22,7 +22,7 @@ import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } fr
 import { osrmLegs } from '@/lib/osrm';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, LoadingSpinner } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { AddressText } from '@/shared/components/AddressText';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -50,6 +50,7 @@ export default function OperatorRequests() {
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<AvailableRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [operatorName, setOperatorName] = useState('');
@@ -72,6 +73,7 @@ export default function OperatorRequests() {
   >({});
 
   const fetchData = useCallback(async () => {
+    setLoadError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -114,6 +116,7 @@ export default function OperatorRequests() {
 
     if (rpcError) {
       console.error('Error fetching available requests:', rpcError);
+      setLoadError(true);
     }
 
     if (availableRequests) {
@@ -147,7 +150,7 @@ export default function OperatorRequests() {
     };
   }, [fetchData]);
 
-  // Ubicacion del operador (best-effort) para mostrar "a X km de ti" en cada
+  // Ubicación del operador (best-effort) para mostrar "a X km de ti" en cada
   // solicitud. Si no hay permiso/GPS, simplemente no se muestra esa distancia.
   useEffect(() => {
     (async () => {
@@ -157,7 +160,7 @@ export default function OperatorRequests() {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setOperatorLoc({ lat: loc.coords.latitude, lng: loc.coords.longitude });
       } catch {
-        // sin ubicacion; se omite la distancia al operador
+        // sin ubicación; se omite la distancia al operador
       }
     })();
   }, []);
@@ -234,6 +237,30 @@ export default function OperatorRequests() {
     setRefreshing(true);
     await fetchData();
     setRefreshing(false);
+  };
+
+  // Confirmación antes de tomar el servicio: es la acción más crítica del flujo
+  // y antes se ejecutaba al primer toque. Mostramos un resumen con lo que el
+  // operador necesita para decidir (a dónde va, qué tan lejos, cuánto dura).
+  const confirmAccept = (
+    item: AvailableRequest,
+    metrics: { toPickupKm: number | null; tripKm: number | null; tripMin: number | null }
+  ) => {
+    const svcConfig = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
+    const lines: string[] = [];
+    lines.push(`Servicio: ${svcConfig?.name || 'Grua'}`);
+    if (item.user_name) lines.push(`Cliente: ${item.user_name}`);
+    if (metrics.toPickupKm !== null) lines.push(`Recogida a ${formatKm(metrics.toPickupKm)} de ti`);
+    if (metrics.tripKm !== null) lines.push(`Viaje: ${formatKm(metrics.tripKm)}${metrics.tripMin !== null ? ` (~${metrics.tripMin} min)` : ''}`);
+
+    Alert.alert(
+      '¿Aceptar este servicio?',
+      lines.join('\n'),
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Aceptar', onPress: () => handleAcceptRequest(item.id) },
+      ]
+    );
   };
 
   const handleAcceptRequest = async (requestId: string) => {
@@ -458,7 +485,7 @@ export default function OperatorRequests() {
 
         <Button
           title="Aceptar Servicio"
-          onPress={() => handleAcceptRequest(item.id)}
+          onPress={() => confirmAccept(item, { toPickupKm, tripKm, tripMin })}
           loading={acceptingId === item.id}
           disabled={acceptingId === item.id}
           size="large"
@@ -555,11 +582,18 @@ export default function OperatorRequests() {
       ) : !verified ? (
         <View style={styles.emptyState}>
           <ClipboardList size={56} color={colors.warning.main} strokeWidth={1.5} />
-          <Text style={styles.emptyTitle}>Cuenta en revisión</Text>
+          <Text style={styles.emptyTitle}>Verificación pendiente</Text>
           <Text style={styles.emptyText}>
-            Un administrador debe aprobar tu cuenta antes de que puedas recibir
-            solicitudes. Te avisaremos cuando esté lista.
+            Necesitas verificar tu cuenta antes de recibir solicitudes. Sube tus
+            documentos y un administrador los revisará.
           </Text>
+          <View style={styles.emptyAction}>
+            <Button
+              title="Completar verificación"
+              onPress={() => router.push('/(operator)/verification' as Href)}
+              size="medium"
+            />
+          </View>
         </View>
       ) : !online ? (
         <View style={styles.emptyState}>
@@ -569,6 +603,13 @@ export default function OperatorRequests() {
             Ponte en línea para recibir solicitudes y que los clientes vean tu ubicación.
           </Text>
         </View>
+      ) : loadError ? (
+        <ErrorState
+          offline
+          title="No pudimos cargar las solicitudes"
+          message="Revisa tu conexión e intenta de nuevo."
+          onRetry={onRefresh}
+        />
       ) : requests.length === 0 ? (
         <View style={styles.emptyState}>
           <ClipboardList size={56} color={colors.text.tertiary} strokeWidth={1.5} />
@@ -838,5 +879,9 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  emptyAction: {
+    marginTop: spacing.m,
+    minWidth: 220,
   },
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 interface OperatorLocation {
   lat: number;
@@ -126,7 +127,7 @@ export function useOperatorRealtimeTracking(
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('Subscribed to operator location updates');
+          logger.log('Subscribed to operator location updates');
         } else if (status === 'CHANNEL_ERROR') {
           console.error('Error subscribing to operator location');
           setError('Error al conectar con el servidor');

@@ -188,7 +188,13 @@ export function usePushNotifications(): UsePushNotificationsResult {
       } else {
         router.push('/(user)');
       }
+    } else if (data?.type === 'verification_result') {
+      // Operador: su verificación fue aprobada/rechazada -> su perfil (tarjeta de
+      // estado + acceso a la pantalla de documentos).
+      router.push('/(operator)/profile');
     }
+    // 'verification_submitted' (aviso a admins) no tiene ruta móvil: los admins
+    // usan el panel web. Se encola por si un admin tiene la app, pero no navega.
   }, []);
 
   // Set up notification listeners

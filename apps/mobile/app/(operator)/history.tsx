@@ -20,7 +20,7 @@ import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
 import { AddressText } from '@/shared/components/AddressText';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Card, StatusBadge, LoadingSpinner } from '@/shared/components/ui';
+import { BudiLogo, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -56,6 +56,7 @@ export default function OperatorHistory() {
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
@@ -64,6 +65,7 @@ export default function OperatorHistory() {
   const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
 
   const fetchRequests = useCallback(async () => {
+    setLoadError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -101,6 +103,7 @@ export default function OperatorHistory() {
 
     if (error) {
       console.error('Error fetching operator history:', error);
+      setLoadError(true);
       setLoading(false);
       return;
     }
@@ -320,7 +323,7 @@ export default function OperatorHistory() {
             )}
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Ubicacion de Recogida</Text>
+              <Text style={styles.detailLabel}>Ubicación de Recogida</Text>
               <AddressText
                 style={styles.detailValue}
                 address={selectedRequest.pickup_address}
@@ -395,6 +398,18 @@ export default function OperatorHistory() {
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tu historial"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchRequests}
+      />
+    );
   }
 
   return (

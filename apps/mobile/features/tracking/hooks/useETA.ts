@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 import { MovementThrottle } from '@/lib/geoUtils';
 
 interface Coordinates {
@@ -107,7 +108,7 @@ export function useETA(
         console.warn('[ETA] Failed to save polyline to DB:', updateError.message);
       } else {
         polylineSavedRef.current = true;
-        console.log('[ETA] Polyline saved to DB for request:', rid, '(length:', polyline.length, ')');
+        logger.log('[ETA] Polyline saved to DB for request:', rid, '(length:', polyline.length, ')');
       }
     } catch (e) {
       console.warn('[ETA] Exception saving polyline to DB:', e);
@@ -118,7 +119,7 @@ export function useETA(
     const op = operatorRef.current;
     const dest = destinationRef.current;
     if (!op || !dest || !enabledRef.current) {
-      console.log('[ETA] Skipping fetch — missing data:', {
+      logger.log('[ETA] Skipping fetch — missing data:', {
         hasOperator: !!op,
         hasDestination: !!dest,
         enabled: enabledRef.current,
@@ -138,7 +139,7 @@ export function useETA(
     setLoading(true);
     setError(null);
 
-    console.log('[ETA] Calling get-eta Edge Function:', {
+    logger.log('[ETA] Calling get-eta Edge Function:', {
       operator: `${op.lat.toFixed(5)},${op.lng.toFixed(5)}`,
       destination: `${dest.lat.toFixed(5)},${dest.lng.toFixed(5)}`,
       forceUpdate,
@@ -181,7 +182,7 @@ export function useETA(
         return;
       }
 
-      console.log('[ETA] Edge Function response:', {
+      logger.log('[ETA] Edge Function response:', {
         success: data.success,
         isFallback: data.is_fallback,
         hasPolyline: !!data.overview_polyline,
@@ -221,7 +222,7 @@ export function useETA(
       setLastUpdated(new Date());
       lastFetchedPositionRef.current = { ...op };
       fallbackLoggedRef.current = false; // Reset so next fallback is logged
-      console.log('[ETA] Updated — isFallback:', result.isFallback, 'hasPolyline:', !!result.overviewPolyline);
+      logger.log('[ETA] Updated — isFallback:', result.isFallback, 'hasPolyline:', !!result.overviewPolyline);
     } catch (err) {
       console.warn('[ETA] Connection error:', err);
       if (!fallbackLoggedRef.current) {

@@ -8,24 +8,27 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Clipboard from 'expo-clipboard';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
+import { friendlyError } from '@/lib/errorMessages';
 import { reverseGeocode } from '@/lib/geocoding';
 import { useDistanceCalculation } from '@/shared/hooks/useDistanceCalculation';
 import { LocationPicker } from '@/features/tracking/components/LocationPicker';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { isWithinCoverage, COVERAGE } from '@/config/coverage';
 import { savePin } from '@/features/pin/lib/pinStorage';
-import { DEFAULT_LOCATION } from '@/config/location';
 import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed } from 'lucide-react-native';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2 } from 'lucide-react-native';
 import { BudiLogo, Button, Card, Input } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -77,6 +80,10 @@ export default function RequestService() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+
+  // Modal de éxito con el PIN (reemplaza el Alert efímero no copiable).
+  const [successPin, setSuccessPin] = useState<string | null>(null);
+  const [pinCopied, setPinCopied] = useState(false);
 
   // Service type
   const [serviceType, setServiceType] = useState<ServiceType>('tow');
@@ -196,7 +203,7 @@ export default function RequestService() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permisos', 'Se requiere acceso a la ubicacion para continuar');
+        Alert.alert('Permisos', 'Se requiere acceso a la ubicación para continuar');
         setGettingLocation(false);
         return;
       }
@@ -215,7 +222,7 @@ export default function RequestService() {
       const address = await reverseGeocode(coords.lat, coords.lng);
       setPickupAddress(address);
     } catch {
-      Alert.alert('Error', 'No se pudo obtener la ubicacion');
+      Alert.alert('Error', 'No se pudo obtener la ubicación');
     }
     setGettingLocation(false);
   };
@@ -228,7 +235,7 @@ export default function RequestService() {
         return { lat: results[0].latitude, lng: results[0].longitude };
       }
     } catch (err) {
-      console.log('Geocoding error:', err);
+      logger.log('Geocoding error:', err);
     }
     return null;
   };
@@ -333,8 +340,26 @@ export default function RequestService() {
       return;
     }
 
+    // Coordenadas obligatorias: sin ellas NO se envía (antes se caía en silencio
+    // a DEFAULT_LOCATION y se podía despachar la grúa al lugar equivocado). Si la
+    // geocodificación falló, pedimos re-seleccionar el punto en el mapa.
+    if (!pickupCoords) {
+      Alert.alert(
+        'No pudimos ubicar la recogida',
+        'Vuelve al paso de Ubicación y selecciona el punto de recogida en el mapa para continuar.'
+      );
+      return;
+    }
+    if (requiresDestination && !dropoffCoords) {
+      Alert.alert(
+        'No pudimos ubicar el destino',
+        'Vuelve al paso de Ubicación y selecciona el destino en el mapa para continuar.'
+      );
+      return;
+    }
+
     // Zona de cobertura: el punto de recogida debe estar dentro del área servida.
-    if (pickupCoords && !isWithinCoverage(pickupCoords.lat, pickupCoords.lng)) {
+    if (!isWithinCoverage(pickupCoords.lat, pickupCoords.lng)) {
       Alert.alert(
         'Fuera de cobertura',
         `Por ahora solo damos servicio en ${COVERAGE.areaName}. El punto de recogida está fuera de la zona de cobertura.`
@@ -396,9 +421,9 @@ export default function RequestService() {
         notes || '',
       ].filter(Boolean).join('\n') || null;
 
-      // For non-tow: dropoff = pickup
-      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat || DEFAULT_LOCATION.latitude) : (pickupCoords?.lat || DEFAULT_LOCATION.latitude);
-      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng || DEFAULT_LOCATION.longitude) : (pickupCoords?.lng || DEFAULT_LOCATION.longitude);
+      // For non-tow: dropoff = pickup. Coords ya validadas arriba (no null).
+      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat ?? pickupCoords.lat) : pickupCoords.lat;
+      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng ?? pickupCoords.lng) : pickupCoords.lng;
       const effectiveDropoffAddress = requiresDestination ? dropoffAddress : pickupAddress;
 
       // Auto-assign incident for non-tow. Fallback al nombre del servicio (DB)
@@ -414,8 +439,8 @@ export default function RequestService() {
         p_incident_type: effectiveIncident,
         p_notes: combinedNotes,
         p_pickup_address: pickupAddress,
-        p_pickup_lat: pickupCoords?.lat || DEFAULT_LOCATION.latitude,
-        p_pickup_lng: pickupCoords?.lng || DEFAULT_LOCATION.longitude,
+        p_pickup_lat: pickupCoords.lat,
+        p_pickup_lng: pickupCoords.lng,
         p_service_details: buildServiceDetails(),
         p_service_type: serviceType,
         p_tow_type: towType,
@@ -424,7 +449,7 @@ export default function RequestService() {
 
       if (error) {
         console.error('Error creating request:', JSON.stringify(error));
-        Alert.alert('Error al crear solicitud', error.message || 'Ocurrio un error inesperado.');
+        Alert.alert('Error al crear solicitud', friendlyError(error, 'No se pudo crear la solicitud. Intenta de nuevo.'));
         setSubmitting(false);
         return;
       }
@@ -442,36 +467,50 @@ export default function RequestService() {
         console.error('Error saving PIN:', storageError);
       }
 
-      Alert.alert(
-        'Solicitud Enviada',
-        `Tu solicitud de ${serviceName} ha sido registrada.\n\nPIN de verificacion: ${data.pin}\n\nGuarda este PIN. Lo necesitaras cuando llegue el operador.`,
-        [{
-          text: 'Ver Estado',
-          onPress: () => {
-            setStep(1);
-            setServiceType('tow');
-            setPickupCoords(null);
-            setPickupAddress('');
-            setDropoffCoords(null);
-            setDropoffAddress('');
-            setTowType('light');
-            setIncidentType('');
-            setVehicleDescription('');
-            setNotes('');
-            setPhoto(null);
-            setEstimatedPrice(null);
-            setHasSpare(null);
-            setFuelType('regular');
-            setFuelGallons(1);
-            setSubmitting(false);
-            router.replace('/(user)');
-          },
-        }]
-      );
+      // Éxito: mostramos el PIN en un modal in-app (copiable y persistente),
+      // no en un Alert efímero. El reset del wizard ocurre al cerrar el modal.
+      setSubmitting(false);
+      setPinCopied(false);
+      setSuccessPin(data.pin);
     } catch {
-      Alert.alert('Error de conexion', 'No se pudo conectar con el servidor.');
+      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor.');
       setSubmitting(false);
     }
+  };
+
+  // Limpia el wizard para una próxima solicitud.
+  const resetForm = () => {
+    setStep(1);
+    setServiceType('tow');
+    setPickupCoords(null);
+    setPickupAddress('');
+    setDropoffCoords(null);
+    setDropoffAddress('');
+    setTowType('light');
+    setIncidentType('');
+    setVehicleDescription('');
+    setNotes('');
+    setPhoto(null);
+    setEstimatedPrice(null);
+    setHasSpare(null);
+    setFuelType('regular');
+    setFuelGallons(1);
+  };
+
+  const copyPin = async (pin: string) => {
+    try {
+      await Clipboard.setStringAsync(pin);
+      setPinCopied(true);
+    } catch {
+      // Copiar es una comodidad; si falla, el PIN sigue visible en pantalla.
+    }
+  };
+
+  const handleSuccessClose = () => {
+    resetForm();
+    setSuccessPin(null);
+    setPinCopied(false);
+    router.replace('/(user)');
   };
 
   // ─── STEP 1: Service Type Selection ───
@@ -529,7 +568,7 @@ export default function RequestService() {
   // ─── STEP 2: Location ───
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Ubicacion</Text>
+      <Text style={styles.stepTitle}>Ubicación</Text>
 
       <Text style={styles.label}>Punto de Recogida</Text>
       <Pressable
@@ -541,7 +580,7 @@ export default function RequestService() {
         </View>
         <View style={styles.locationSelectorContent}>
           <Text style={[styles.locationSelectorText, !pickupAddress && styles.locationSelectorPlaceholder]}>
-            {pickupAddress || 'Toca para seleccionar ubicacion'}
+            {pickupAddress || 'Toca para seleccionar ubicación'}
           </Text>
         </View>
         <Text style={styles.locationSelectorArrow}>›</Text>
@@ -557,7 +596,7 @@ export default function RequestService() {
         ) : (
           <View style={styles.quickGpsContent}>
             <LocateFixed size={16} color={colors.primary[500]} strokeWidth={2} />
-            <Text style={styles.quickGpsText}>Usar mi ubicacion actual</Text>
+            <Text style={styles.quickGpsText}>Usar mi ubicación actual</Text>
           </View>
         )}
       </Pressable>
@@ -599,7 +638,7 @@ export default function RequestService() {
             title="Siguiente"
             onPress={() => setStep(3)}
             size="medium"
-            disabled={!pickupAddress || (requiresDestination && !dropoffAddress)}
+            disabled={!pickupCoords || (requiresDestination && !dropoffCoords)}
           />
         </View>
       </View>
@@ -715,6 +754,8 @@ export default function RequestService() {
           <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.max(1, fuelGallons - 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Quitar un galón"
           >
             <Text style={styles.gallonBtnText}>-</Text>
           </Pressable>
@@ -722,6 +763,8 @@ export default function RequestService() {
           <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.min(10, fuelGallons + 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar un galón"
           >
             <Text style={styles.gallonBtnText}>+</Text>
           </Pressable>
@@ -767,7 +810,7 @@ export default function RequestService() {
 
         <Input
           label="Notas Adicionales (opcional)"
-          placeholder="Informacion adicional para el operador..."
+          placeholder="Información adicional para el operador..."
           value={notes}
           onChangeText={setNotes}
           multiline
@@ -948,7 +991,7 @@ export default function RequestService() {
                 )}
                 {isDistanceFallback && (
                   <Text style={styles.fallbackNote}>
-                    * Distancia aproximada (sin conexion a Google Maps)
+                    * Distancia aproximada (sin conexión a Google Maps)
                   </Text>
                 )}
               </>
@@ -986,25 +1029,66 @@ export default function RequestService() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}>
-      <View style={styles.wizardHeader}>
-        <BudiLogo variant="icon" height={28} />
-      </View>
-      <View style={styles.progressContainer}>
-        {[1, 2, 3, 4, 5].map((s) => (
-          <View
-            key={s}
-            style={[styles.progressDot, s <= step && styles.progressDotActive]}
-          />
-        ))}
-      </View>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}>
+        <View style={styles.wizardHeader}>
+          <BudiLogo variant="icon" height={28} />
+        </View>
+        <View style={styles.progressContainer}>
+          {[1, 2, 3, 4, 5].map((s) => (
+            <View
+              key={s}
+              style={[styles.progressDot, s <= step && styles.progressDotActive]}
+            />
+          ))}
+        </View>
 
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
-      {step === 5 && renderStep5()}
-    </ScrollView>
+        {step === 1 && renderStep1()}
+        {step === 2 && renderStep2()}
+        {step === 3 && renderStep3()}
+        {step === 4 && renderStep4()}
+        {step === 5 && renderStep5()}
+      </ScrollView>
+
+      {/* Modal de éxito: PIN grande, copiable y con recordatorio de dónde verlo */}
+      <Modal visible={!!successPin} transparent animationType="fade" onRequestClose={handleSuccessClose}>
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconWrap}>
+              <CheckCircle2 size={40} color={colors.success.main} strokeWidth={2} />
+            </View>
+            <Text style={styles.successTitle}>¡Solicitud enviada!</Text>
+            <Text style={styles.successSubtitle}>Tu PIN de verificación es:</Text>
+            <Text style={styles.successPin}>{successPin}</Text>
+
+            <Pressable
+              style={styles.copyBtn}
+              onPress={() => successPin && copyPin(successPin)}
+              accessibilityRole="button"
+              accessibilityLabel="Copiar PIN"
+            >
+              {pinCopied ? (
+                <CheckCircle2 size={16} color={colors.success.main} strokeWidth={2} />
+              ) : (
+                <Copy size={16} color={colors.primary[600]} strokeWidth={2} />
+              )}
+              <Text style={[styles.copyBtnText, pinCopied && { color: colors.success.main }]}>
+                {pinCopied ? '¡Copiado!' : 'Copiar PIN'}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.successHint}>
+              Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+              Siempre estará disponible en tu pantalla de inicio.
+            </Text>
+
+            <View style={styles.successButton}>
+              <Button title="Ver estado del servicio" onPress={handleSuccessClose} size="medium" />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1401,5 +1485,72 @@ const styles = StyleSheet.create({
     color: colors.warning.main,
     fontStyle: 'italic',
     marginTop: spacing.micro,
+  },
+
+  // Success modal (PIN)
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.l,
+  },
+  successCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.l,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  successIconWrap: {
+    marginBottom: spacing.s,
+  },
+  successTitle: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  successSubtitle: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: spacing.s,
+  },
+  successPin: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.hero,
+    color: colors.accent[600],
+    letterSpacing: 8,
+    marginTop: spacing.xs,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    marginTop: spacing.m,
+  },
+  copyBtnText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[600],
+  },
+  successHint: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: spacing.m,
+    lineHeight: 20,
+  },
+  successButton: {
+    width: '100%',
+    marginTop: spacing.l,
   },
 });

@@ -5,3 +5,4 @@ export { PINInput } from './PINInput';
 export { Card } from './Card';
 export { StatusBadge } from './StatusBadge';
 export { LoadingSpinner } from './LoadingSpinner';
+export { ErrorState } from './ErrorState';

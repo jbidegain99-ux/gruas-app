@@ -80,6 +80,8 @@ export default function OperatorLayout() {
           ),
         }}
       />
+      {/* Ruta accesible desde el perfil, oculta del tab bar */}
+      <Tabs.Screen name="verification" options={{ href: null }} />
     </Tabs>
   );
 }

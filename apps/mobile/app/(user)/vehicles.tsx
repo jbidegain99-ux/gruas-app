@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Car, Trash2, Star, Plus } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
-import { Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
+import { Button, Card, Input, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 export default function Vehicles() {
@@ -21,19 +21,30 @@ export default function Vehicles() {
   const insets = useSafeAreaInsets();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [plate, setPlate] = useState('');
   const [color, setColor] = useState('');
+  // id del vehículo con una mutación en curso (default/eliminar), para
+  // deshabilitar sus botones y evitar taps concurrentes.
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
 
   const fetchVehicles = useCallback(async () => {
-    const { data } = await supabase
+    setLoadError(false);
+    const { data, error } = await supabase
       .from('vehicles')
       .select('id, make, model, plate, color, is_default')
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching vehicles:', error);
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
     setVehicles(data || []);
     setLoading(false);
   }, []);
@@ -73,12 +84,21 @@ export default function Vehicles() {
   };
 
   const makeDefault = async (id: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    // Quitar default a todos y ponerlo solo a este.
-    await supabase.from('vehicles').update({ is_default: false }).eq('user_id', user.id);
-    await supabase.from('vehicles').update({ is_default: true }).eq('id', id);
-    fetchVehicles();
+    if (mutatingId) return; // ya hay una mutación en curso: ignora el doble-tap
+    setMutatingId(id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Quitar default a todos y ponerlo solo a este.
+      const { error: unsetErr } = await supabase.from('vehicles').update({ is_default: false }).eq('user_id', user.id);
+      const { error: setErr } = await supabase.from('vehicles').update({ is_default: true }).eq('id', id);
+      if (unsetErr || setErr) {
+        Alert.alert('Error', 'No se pudo cambiar el vehículo predeterminado.');
+      }
+      await fetchVehicles();
+    } finally {
+      setMutatingId(null);
+    }
   };
 
   const deleteVehicle = (id: string) => {
@@ -88,8 +108,17 @@ export default function Vehicles() {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('vehicles').delete().eq('id', id);
-          fetchVehicles();
+          if (mutatingId) return;
+          setMutatingId(id);
+          try {
+            const { error } = await supabase.from('vehicles').delete().eq('id', id);
+            if (error) {
+              Alert.alert('Error', 'No se pudo eliminar el vehículo.');
+            }
+            await fetchVehicles();
+          } finally {
+            setMutatingId(null);
+          }
         },
       },
     ]);
@@ -97,10 +126,28 @@ export default function Vehicles() {
 
   if (loading) return <LoadingSpinner fullScreen />;
 
+  if (loadError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tus vehículos"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchVehicles}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.m }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Volver"
+        >
           <ChevronLeft size={24} color={colors.text.primary} strokeWidth={2} />
         </Pressable>
         <Text style={styles.title}>Mis Vehículos</Text>
@@ -124,11 +171,25 @@ export default function Vehicles() {
                 {v.is_default && <Text style={styles.defaultTag}>Predeterminado</Text>}
               </View>
               {!v.is_default && (
-                <Pressable onPress={() => makeDefault(v.id)} hitSlop={8} style={styles.iconBtn}>
+                <Pressable
+                  onPress={() => makeDefault(v.id)}
+                  hitSlop={8}
+                  style={styles.iconBtn}
+                  disabled={mutatingId !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Marcar ${vehicleLabel(v)} como predeterminado`}
+                >
                   <Star size={18} color={colors.accent[500]} strokeWidth={2} />
                 </Pressable>
               )}
-              <Pressable onPress={() => deleteVehicle(v.id)} hitSlop={8} style={styles.iconBtn}>
+              <Pressable
+                onPress={() => deleteVehicle(v.id)}
+                hitSlop={8}
+                style={styles.iconBtn}
+                disabled={mutatingId !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Eliminar ${vehicleLabel(v)}`}
+              >
                 <Trash2 size={18} color={colors.error.main} strokeWidth={2} />
               </Pressable>
             </View>

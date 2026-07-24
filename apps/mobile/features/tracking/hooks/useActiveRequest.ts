@@ -37,6 +37,7 @@ interface UseActiveRequestResult {
   setPendingRatings: React.Dispatch<React.SetStateAction<PendingRating[]>>;
   currentUserId: string | null;
   loading: boolean;
+  error: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -80,11 +81,13 @@ export function useActiveRequest(): UseActiveRequestResult {
   // (la push del backend no llega en Expo Go).
   const trackedRef = useRef<{ id: string; status: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [userName, setUserName] = useState('');
   const [pendingRatings, setPendingRatings] = useState<PendingRating[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
+    setError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -129,7 +132,12 @@ export function useActiveRequest(): UseActiveRequestResult {
     }
 
     if (fetchError) {
+      // Fallo real de red/servidor (no es "sin solicitudes"): lo comunicamos
+      // en vez de mostrar la pantalla vacía como si no hubiera nada.
       console.error('[useActiveRequest] Failed to fetch active requests:', fetchError.message);
+      setError(true);
+      setLoading(false);
+      return;
     }
 
     if (requests && requests.length > 0) {
@@ -299,6 +307,7 @@ export function useActiveRequest(): UseActiveRequestResult {
     setPendingRatings,
     currentUserId,
     loading,
+    error,
     refetch,
   };
 }

@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Inbox } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Inbox, Search } from 'lucide-react';
 import type { ServiceRequestStatus } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { LocationMap } from '@/shared/components/LocationMap';
 import { resolveDisplayAddress } from '@/shared/lib/geocoding';
+import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
+import { money } from '@/shared/lib/format';
+import { Pagination } from '@/shared/components/Pagination';
+
+const PAGE_SIZE = 20;
 
 type ServiceRequest = {
   id: string;
@@ -46,6 +51,8 @@ export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [operators, setOperators] = useState<Operator[]>([]);
@@ -54,6 +61,8 @@ export default function AdminRequestsPage() {
   const [pickupDisplay, setPickupDisplay] = useState('');
   const [dropoffDisplay, setDropoffDisplay] = useState('');
   const selectedIdRef = useRef<string | null>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -71,7 +80,7 @@ export default function AdminRequestsPage() {
         query = query.eq('status', statusFilter as ServiceRequestStatus);
       }
 
-      const { data } = await query.limit(50);
+      const { data } = await query.limit(300);
       setRequests(data || []);
       setLoading(false);
     };
@@ -132,10 +141,22 @@ export default function AdminRequestsPage() {
   const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleCancelRequest = async (requestId: string) => {
-    if (!confirm('Esta seguro de cancelar esta solicitud?')) return;
+    const ok = await confirm({
+      title: '¿Cancelar esta solicitud?',
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Cancelar solicitud',
+      cancelLabel: 'Volver',
+      destructive: true,
+    });
+    if (!ok) return;
 
     const supabase = createClient();
-    await supabase.rpc('admin_cancel_request', { p_request_id: requestId });
+    const { error } = await supabase.rpc('admin_cancel_request', { p_request_id: requestId });
+    if (error) {
+      toast.error('No se pudo cancelar la solicitud.');
+      return;
+    }
+    toast.success('Solicitud cancelada.');
     refetch();
     setSelectedRequest(null);
   };
@@ -150,9 +171,10 @@ export default function AdminRequestsPage() {
     });
     setAssigning(false);
     if (error) {
-      alert(`No se pudo asignar: ${error.message}`);
+      toast.error(`No se pudo asignar el operador: ${error.message}`);
       return;
     }
+    toast.success(selectedRequest?.operator_id ? 'Solicitud reasignada.' : 'Operador asignado.');
     refetch();
     setSelectedRequest(null);
   };
@@ -165,9 +187,10 @@ export default function AdminRequestsPage() {
     });
     setAssigning(false);
     if (error) {
-      alert(`No se pudo asignar automáticamente: ${error.message}`);
+      toast.error(`No se pudo asignar automáticamente al más cercano: ${error.message}`);
       return;
     }
+    toast.success('Operador asignado.');
     refetch();
     setSelectedRequest(null);
   };
@@ -195,6 +218,27 @@ export default function AdminRequestsPage() {
     a.click();
   };
 
+  // Búsqueda client-side (cliente, teléfono, direcciones, ID) sobre lo cargado.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter((r) =>
+      [
+        r.profiles?.full_name,
+        r.profiles?.phone,
+        r.pickup_address,
+        r.dropoff_address,
+        r.id,
+      ]
+        .filter(Boolean)
+        .some((f) => (f as string).toLowerCase().includes(q))
+    );
+  }, [requests, search]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
@@ -214,13 +258,31 @@ export default function AdminRequestsPage() {
         </button>
       </div>
 
+      {/* Buscador */}
+      <div className="relative mb-4 max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
+          placeholder="Buscar por cliente, teléfono o dirección..."
+          className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+        />
+      </div>
+
       {/* Filters */}
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex flex-wrap gap-2">
         {['all', 'initiated', 'assigned', 'en_route', 'active', 'completed', 'cancelled'].map(
           (status) => (
             <button
               key={status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setStatusFilter(status);
+                setPage(0);
+              }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                 statusFilter === status
                   ? 'bg-budi-primary-500 text-white'
@@ -262,12 +324,16 @@ export default function AdminRequestsPage() {
                     Cargando...
                   </td>
                 </tr>
-              ) : requests.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center">
                     <Inbox className="mx-auto h-10 w-10 text-zinc-300 dark:text-zinc-600" />
                     <p className="mt-3 text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                      {statusFilter === 'all' ? 'No hay solicitudes' : 'Sin solicitudes en este filtro'}
+                      {search.trim()
+                        ? 'No se encontraron solicitudes con esa búsqueda'
+                        : statusFilter === 'all'
+                        ? 'No hay solicitudes'
+                        : 'Sin solicitudes en este filtro'}
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
                       Las nuevas solicitudes aparecerán aquí automáticamente.
@@ -275,7 +341,7 @@ export default function AdminRequestsPage() {
                   </td>
                 </tr>
               ) : (
-                requests.map((request) => {
+                paged.map((request) => {
                   const urgent = isUrgent(request);
                   return (
                     <tr
@@ -314,7 +380,7 @@ export default function AdminRequestsPage() {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
-                        {request.total_price ? `$${request.total_price}` : '—'}
+                        {request.total_price ? money(request.total_price) : '—'}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-500 dark:text-zinc-500">
                         {new Date(request.created_at).toLocaleDateString('es-SV')}
@@ -326,6 +392,12 @@ export default function AdminRequestsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Detail drawer */}
@@ -432,7 +504,7 @@ export default function AdminRequestsPage() {
                   <div>
                     <p className="text-xs text-zinc-500">Precio Total</p>
                     <p className="text-xl font-bold text-zinc-900 dark:text-white">
-                      ${selectedRequest.total_price}
+                      {money(selectedRequest.total_price)}
                     </p>
                   </div>
                 )}

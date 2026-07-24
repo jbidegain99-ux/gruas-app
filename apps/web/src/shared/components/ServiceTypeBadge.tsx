@@ -16,12 +16,12 @@ interface ServiceTypeInfo {
 }
 
 const SERVICE_TYPES: Record<string, ServiceTypeInfo> = {
-  tow:       { label: 'Grua',        icon: Truck,     color: 'text-orange-600' },
-  battery:   { label: 'Bateria',     icon: Battery,   color: 'text-green-600' },
+  tow:       { label: 'Grúa',        icon: Truck,     color: 'text-orange-600' },
+  battery:   { label: 'Batería',     icon: Battery,   color: 'text-green-600' },
   tire:      { label: 'Llanta',      icon: CircleDot, color: 'text-blue-600' },
   fuel:      { label: 'Combustible', icon: Fuel,      color: 'text-red-600' },
-  locksmith: { label: 'Cerrajeria',  icon: KeyRound,  color: 'text-purple-600' },
-  mechanic:  { label: 'Mecanico',    icon: Wrench,    color: 'text-amber-600' },
+  locksmith: { label: 'Cerrajería',  icon: KeyRound,  color: 'text-purple-600' },
+  mechanic:  { label: 'Mecánico',    icon: Wrench,    color: 'text-amber-600' },
   winch:     { label: 'Winche',      icon: CableCar,  color: 'text-teal-600' },
 };
 

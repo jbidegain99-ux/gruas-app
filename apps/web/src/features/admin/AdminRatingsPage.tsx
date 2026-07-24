@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { useToast } from '@/shared/components/FeedbackProvider';
 
 type Rating = {
   id: string;
@@ -28,6 +29,7 @@ export default function AdminRatingsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedOperator, setSelectedOperator] = useState<string>('all');
   const [refreshKey, setRefreshKey] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +53,7 @@ export default function AdminRatingsPage() {
 
       if (ratingsError) {
         console.error('Error fetching ratings:', ratingsError);
+        toast.error('No se pudieron cargar las calificaciones.');
       } else if (ratingsData) {
         const mappedRatings = ratingsData.map((r) => ({
           id: r.id,
@@ -111,7 +114,7 @@ export default function AdminRatingsPage() {
     };
 
     fetchData();
-  }, [refreshKey]);
+  }, [refreshKey, toast]);
 
   const refetch = () => setRefreshKey((k) => k + 1);
 
@@ -126,7 +129,7 @@ export default function AdminRatingsPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
+    return date.toLocaleDateString('es-SV', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -156,7 +159,7 @@ export default function AdminRatingsPage() {
             Calificaciones
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Resenas y calificaciones de los servicios
+            Reseñas y calificaciones de los servicios
           </p>
         </div>
         <button
@@ -229,7 +232,7 @@ export default function AdminRatingsPage() {
                   <p className="text-xl font-bold text-zinc-900 dark:text-white">
                     {op.averageRating > 0 ? op.averageRating.toFixed(1) : '-'}
                   </p>
-                  <p className="text-xs text-zinc-500">{op.totalRatings} resenas</p>
+                  <p className="text-xs text-zinc-500">{op.totalRatings} reseñas</p>
                 </div>
               </div>
             </div>
@@ -250,7 +253,7 @@ export default function AdminRatingsPage() {
           <option value="all">Todos los operadores</option>
           {operatorSummaries.map((op) => (
             <option key={op.id} value={op.id}>
-              {op.name} ({op.totalRatings} resenas)
+              {op.name} ({op.totalRatings} reseñas)
             </option>
           ))}
         </select>
@@ -266,7 +269,7 @@ export default function AdminRatingsPage() {
                   Fecha
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Calificacion
+                  Calificación
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Operador

@@ -15,6 +15,7 @@ import {
 import { createClient } from '@/shared/lib/supabase/server';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { DashboardLiveRefresh } from './DashboardLiveRefresh';
+import { money } from '@/shared/lib/format';
 
 const STATUSES = ['initiated', 'assigned', 'en_route', 'active', 'completed', 'cancelled'] as const;
 
@@ -26,10 +27,6 @@ const STATUS_META: Record<string, { label: string; bar: string }> = {
   completed: { label: 'Completadas', bar: 'bg-zinc-400' },
   cancelled: { label: 'Canceladas', bar: 'bg-red-400' },
 };
-
-function money(n: number): string {
-  return `$${n.toLocaleString('es-SV', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 /** Minutos transcurridos entre dos timestamps ISO; null si falta alguno o el orden es inválido. */
 function minutesBetween(from: string | null, to: string | null): number | null {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
+import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
 
 type Provider = {
   id: string;
@@ -34,6 +35,8 @@ export default function AdminProvidersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const fetchProviders = async () => {
@@ -54,19 +57,35 @@ export default function AdminProvidersPage() {
   const refetch = () => setRefreshKey((k) => k + 1);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Esta seguro de eliminar este proveedor?')) return;
+    const ok = await confirm({
+      title: '¿Eliminar este proveedor?',
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
 
     const supabase = createClient();
-    await supabase.from('providers').delete().eq('id', id);
+    const { error } = await supabase.from('providers').delete().eq('id', id);
+    if (error) {
+      toast.error('No se pudo eliminar el proveedor.');
+      return;
+    }
+    toast.success('Proveedor eliminado.');
     refetch();
   };
 
   const handleToggleActive = async (provider: Provider) => {
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from('providers')
       .update({ is_active: !provider.is_active })
       .eq('id', provider.id);
+    if (error) {
+      toast.error('No se pudo actualizar el estado.');
+      return;
+    }
+    toast.success(provider.is_active ? 'Proveedor desactivado.' : 'Proveedor activado.');
     refetch();
   };
 
@@ -116,7 +135,7 @@ export default function AdminProvidersPage() {
                   Nombre
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Tipo Grua
+                  Tipo Grúa
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Servicios
@@ -229,6 +248,7 @@ function ProviderForm({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const toast = useToast();
   const [name, setName] = useState(provider?.name || '');
   const [towType, setTowType] = useState<'light' | 'heavy' | 'both'>(
     provider?.tow_type_supported || 'both'
@@ -294,16 +314,41 @@ function ProviderForm({
     let providerId = provider?.id;
 
     if (provider) {
-      await supabase.from('providers').update(providerData).eq('id', provider.id);
+      const { error } = await supabase
+        .from('providers')
+        .update(providerData)
+        .eq('id', provider.id);
+      if (error) {
+        toast.error('No se pudo guardar el proveedor.');
+        setLoading(false);
+        return;
+      }
     } else {
-      const { data } = await supabase.from('providers').insert(providerData).select('id').single();
+      const { data, error } = await supabase
+        .from('providers')
+        .insert(providerData)
+        .select('id')
+        .single();
+      if (error) {
+        toast.error('No se pudo guardar el proveedor.');
+        setLoading(false);
+        return;
+      }
       providerId = data?.id;
     }
 
     // Sync provider_services
     if (providerId) {
       // Remove all existing
-      await supabase.from('provider_services').delete().eq('provider_id', providerId);
+      const { error: deleteError } = await supabase
+        .from('provider_services')
+        .delete()
+        .eq('provider_id', providerId);
+      if (deleteError) {
+        toast.error('No se pudo guardar el proveedor.');
+        setLoading(false);
+        return;
+      }
 
       // Insert selected
       if (selectedServiceIds.size > 0) {
@@ -313,10 +358,16 @@ function ProviderForm({
           service_id: serviceId,
           is_available: true,
         }));
-        await supabase.from('provider_services').insert(rows);
+        const { error: insertError } = await supabase.from('provider_services').insert(rows);
+        if (insertError) {
+          toast.error('No se pudo guardar el proveedor.');
+          setLoading(false);
+          return;
+        }
       }
     }
 
+    toast.success('Proveedor guardado.');
     setLoading(false);
     onSave();
   };
@@ -342,7 +393,7 @@ function ProviderForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Tipo de Grua
+              Tipo de Grúa
             </label>
             <select
               value={towType}
@@ -356,7 +407,7 @@ function ProviderForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Telefono
+              Teléfono
             </label>
             <input
               type="tel"
@@ -379,7 +430,7 @@ function ProviderForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Direccion
+            Dirección
           </label>
           <input
             type="text"

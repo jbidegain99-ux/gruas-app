@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
+import { useToast } from '@/shared/components/FeedbackProvider';
+import { money } from '@/shared/lib/format';
 
 type Service = {
   id: string;
@@ -28,6 +30,7 @@ export default function AdminServicesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -65,10 +68,16 @@ export default function AdminServicesPage() {
 
   const handleToggleActive = async (service: Service) => {
     const supabase = createClient();
-    await supabase
+    const nuevoEstado = !service.is_active;
+    const { error } = await supabase
       .from('services')
-      .update({ is_active: !service.is_active })
+      .update({ is_active: nuevoEstado })
       .eq('id', service.id);
+    if (error) {
+      toast.error('No se pudo actualizar el estado del servicio.');
+      return;
+    }
+    toast.success(nuevoEstado ? 'Servicio activado.' : 'Servicio desactivado.');
     refetch();
   };
 
@@ -80,7 +89,7 @@ export default function AdminServicesPage() {
             Servicios
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Catalogo de servicios disponibles en la plataforma
+            Catálogo de servicios disponibles en la plataforma
           </p>
         </div>
         <button
@@ -174,10 +183,10 @@ export default function AdminServicesPage() {
                       {service.slug}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      ${service.base_price} {service.currency}
+                      {money(service.base_price)} {service.currency}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {service.requires_destination ? 'Si' : 'No'}
+                      {service.requires_destination ? 'Sí' : 'No'}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <button
@@ -234,6 +243,7 @@ function ServiceForm({
   const [requiresDestination, setRequiresDestination] = useState(service?.requires_destination || false);
   const [sortOrder, setSortOrder] = useState(service?.sort_order || 0);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,13 +265,18 @@ function ServiceForm({
       sort_order: sortOrder,
     };
 
-    if (service) {
-      await supabase.from('services').update(data).eq('id', service.id);
-    } else {
-      await supabase.from('services').insert(data);
-    }
+    const { error } = service
+      ? await supabase.from('services').update(data).eq('id', service.id)
+      : await supabase.from('services').insert(data);
 
     setLoading(false);
+
+    if (error) {
+      toast.error('No se pudo guardar el servicio.');
+      return;
+    }
+
+    toast.success('Servicio guardado.');
     onSave();
   };
 
@@ -297,7 +312,7 @@ function ServiceForm({
               onChange={(e) => setNameEs(e.target.value)}
               required
               className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
-              placeholder="Mecanico"
+              placeholder="Mecánico"
             />
           </div>
           <div>
@@ -318,7 +333,7 @@ function ServiceForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Descripcion (ES)
+              Descripción (ES)
             </label>
             <textarea
               value={descEs}
@@ -329,7 +344,7 @@ function ServiceForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Descripcion (EN)
+              Descripción (EN)
             </label>
             <textarea
               value={descEn}

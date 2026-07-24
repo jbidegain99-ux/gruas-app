@@ -14,6 +14,7 @@ import {
   Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { supabase } from '@/lib/supabase';
 import { useOperatorRealtimeTracking } from '@/features/tracking/hooks/useOperatorRealtimeTracking';
 import { useETA } from '@/features/tracking/hooks/useETA';
@@ -29,12 +30,13 @@ import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { cancellationPolicyMessage } from '@/lib/cancellation';
 import { getPin } from '@/features/pin/lib/pinStorage';
+import { friendlyError } from '@/lib/errorMessages';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone } from 'lucide-react-native';
+import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone, Copy, CheckCircle2 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
@@ -106,6 +108,7 @@ export default function UserHome() {
     setPendingRatings,
     currentUserId,
     loading,
+    error: activeRequestError,
     refetch: fetchActiveRequest,
   } = useActiveRequest();
   const [refreshing, setRefreshing] = useState(false);
@@ -125,6 +128,7 @@ export default function UserHome() {
   // Lo mostramos mientras la solicitud no este activada, para que el usuario
   // pueda dictarselo al operador cuando llegue.
   const [activePin, setActivePin] = useState<string | null>(null);
+  const [pinCopied, setPinCopied] = useState(false);
   const requestId = activeRequest?.id ?? null;
   const requestStatus = activeRequest?.status ?? null;
   const showPin = requestStatus !== null &&
@@ -132,6 +136,7 @@ export default function UserHome() {
 
   useEffect(() => {
     let cancelled = false;
+    setPinCopied(false);
     if (requestId && showPin) {
       getPin(requestId)
         .then((pin) => { if (!cancelled) setActivePin(pin); })
@@ -141,6 +146,15 @@ export default function UserHome() {
     }
     return () => { cancelled = true; };
   }, [requestId, showPin]);
+
+  const copyPin = async (pin: string) => {
+    try {
+      await Clipboard.setStringAsync(pin);
+      setPinCopied(true);
+    } catch {
+      // Copiar es una comodidad; si falla, el PIN sigue visible en pantalla.
+    }
+  };
 
   // Aviso "esta tardando": solicitud en 'initiated' con >10 min sin actividad
   // (mismo umbral que el job del backend, migracion 00036). La push de ese job
@@ -177,20 +191,6 @@ export default function UserHome() {
   // DESTINO. Antes de eso (assigned/en_route) va camino a la RECOGIDA. La ruta
   // y el ETA cambian de tramo segun esto.
   const activePhase = activeRequest?.status === 'active';
-
-  // Debug: log map rendering conditions when active request exists
-  useEffect(() => {
-    if (activeRequest) {
-      console.log('=== MAP TRACKING DEBUG ===');
-      console.log('Status:', activeRequest.status);
-      console.log('Operator ID:', operatorId);
-      console.log('showTracking:', !!showTracking);
-      console.log('MapView loaded:', !!MapView);
-      console.log('Marker loaded:', !!Marker);
-      console.log('Maps load error:', mapsLoadError);
-      console.log('Platform:', Platform.OS);
-    }
-  }, [activeRequest?.status, operatorId, showTracking]);
 
   const { location: operatorLocation, lastUpdated } = useOperatorRealtimeTracking(
     showTracking ? operatorId : null
@@ -364,13 +364,13 @@ export default function UserHome() {
   const canCancel = activeRequest &&
     ['initiated', 'assigned', 'en_route'].includes(activeRequest.status);
 
-  // Llamada directa al operador (tel:). El telefono viene del perfil del
+  // Llamada directa al operador (tel:). El teléfono viene del perfil del
   // operador asignado. Util en carretera cuando el chat no basta.
   const callOperator = () => {
     if (activeRequest?.operator_phone) {
       Linking.openURL(`tel:${activeRequest.operator_phone}`);
     } else {
-      Alert.alert('Sin telefono', 'El operador no tiene un telefono registrado.');
+      Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
     }
   };
 
@@ -392,7 +392,7 @@ export default function UserHome() {
             });
             setCancelling(false);
             if (error || (data && !data.success)) {
-              Alert.alert('Error', error?.message || 'No se pudo cancelar la solicitud');
+              Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
               return;
             }
             await fetchActiveRequest();
@@ -510,6 +510,18 @@ export default function UserHome() {
     return <LoadingSpinner fullScreen />;
   }
 
+  if (activeRequestError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tu servicio"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchActiveRequest}
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -532,12 +544,12 @@ export default function UserHome() {
         <View style={styles.activeRequestContainer}>
           <StatusBadge status={activeRequest.status as ServiceRequestStatus} />
 
-          {/* Aviso: la busqueda de operador esta tardando mas de lo normal */}
+          {/* Aviso: la búsqueda de operador esta tardando mas de lo normal */}
           {searchDelayed && (
             <View style={styles.delayCard}>
               <Clock size={18} color={colors.warning.dark} />
               <Text style={styles.delayText}>
-                La busqueda esta tardando mas de lo normal. Seguimos buscando un
+                La búsqueda esta tardando mas de lo normal. Seguimos buscando un
                 operador disponible; puedes cancelar sin costo si lo prefieres.
               </Text>
             </View>
@@ -546,10 +558,25 @@ export default function UserHome() {
           {/* PIN de activacion - visible hasta que el operador lo verifique */}
           {showPin && activePin && (
             <View style={styles.pinCard}>
-              <Text style={styles.pinLabel}>Codigo para el operador</Text>
+              <Text style={styles.pinLabel}>PIN para el operador</Text>
               <Text style={styles.pinValue}>{activePin}</Text>
+              <Pressable
+                style={styles.pinCopyBtn}
+                onPress={() => copyPin(activePin)}
+                accessibilityRole="button"
+                accessibilityLabel="Copiar PIN"
+              >
+                {pinCopied ? (
+                  <CheckCircle2 size={15} color={colors.success.main} strokeWidth={2} />
+                ) : (
+                  <Copy size={15} color={colors.accent[600]} strokeWidth={2} />
+                )}
+                <Text style={[styles.pinCopyText, pinCopied && { color: colors.success.main }]}>
+                  {pinCopied ? '¡Copiado!' : 'Copiar'}
+                </Text>
+              </Pressable>
               <Text style={styles.pinHint}>
-                Dictale este codigo al operador cuando llegue para iniciar el servicio.
+                Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
               </Text>
             </View>
           )}
@@ -578,6 +605,8 @@ export default function UserHome() {
                 <Pressable
                   style={styles.mapExpandButton}
                   onPress={() => setIsMapFullscreen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ampliar mapa"
                 >
                   <Maximize2 size={18} color={colors.text.primary} />
                 </Pressable>
@@ -587,14 +616,14 @@ export default function UserHome() {
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
-                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
                     {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicacion del operador...
+                    Esperando ubicación del operador...
                   </Text>
                 </View>
               )}
@@ -613,7 +642,7 @@ export default function UserHome() {
                   ) : !operatorLocation || !operatorLocation.is_online ? (
                     <View style={styles.etaLoading}>
                       <ActivityIndicator size="small" color={colors.primary[400]} />
-                      <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                      <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
                     </View>
                   ) : etaLoading ? (
                     <View style={styles.etaLoading}>
@@ -672,6 +701,8 @@ export default function UserHome() {
                 <Pressable
                   style={styles.mapCloseButton}
                   onPress={() => setIsMapFullscreen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar mapa"
                 >
                   <X size={20} color={colors.text.primary} strokeWidth={2.5} />
                 </Pressable>
@@ -682,14 +713,14 @@ export default function UserHome() {
                     <View style={styles.trackingInfo}>
                       <MapPin size={14} color={colors.success.main} />
                       <Text style={styles.trackingText}>
-                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
                         {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                       </Text>
                     </View>
                   ) : (
                     <View style={styles.trackingInfoOffline}>
                       <Text style={styles.trackingTextOffline}>
-                        Esperando ubicacion del operador...
+                        Esperando ubicación del operador...
                       </Text>
                     </View>
                   )}
@@ -725,7 +756,7 @@ export default function UserHome() {
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicacion del operador...
+                    Esperando ubicación del operador...
                   </Text>
                 </View>
               )}
@@ -745,7 +776,7 @@ export default function UserHome() {
               {!operatorLocation || !operatorLocation.is_online ? (
                 <View style={styles.etaLoading}>
                   <ActivityIndicator size="small" color={colors.primary[400]} />
-                  <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
                 </View>
               ) : eta ? (
                 <>
@@ -1048,6 +1079,22 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
     color: colors.accent[600],
     marginVertical: spacing.xs,
+  },
+  pinCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.accent[500],
+    marginBottom: spacing.s,
+  },
+  pinCopyText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.accent[600],
   },
   pinHint: {
     fontFamily: typography.fonts.body,

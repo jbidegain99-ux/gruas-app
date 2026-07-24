@@ -16,6 +16,7 @@ import * as Location from 'expo-location';
 import { X, Search, MapPin } from 'lucide-react-native';
 import { DEFAULT_LOCATION, DEFAULT_MAP_DELTA } from '@/config/location';
 import { reverseGeocode as resolveAddress } from '@/lib/geocoding';
+import { colors } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,7 +341,12 @@ export function LocationPicker({
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeButton}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar"
+          >
             <X size={20} color="#333" strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.title}>{title}</Text>
@@ -359,7 +365,7 @@ export function LocationPicker({
               onChangeText={setSearchQuery}
               autoCorrect={false}
             />
-            {isSearching && <ActivityIndicator size="small" color="#2563eb" />}
+            {isSearching && <ActivityIndicator size="small" color={colors.primary[500]} />}
           </View>
           <TouchableOpacity
             style={styles.currentLocationButton}
@@ -508,7 +514,7 @@ const styles = StyleSheet.create({
   currentLocationButton: {
     width: 48,
     height: 48,
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -611,7 +617,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   confirmButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

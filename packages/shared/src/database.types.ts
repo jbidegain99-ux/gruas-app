@@ -7,53 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows Supabase client to instantiate with the correct result types.
-  __InternalSupabase: {
-    PostgrestVersion: "12"
-  }
   public: {
     Tables: {
-      vehicles: {
-        Row: {
-          color: string | null
-          created_at: string
-          id: string
-          is_default: boolean
-          make: string | null
-          model: string | null
-          plate: string | null
-          user_id: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          is_default?: boolean
-          make?: string | null
-          model?: string | null
-          plate?: string | null
-          user_id: string
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          is_default?: boolean
-          make?: string | null
-          model?: string | null
-          plate?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vehicles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       device_tokens: {
         Row: {
           created_at: string
@@ -144,6 +99,48 @@ export type Database = {
           {
             foreignKeyName: "notification_queue_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_documents: {
+        Row: {
+          bucket: string
+          doc_type: string
+          id: string
+          operator_id: string
+          path: string
+          uploaded_at: string
+        }
+        Insert: {
+          bucket: string
+          doc_type: string
+          id?: string
+          operator_id: string
+          path: string
+          uploaded_at?: string
+        }
+        Update: {
+          bucket?: string
+          doc_type?: string
+          id?: string
+          operator_id?: string
+          path?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_documents_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "operator_documents_operator_id_fkey"
+            columns: ["operator_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -255,7 +252,11 @@ export type Database = {
           provider_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
+          verification_rejection_reason: string | null
+          verification_reviewed_at: string | null
+          verification_reviewed_by: string | null
           verification_status: string
+          verification_submitted_at: string | null
         }
         Insert: {
           created_at?: string
@@ -268,7 +269,11 @@ export type Database = {
           provider_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          verification_rejection_reason?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
           verification_status?: string
+          verification_submitted_at?: string | null
         }
         Update: {
           created_at?: string
@@ -281,7 +286,11 @@ export type Database = {
           provider_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          verification_rejection_reason?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
           verification_status?: string
+          verification_submitted_at?: string | null
         }
         Relationships: [
           {
@@ -289,6 +298,20 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_verification_reviewed_by_fkey"
+            columns: ["verification_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "profiles_verification_reviewed_by_fkey"
+            columns: ["verification_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -541,6 +564,38 @@ export type Database = {
           },
         ]
       }
+      service_location_trail: {
+        Row: {
+          id: number
+          lat: number
+          lng: number
+          recorded_at: string
+          request_id: string
+        }
+        Insert: {
+          id?: number
+          lat: number
+          lng: number
+          recorded_at?: string
+          request_id: string
+        }
+        Update: {
+          id?: number
+          lat?: number
+          lng?: number
+          recorded_at?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_location_trail_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_requests: {
         Row: {
           activated_at: string | null
@@ -564,6 +619,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -603,6 +659,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at?: string | null
           price_breakdown?: Json | null
           provider_id?: string | null
           route_polyline?: string | null
@@ -642,6 +699,7 @@ export type Database = {
           pickup_lat?: number
           pickup_lng?: number
           pin_hash?: string
+          pool_alerted_at?: string | null
           price_breakdown?: Json | null
           provider_id?: string | null
           route_polyline?: string | null
@@ -819,6 +877,54 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicles: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          make: string | null
+          model: string | null
+          plate: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          make?: string | null
+          model?: string | null
+          plate?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          make?: string | null
+          model?: string | null
+          plate?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "vehicles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       operator_stats: {
@@ -859,58 +965,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
-          price_breakdown: Json | null
-          provider_id: string | null
-          route_polyline: string | null
-          service_details: Json | null
-          service_type: string
-          status: Database["public"]["Enums"]["request_status"]
-          total_price: number | null
-          tow_type: Database["public"]["Enums"]["tow_type"]
-          updated_at: string
-          user_id: string
-          vehicle_color: string | null
-          vehicle_doc_path: string | null
-          vehicle_make: string | null
-          vehicle_model: string | null
-          vehicle_photo_url: string | null
-          vehicle_plate: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "service_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      admin_set_operator_verification: {
-        Args: { p_operator_id: string; p_status: string }
-        Returns: undefined
-      }
-      assign_nearest_operator: {
-        Args: { p_request_id: string }
-        Returns: {
-          activated_at: string | null
-          assigned_at: string | null
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          completed_at: string | null
-          created_at: string
-          distance_operator_to_pickup_km: number | null
-          distance_pickup_to_dropoff_km: number | null
-          dropoff_address: string
-          dropoff_lat: number
-          dropoff_lng: number
-          id: string
-          incident_description: string | null
-          incident_type: string
-          notes: string | null
-          operator_id: string | null
-          pickup_address: string
-          pickup_lat: number
-          pickup_lng: number
-          pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -936,7 +991,7 @@ export type Database = {
         }
       }
       admin_assign_request: {
-        Args: { p_request_id: string; p_operator_id: string }
+        Args: { p_operator_id: string; p_request_id: string }
         Returns: {
           activated_at: string | null
           assigned_at: string | null
@@ -959,6 +1014,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -1007,6 +1063,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -1031,6 +1088,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_set_operator_verification: {
+        Args: { p_operator_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
       admin_update_user_role:
         | {
             Args: {
@@ -1047,6 +1108,56 @@ export type Database = {
             }
             Returns: Json
           }
+      alert_stale_pool_requests: { Args: never; Returns: undefined }
+      assign_nearest_operator: {
+        Args: { p_request_id: string }
+        Returns: {
+          activated_at: string | null
+          assigned_at: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          completed_at: string | null
+          created_at: string
+          distance_operator_to_pickup_km: number | null
+          distance_pickup_to_dropoff_km: number | null
+          dropoff_address: string
+          dropoff_lat: number
+          dropoff_lng: number
+          id: string
+          incident_description: string | null
+          incident_type: string
+          notes: string | null
+          operator_id: string | null
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          pin_hash: string
+          pool_alerted_at: string | null
+          price_breakdown: Json | null
+          provider_id: string | null
+          route_polyline: string | null
+          service_details: Json | null
+          service_type: string
+          status: Database["public"]["Enums"]["request_status"]
+          total_price: number | null
+          tow_type: Database["public"]["Enums"]["tow_type"]
+          updated_at: string
+          user_id: string
+          vehicle_color: string | null
+          vehicle_doc_path: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_photo_url: string | null
+          vehicle_plate: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "service_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -1086,6 +1197,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -1151,6 +1263,7 @@ export type Database = {
         }
         Returns: Json
       }
+      drain_notification_queue: { Args: never; Returns: undefined }
       get_active_pricing_rule: {
         Args: never
         Returns: {
@@ -1211,6 +1324,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null
@@ -1262,9 +1376,14 @@ export type Database = {
         Returns: Json
       }
       set_active_pricing_rule: { Args: { p_rule_id: string }; Returns: Json }
+      submit_operator_verification: { Args: never; Returns: undefined }
       unregister_device_token: {
         Args: { p_expo_push_token: string }
         Returns: boolean
+      }
+      upsert_operator_document: {
+        Args: { p_bucket: string; p_doc_type: string; p_path: string }
+        Returns: undefined
       }
       upsert_operator_location: {
         Args: { p_is_online?: boolean; p_lat: number; p_lng: number }
@@ -1295,6 +1414,7 @@ export type Database = {
           pickup_lat: number
           pickup_lng: number
           pin_hash: string
+          pool_alerted_at: string | null
           price_breakdown: Json | null
           provider_id: string | null
           route_polyline: string | null

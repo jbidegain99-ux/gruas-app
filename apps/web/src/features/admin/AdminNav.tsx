@@ -12,6 +12,7 @@ import {
   Star,
   Wallet,
   Map,
+  ShieldCheck,
 } from 'lucide-react';
 
 const NAV_LINKS = [
@@ -23,6 +24,7 @@ const NAV_LINKS = [
   { href: '/admin/services', label: 'Servicios', icon: Wrench },
   { href: '/admin/pricing', label: 'Precios', icon: DollarSign },
   { href: '/admin/users', label: 'Usuarios', icon: Users },
+  { href: '/admin/verifications', label: 'Verificaciones', icon: ShieldCheck },
   { href: '/admin/ratings', label: 'Calificaciones', icon: Star },
 ];
 

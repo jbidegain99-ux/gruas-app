@@ -51,7 +51,7 @@ export default function Profile() {
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        setError('No se pudo obtener la informacion del usuario');
+        setError('No se pudo obtener la información del usuario');
         setLoading(false);
         return;
       }
@@ -79,7 +79,7 @@ export default function Profile() {
       });
     } catch (err) {
       console.error('Error:', err);
-      setError('Error de conexion');
+      setError('Error de conexión');
     }
 
     setLoading(false);
@@ -128,7 +128,13 @@ export default function Profile() {
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Error', 'El telefono es requerido');
+      Alert.alert('Error', 'El teléfono es requerido');
+      return;
+    }
+
+    // Teléfono de El Salvador: 8 dígitos, opcionalmente con código +503.
+    if (!/^(\+?503)?\d{8}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
+      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido de 8 dígitos.');
       return;
     }
 
@@ -165,7 +171,7 @@ export default function Profile() {
       Alert.alert('Exito', 'Perfil actualizado correctamente');
     } catch (err) {
       console.error('Error:', err);
-      Alert.alert('Error', 'Error de conexion');
+      Alert.alert('Error', 'Error de conexión');
     }
 
     setSaving(false);
@@ -245,7 +251,7 @@ export default function Profile() {
 
       {/* Info Card */}
       <Card variant="default" padding="l">
-        <Text style={styles.cardTitle}>Informacion Personal</Text>
+        <Text style={styles.cardTitle}>Información Personal</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Nombre Completo</Text>
@@ -258,7 +264,7 @@ export default function Profile() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Telefono</Text>
+          <Text style={styles.infoLabel}>Teléfono</Text>
           <Text style={styles.infoValue}>{profile.phone}</Text>
         </View>
 
@@ -316,7 +322,13 @@ export default function Profile() {
               <Text style={styles.modalCancel}>Cancelar</Text>
             </Pressable>
             <Text style={styles.modalTitle}>Editar Perfil</Text>
-            <Pressable onPress={handleSaveProfile} disabled={saving}>
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar"
+              accessibilityState={{ disabled: saving, busy: saving }}
+            >
               {saving ? (
                 <ActivityIndicator size="small" color={colors.primary[500]} />
               ) : (
@@ -337,8 +349,8 @@ export default function Profile() {
             <View style={styles.modalInputSpacer} />
 
             <Input
-              label="Telefono"
-              placeholder="Tu numero de telefono"
+              label="Teléfono"
+              placeholder="Tu numero de teléfono"
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"

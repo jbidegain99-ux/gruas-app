@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { colors, typography, spacing, radii } from '@/theme';
 
 interface RatingModalProps {
   visible: boolean;
@@ -31,6 +32,15 @@ export function RatingModal({
   const [selectedStars, setSelectedStars] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Reinicia el estado cada vez que se abre, para no arrastrar la calificación
+  // ni el comentario de un servicio anterior.
+  useEffect(() => {
+    if (visible) {
+      setSelectedStars(0);
+      setComment('');
+    }
+  }, [visible]);
 
   const handleSubmit = async () => {
     if (selectedStars === 0) {
@@ -111,6 +121,9 @@ export function RatingModal({
                 onPress={() => setSelectedStars(star)}
                 style={styles.starButton}
                 disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel={`Calificar con ${star} ${star === 1 ? 'estrella' : 'estrellas'}`}
+                accessibilityState={{ selected: star <= selectedStars }}
               >
                 <Text
                   style={[
@@ -134,7 +147,7 @@ export function RatingModal({
           <TextInput
             style={styles.commentInput}
             placeholder="Comentario opcional..."
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.text.tertiary}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -161,7 +174,7 @@ export function RatingModal({
               disabled={submitting || selectedStars === 0}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.white} size="small" />
               ) : (
                 <Text style={styles.submitButtonText}>Enviar</Text>
               )}
@@ -179,94 +192,98 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.l,
   },
   modal: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   operatorName: {
-    fontSize: 15,
-    color: '#6b7280',
-    marginBottom: 20,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginBottom: spacing.l,
   },
   starsContainer: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
   starButton: {
-    padding: 4,
+    padding: spacing.micro,
   },
   star: {
     fontSize: 40,
-    color: '#e5e7eb',
+    color: colors.border.light,
   },
   starSelected: {
-    color: '#fbbf24',
+    color: colors.warning.main,
   },
   starLabel: {
-    fontSize: 14,
-    color: '#9ca3af',
-    marginBottom: 20,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.tertiary,
+    marginBottom: spacing.l,
   },
   starLabelSelected: {
-    color: '#111827',
-    fontWeight: '500',
+    fontFamily: typography.fonts.bodyMedium,
+    color: colors.text.primary,
   },
   commentInput: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 15,
+    borderColor: colors.border.light,
+    borderRadius: radii.m,
+    padding: spacing.s,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
     minHeight: 80,
-    backgroundColor: '#f9fafb',
-    marginBottom: 20,
+    backgroundColor: colors.background.secondary,
+    marginBottom: spacing.l,
   },
   buttons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s,
     width: '100%',
   },
   skipButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.m,
+    borderRadius: radii.m,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.primary,
   },
   skipButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    color: colors.text.secondary,
+    fontSize: typography.sizes.body,
   },
   submitButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: spacing.m,
+    borderRadius: radii.m,
     alignItems: 'center',
-    backgroundColor: '#16a34a',
+    backgroundColor: colors.success.main,
   },
   submitButtonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: colors.text.tertiary,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: typography.fonts.bodySemiBold,
+    color: colors.white,
+    fontSize: typography.sizes.body,
   },
 });

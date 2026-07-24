@@ -1,5 +1,6 @@
 import { DollarSign, CalendarDays, CheckCircle2, Receipt } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/server';
+import { money } from '@/shared/lib/format';
 
 type Row = {
   total_price: number | null;
@@ -12,10 +13,6 @@ type Row = {
 };
 
 type Agg = { name: string; count: number; total: number };
-
-function money(n: number): string {
-  return `$${n.toLocaleString('es-SV', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default async function AdminFinancePage() {
   const supabase = await createClient();

@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
 import { haversineKm } from '@/lib/distance';
 import { osrmLegs, osrmRoutePath } from '@/lib/osrm';
+import { friendlyError } from '@/lib/errorMessages';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { ChatScreen } from '@/features/chat/components/ChatScreen';
@@ -278,7 +279,7 @@ export default function ActiveService() {
       case 'en_route':
         return {
           title: 'Operador en camino',
-          body: 'El operador va en camino a tu ubicacion',
+          body: 'El operador va en camino a tu ubicación',
         };
       case 'active':
         return {
@@ -463,7 +464,7 @@ export default function ActiveService() {
     setCancelling(false);
 
     if (error) {
-      Alert.alert('Error', error.message || 'No se pudo cancelar el servicio');
+      Alert.alert('Error', friendlyError(error, 'No se pudo cancelar el servicio.'));
       return;
     }
 
