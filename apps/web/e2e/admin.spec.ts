@@ -7,9 +7,12 @@ const ADMIN_PASSWORD = 'testpassword123';
 test.describe('Landing Page', () => {
   test('homepage displays correctly', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Gruas App/);
-    await expect(page.locator('text=Gruas App')).toBeVisible();
-    await expect(page.locator('text=El Salvador')).toBeVisible();
+    await expect(page).toHaveTitle(/Budi/);
+    // "Budi" also appears in the footer, so scope to the header to stay strict-mode safe
+    await expect(
+      page.locator('header').getByText('Budi', { exact: true })
+    ).toBeVisible();
+    await expect(page.locator('h1')).toContainText('Asistencia vehicular');
   });
 
   test('has login and admin portal buttons', async ({ page }) => {
@@ -46,7 +49,10 @@ test.describe('Authentication', () => {
     await expect(page.getByLabel(/nombre completo/i)).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/telefono/i)).toBeVisible();
-    await expect(page.getByLabel(/contrasena/i)).toBeVisible();
+    // The form has both "Contrasena" and "Confirmar Contrasena", so a loose
+    // regex matches two fields and trips Playwright's strict mode.
+    await expect(page.getByLabel('Contrasena', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Confirmar Contrasena', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /crear cuenta/i })).toBeVisible();
   });
 
