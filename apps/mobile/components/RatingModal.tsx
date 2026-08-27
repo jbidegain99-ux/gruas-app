@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { colors } from '@/theme';
 
 interface RatingModalProps {
   visible: boolean;
@@ -134,7 +135,7 @@ export function RatingModal({
           <TextInput
             style={styles.commentInput}
             placeholder="Comentario opcional..."
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.text.tertiary}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -161,7 +162,7 @@ export function RatingModal({
               disabled={submitting || selectedStars === 0}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.text.inverse} size="small" />
               ) : (
                 <Text style={styles.submitButtonText}>Enviar</Text>
               )}
@@ -176,13 +177,13 @@ export function RatingModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.background.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modal: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
     borderRadius: 20,
     padding: 24,
     width: '100%',
@@ -192,12 +193,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#111827',
+    color: colors.text.primary,
     marginBottom: 8,
   },
   operatorName: {
     fontSize: 15,
-    color: '#6b7280',
+    color: colors.text.secondary,
     marginBottom: 20,
   },
   starsContainer: {
@@ -210,29 +211,29 @@ const styles = StyleSheet.create({
   },
   star: {
     fontSize: 40,
-    color: '#e5e7eb',
+    color: colors.border.light,
   },
   starSelected: {
-    color: '#fbbf24',
+    color: colors.warning.main,
   },
   starLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.text.tertiary,
     marginBottom: 20,
   },
   starLabelSelected: {
-    color: '#111827',
+    color: colors.text.primary,
     fontWeight: '500',
   },
   commentInput: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border.light,
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
     minHeight: 80,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
     marginBottom: 20,
   },
   buttons: {
@@ -246,11 +247,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.primary,
   },
   skipButtonText: {
-    color: '#6b7280',
+    color: colors.text.secondary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -259,13 +260,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#16a34a',
+    backgroundColor: colors.success.main,
   },
   submitButtonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: colors.text.tertiary,
   },
   submitButtonText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 16,
     fontWeight: '600',
   },

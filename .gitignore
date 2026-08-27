@@ -24,3 +24,11 @@ pnpm-debug.log*
 
 # OS
 .DS_Store
+
+# Test artifacts
+test-results/
+playwright-report/
+docs/evidence/playwright-report/
+
+# Visual Studio
+.vs/

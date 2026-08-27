@@ -30,6 +30,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Unit tests
+        run: pnpm test
+
   build-web:
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
@@ -58,8 +61,8 @@ jobs:
   test-e2e:
     runs-on: ubuntu-latest
     needs: build-web
-    # E2E tests are optional - they require Supabase secrets to be configured
-    continue-on-error: true
+    # Skipped (not failed) when Supabase secrets are absent - see check-secrets
+    # below. When they are present, a failing E2E run fails the build.
     steps:
       - uses: actions/checkout@v4
 

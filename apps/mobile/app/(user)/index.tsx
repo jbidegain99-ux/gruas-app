@@ -8,7 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
-  Dimensions,
+  useWindowDimensions,
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -38,7 +38,6 @@ let Marker: React.ComponentType<any> | null = null;
 let MarkerAnimated: React.ComponentType<any> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Polyline: React.ComponentType<any> | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AnimatedRegion: (new (...args: unknown[]) => { timing: (config: Record<string, unknown>) => { start: () => void } }) | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PROVIDER_GOOGLE: any = null;
@@ -79,11 +78,12 @@ type ActiveRequest = {
   route_polyline: string | null;
 };
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.4);
 const EDGE_PADDING = { top: 60, right: 60, bottom: 60, left: 60 };
 
 export default function UserHome() {
+  // Derived per render so the map resizes on rotation and on foldables.
+  const { height: screenHeight } = useWindowDimensions();
+  const mapHeight = Math.round(screenHeight * 0.4);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
@@ -408,7 +408,6 @@ export default function UserHome() {
         .in('status', ['initiated', 'assigned', 'en_route', 'active'])
         .order('created_at', { ascending: false })
         .limit(1);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requests = fallback.data as typeof requests;
       fetchError = fallback.error;
     }
@@ -542,7 +541,7 @@ export default function UserHome() {
     return (
       <MapView
         ref={mapRef}
-        style={fullscreen ? styles.mapFullscreen : { width: '100%', height: MAP_HEIGHT }}
+        style={fullscreen ? styles.mapFullscreen : { width: '100%', height: mapHeight }}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={{
           latitude: activeRequest.pickup_lat,
@@ -645,7 +644,7 @@ export default function UserHome() {
           {/* Live Map Tracking - PROMINENT, outside Card (Native only) */}
           {(showTracking || isDemoMode) && MapView && Marker && (
             <View style={styles.mapSection}>
-              <View style={styles.mapContainer}>
+              <View style={[styles.mapContainer, { height: mapHeight }]}>
                 {renderMapContent(false)}
 
                 {/* Expand button */}
@@ -1127,7 +1126,7 @@ const styles = StyleSheet.create({
 
   // Map
   mapContainer: {
-    height: MAP_HEIGHT,
+    // height is applied inline from useWindowDimensions
     backgroundColor: colors.border.light,
   },
   mapFullscreen: {

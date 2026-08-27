@@ -8,6 +8,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // e2e/ holds Playwright specs - vitest must not try to collect them
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', 'e2e/**'],
+    // No unit tests here yet - don't fail the workspace-wide `pnpm test`.
+    passWithNoTests: true,
   },
   resolve: {
     alias: {

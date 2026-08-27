@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { X, Search, MapPin } from 'lucide-react-native';
+import { colors } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -353,7 +354,7 @@ export function LocationPicker({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <X size={20} color="#333" strokeWidth={2.5} />
+            <X size={20} color={colors.text.primary} strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.placeholder} />
@@ -362,23 +363,23 @@ export function LocationPicker({
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
-            <Search size={18} color="#999" strokeWidth={2} />
+            <Search size={18} color={colors.text.tertiary} strokeWidth={2} />
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar dirección..."
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.text.tertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCorrect={false}
             />
-            {isSearching && <ActivityIndicator size="small" color="#2563eb" />}
+            {isSearching && <ActivityIndicator size="small" color={colors.primary[500]} />}
           </View>
           <TouchableOpacity
             style={styles.currentLocationButton}
             onPress={useCurrentLocation}
             disabled={isLoading}
           >
-            <MapPin size={20} color="#2563eb" strokeWidth={2} />
+            <MapPin size={20} color={colors.primary[500]} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -445,7 +446,7 @@ export function LocationPicker({
             disabled={!selectedLocation || !address || isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.text.inverse} />
             ) : (
               <Text style={styles.confirmButtonText}>Confirmar Ubicación</Text>
             )}
@@ -459,7 +460,7 @@ export function LocationPicker({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   header: {
     flexDirection: 'row',
@@ -468,9 +469,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 16,
     paddingBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border.light,
   },
   closeButton: {
     width: 40,
@@ -480,12 +481,12 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 24,
-    color: '#666',
+    color: colors.text.secondary,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text.primary,
   },
   placeholder: {
     width: 40,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   searchInputContainer: {
     flex: 1,
@@ -503,10 +504,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 48,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border.medium,
     borderRadius: 12,
     paddingHorizontal: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
   },
   searchIcon: {
     fontSize: 16,
@@ -515,12 +516,12 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: colors.text.primary,
   },
   currentLocationButton: {
     width: 48,
     height: 48,
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -533,7 +534,7 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 160 : 126,
     left: 16,
     right: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
     borderRadius: 12,
     maxHeight: 250,
     zIndex: 1000,
@@ -546,16 +547,16 @@ const styles = StyleSheet.create({
   predictionItem: {
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.background.tertiary,
   },
   predictionMainText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text.primary,
   },
   predictionSecondaryText: {
     fontSize: 13,
-    color: '#666',
+    color: colors.text.secondary,
     marginTop: 2,
   },
   mapContainer: {
@@ -569,17 +570,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.background.tertiary,
   },
   webFallbackText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   coordsText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#333',
+    color: colors.text.primary,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   instructionBadge: {
@@ -592,47 +593,47 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   instructionText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 13,
   },
   addressContainer: {
     padding: 16,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background.secondary,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.border.light,
     minHeight: 70,
   },
   addressLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.text.secondary,
     marginBottom: 4,
   },
   addressText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text.primary,
   },
   addressPlaceholder: {
     fontSize: 14,
-    color: '#999',
+    color: colors.text.tertiary,
     textAlign: 'center',
   },
   buttonContainer: {
     padding: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
   confirmButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary[500],
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
   confirmButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.border.medium,
   },
   confirmButtonText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 16,
     fontWeight: '600',
   },
