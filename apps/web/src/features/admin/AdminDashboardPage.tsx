@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/server';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { DashboardLiveRefresh } from './DashboardLiveRefresh';
 import { money } from '@/shared/lib/format';
 
@@ -118,7 +119,7 @@ export default async function AdminDashboardPage() {
       .gte('created_at', slaWindowIso),
     supabase
       .from('service_requests')
-      .select('id, status, incident_type, pickup_address, service_type, total_price, created_at, profiles!service_requests_user_id_fkey(full_name)')
+      .select('id, status, pickup_address, service_type, total_price, created_at, profiles!service_requests_user_id_fkey(full_name)')
       .order('created_at', { ascending: false })
       .limit(6),
   ]);
@@ -396,8 +397,8 @@ export default async function AdminDashboardPage() {
                     <td className="whitespace-nowrap px-5 py-3 font-medium text-zinc-900 dark:text-white">
                       {(r.profiles as unknown as { full_name: string } | null)?.full_name || 'N/A'}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3 capitalize text-zinc-600 dark:text-zinc-400">
-                      {r.service_type || r.incident_type}
+                    <td className="whitespace-nowrap px-5 py-3">
+                      <ServiceTypeBadge serviceType={r.service_type || 'tow'} />
                     </td>
                     <td className="max-w-[200px] truncate px-5 py-3 text-zinc-600 dark:text-zinc-400">
                       {r.pickup_address}
