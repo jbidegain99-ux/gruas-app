@@ -7,7 +7,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { LogoutButton } from '@/shared/components/LogoutButton';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 
-type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
+type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
 
 export default function MobileInfoPage() {
   const [profile, setProfile] = useState<{ full_name: string | null; role: UserRole } | null>(null);

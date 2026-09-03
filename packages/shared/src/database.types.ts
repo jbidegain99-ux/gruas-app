@@ -694,6 +694,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          insurer_id: string | null
           marketing_opt_in: boolean
           phone: string
           privacy_accepted_at: string | null
@@ -711,6 +712,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id: string
+          insurer_id?: string | null
           marketing_opt_in?: boolean
           phone: string
           privacy_accepted_at?: string | null
@@ -728,6 +730,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          insurer_id?: string | null
           marketing_opt_in?: boolean
           phone?: string
           privacy_accepted_at?: string | null
@@ -741,6 +744,13 @@ export type Database = {
           verification_submitted_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_provider_id_fkey"
             columns: ["provider_id"]
@@ -1556,6 +1566,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_link_insurer_user: {
+        Args: { p_insurer_id: string; p_user_id: string }
+        Returns: undefined
+      }
       admin_set_operator_verification: {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
         Returns: undefined
@@ -1619,6 +1633,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      auth_insurer_id: { Args: never; Returns: string }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -1809,6 +1824,19 @@ export type Database = {
       is_my_plan: { Args: { p_plan_id: string }; Returns: boolean }
       is_my_policy: { Args: { p_policy_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      list_insurer_cases: {
+        Args: never
+        Returns: {
+          arrival_met: boolean
+          assignment_met: boolean
+          coverage_status: string
+          created_at: string
+          folio: string
+          service_type: string
+          status: string
+          total_price: number
+        }[]
+      }
       member_document_key: { Args: { p_doc: string }; Returns: string }
       next_case_folio: { Args: never; Returns: string }
       normalize_document: { Args: { p_doc: string }; Returns: string }
@@ -1893,6 +1921,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_belongs_to_my_insurer: {
+        Args: { p_request_id: string }
+        Returns: boolean
+      }
       revoke_insurer_api_key: { Args: { p_key_id: string }; Returns: undefined }
       send_message: {
         Args: { p_message: string; p_request_id: string }
@@ -1953,7 +1985,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       tow_type: "light" | "heavy"
-      user_role: "USER" | "OPERATOR" | "ADMIN"
+      user_role: "USER" | "OPERATOR" | "ADMIN" | "INSURER"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2650,7 +2682,7 @@ export const Constants = {
         "cancelled",
       ],
       tow_type: ["light", "heavy"],
-      user_role: ["USER", "OPERATOR", "ADMIN"],
+      user_role: ["USER", "OPERATOR", "ADMIN", "INSURER"],
     },
   },
   storage: {

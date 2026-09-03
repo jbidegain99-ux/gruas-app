@@ -1,4 +1,4 @@
-export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
+export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
 
 export type TowType = 'light' | 'heavy';
 

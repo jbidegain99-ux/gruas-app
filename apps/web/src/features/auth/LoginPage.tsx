@@ -45,6 +45,9 @@ function LoginForm() {
 
       if (profile?.role === 'ADMIN') {
         router.push('/admin');
+      } else if (profile?.role === 'INSURER') {
+        // B-17: la aseguradora va a su portal.
+        router.push('/portal');
       } else if (profile?.role === 'USER' || profile?.role === 'OPERATOR') {
         // Redirect mobile-first roles to info page
         router.push('/mobile-info');
