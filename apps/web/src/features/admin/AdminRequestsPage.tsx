@@ -8,6 +8,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { CaseTimeline } from './CaseTimeline';
+import { CaseSla } from './CaseSla';
 import { LocationMap } from '@/shared/components/LocationMap';
 import { resolveDisplayAddress } from '@/shared/lib/geocoding';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
@@ -798,6 +799,9 @@ export default function AdminRequestsPage() {
                     Cancelar Solicitud
                   </button>
                 )}
+
+                {/* B-15: cumplimiento de SLA del caso. */}
+                <CaseSla folio={selectedRequest.cases?.folio ?? null} />
 
                 {/* B-14: la línea de tiempo del caso, con exportación. */}
                 <CaseTimeline folio={selectedRequest.cases?.folio ?? null} />

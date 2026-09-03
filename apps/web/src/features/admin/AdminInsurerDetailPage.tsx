@@ -30,6 +30,9 @@ type Insurer = {
   contact_email: string | null;
   contact_phone: string | null;
   is_active: boolean;
+  // B-15: objetivos de SLA que la aseguradora pacta.
+  sla_assignment_minutes: number;
+  sla_arrival_minutes: number;
 };
 
 type Plan = {
@@ -175,6 +178,9 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
             .join(' · ') || 'Sin datos de contacto'}
         </p>
       </div>
+
+      {/* ── Objetivos de SLA (B-15) ─────────────────────────────────────── */}
+      <SlaTargets insurer={insurer} onSaved={() => setRefreshKey((k) => k + 1)} />
 
       {/* ── Planes de cobertura ─────────────────────────────────────────── */}
       <section className="mb-10">
@@ -817,5 +823,104 @@ export function Acciones({
         {loading ? 'Guardando…' : 'Guardar'}
       </button>
     </div>
+  );
+}
+
+// B-15: objetivos de SLA de la aseguradora. Se miden contra estos tiempos los
+// casos de sus afiliados; get_case_sla los lee.
+function SlaTargets({ insurer, onSaved }: { insurer: Insurer; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [asig, setAsig] = useState(String(insurer.sla_assignment_minutes));
+  const [lleg, setLleg] = useState(String(insurer.sla_arrival_minutes));
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  const guardar = async () => {
+    setSaving(true);
+    const { error } = await createClient()
+      .from('insurers')
+      .update({
+        sla_assignment_minutes: Math.max(1, Number(asig) || 0),
+        sla_arrival_minutes: Math.max(1, Number(lleg) || 0),
+      })
+      .eq('id', insurer.id);
+    setSaving(false);
+    if (error) return toast.error('No se pudieron guardar los objetivos.');
+    toast.success('Objetivos de SLA actualizados.');
+    setEditing(false);
+    onSaved();
+  };
+
+  return (
+    <section className="mb-10 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="font-heading text-lg font-bold text-zinc-900 dark:text-white">Objetivos de SLA</h2>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-sm font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
+          >
+            Editar
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="text-sm">
+            <span className="mb-1 block text-zinc-600 dark:text-zinc-400">Asignar operador (min)</span>
+            <input
+              type="number"
+              min={1}
+              value={asig}
+              onChange={(e) => setAsig(e.target.value)}
+              className="w-28 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-zinc-600 dark:text-zinc-400">Llegar al lugar (min)</span>
+            <input
+              type="number"
+              min={1}
+              value={lleg}
+              onChange={(e) => setLleg(e.target.value)}
+              className="w-28 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            />
+          </label>
+          <button
+            onClick={guardar}
+            disabled={saving}
+            className="rounded-lg bg-budi-primary-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
+          >
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-10">
+          <div>
+            <p className="text-xs text-zinc-500">Asignar operador</p>
+            <p className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-white">
+              {insurer.sla_assignment_minutes} <span className="text-sm font-normal text-zinc-500">min</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-zinc-500">Llegar al lugar</p>
+            <p className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-white">
+              {insurer.sla_arrival_minutes} <span className="text-sm font-normal text-zinc-500">min</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      <p className="mt-4 text-xs text-zinc-500">
+        Los servicios de los afiliados de esta aseguradora se miden contra estos tiempos.
+      </p>
+    </section>
   );
 }

@@ -280,6 +280,8 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          sla_arrival_minutes: number
+          sla_assignment_minutes: number
           tax_id: string | null
           updated_at: string
         }
@@ -291,6 +293,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          sla_arrival_minutes?: number
+          sla_assignment_minutes?: number
           tax_id?: string | null
           updated_at?: string
         }
@@ -302,6 +306,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          sla_arrival_minutes?: number
+          sla_assignment_minutes?: number
           tax_id?: string | null
           updated_at?: string
         }
@@ -1769,6 +1775,7 @@ export type Database = {
       }
       get_admin_dashboard_stats: { Args: never; Returns: Json }
       get_available_requests_for_operator: { Args: never; Returns: Json }
+      get_case_sla: { Args: { p_folio: string }; Returns: Json }
       get_case_timeline: {
         Args: { p_folio: string }
         Returns: {
