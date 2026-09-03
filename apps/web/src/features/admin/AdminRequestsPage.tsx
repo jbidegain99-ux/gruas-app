@@ -7,6 +7,7 @@ import { requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
+import { CaseTimeline } from './CaseTimeline';
 import { LocationMap } from '@/shared/components/LocationMap';
 import { resolveDisplayAddress } from '@/shared/lib/geocoding';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
@@ -45,6 +46,8 @@ type ServiceRequest = {
   price_breakdown: unknown;
   profiles: { full_name: string; phone: string | null } | null;
   operator: { full_name: string; phone: string | null } | null;
+  /** B-14. Embed 1:1 con `cases`; al ser to-one, PostgREST lo devuelve como objeto. */
+  cases: { folio: string } | null;
 };
 
 type Operator = { id: string; full_name: string };
@@ -183,7 +186,8 @@ export default function AdminRequestsPage() {
           notes, cancellation_reason, cancelled_by,
           service_type, service_details, route_polyline, pool_alerted_at, coverage_status,
           profiles!service_requests_user_id_fkey(full_name, phone),
-          operator:profiles!service_requests_operator_id_fkey(full_name, phone)
+          operator:profiles!service_requests_operator_id_fkey(full_name, phone),
+          cases(folio)
         `)
         .order('created_at', { ascending: false });
 
@@ -563,9 +567,9 @@ export default function AdminRequestsPage() {
 
             <div className="space-y-4 p-6">
                 <div>
-                  <p className="text-xs text-zinc-500">ID</p>
-                  <p className="text-sm text-zinc-900 dark:text-white">
-                    {selectedRequest.id.substring(0, 8)}...
+                  <p className="text-xs text-zinc-500">Folio</p>
+                  <p className="font-mono text-sm font-semibold text-zinc-900 dark:text-white">
+                    {selectedRequest.cases?.folio ?? `${selectedRequest.id.substring(0, 8)}…`}
                   </p>
                 </div>
 
@@ -794,6 +798,9 @@ export default function AdminRequestsPage() {
                     Cancelar Solicitud
                   </button>
                 )}
+
+                {/* B-14: la línea de tiempo del caso, con exportación. */}
+                <CaseTimeline folio={selectedRequest.cases?.folio ?? null} />
             </div>
           </aside>
         </>

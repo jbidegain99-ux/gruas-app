@@ -9,6 +9,35 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      cases: {
+        Row: {
+          created_at: string
+          folio: string
+          id: string
+          request_id: string
+        }
+        Insert: {
+          created_at?: string
+          folio: string
+          id?: string
+          request_id: string
+        }
+        Update: {
+          created_at?: string
+          folio?: string
+          id?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cases_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coverage_plans: {
         Row: {
           code: string
@@ -1740,6 +1769,16 @@ export type Database = {
       }
       get_admin_dashboard_stats: { Args: never; Returns: Json }
       get_available_requests_for_operator: { Args: never; Returns: Json }
+      get_case_timeline: {
+        Args: { p_folio: string }
+        Returns: {
+          actor_role: string
+          at: string
+          detail: string
+          event_type: string
+          label: string
+        }[]
+      }
       get_request_audit_trail: { Args: { p_request_id: string }; Returns: Json }
       get_user_device_tokens: {
         Args: { p_user_id: string }
@@ -1749,6 +1788,7 @@ export type Database = {
         }[]
       }
       hash_pin: { Args: { p_pin: string }; Returns: string }
+      id_documents_frozen: { Args: never; Returns: boolean }
       import_members_for_insurer: {
         Args: { p_insurer_id: string; p_members: Json; p_policy_number: string }
         Returns: Json
@@ -1762,6 +1802,8 @@ export type Database = {
       is_my_plan: { Args: { p_plan_id: string }; Returns: boolean }
       is_my_policy: { Args: { p_policy_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      member_document_key: { Args: { p_doc: string }; Returns: string }
+      next_case_folio: { Args: never; Returns: string }
       normalize_document: { Args: { p_doc: string }; Returns: string }
       operator_cancel_request: {
         Args: { p_request_id: string }
@@ -1866,56 +1908,6 @@ export type Database = {
       }
       verify_insurer_api_key: { Args: { p_key: string }; Returns: string }
       verify_pin: { Args: { p_hash: string; p_pin: string }; Returns: boolean }
-      verify_pin_and_activate: {
-        Args: { p_pin: string; p_request_id: string }
-        Returns: {
-          activated_at: string | null
-          assigned_at: string | null
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          completed_at: string | null
-          coverage_status: string | null
-          created_at: string
-          distance_operator_to_pickup_km: number | null
-          distance_pickup_to_dropoff_km: number | null
-          dropoff_address: string
-          dropoff_lat: number
-          dropoff_lng: number
-          id: string
-          incident_description: string | null
-          incident_type: string
-          notes: string | null
-          operator_id: string | null
-          pickup_address: string
-          pickup_lat: number
-          pickup_lng: number
-          pin_hash: string
-          pool_alerted_at: string | null
-          price_breakdown: Json | null
-          provider_id: string | null
-          route_polyline: string | null
-          service_details: Json | null
-          service_type: string
-          status: Database["public"]["Enums"]["request_status"]
-          total_price: number | null
-          tow_type: Database["public"]["Enums"]["tow_type"]
-          updated_at: string
-          user_id: string
-          vehicle_color: string | null
-          vehicle_doc_path: string | null
-          vehicle_make: string | null
-          vehicle_model: string | null
-          vehicle_photo_url: string | null
-          vehicle_plate: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "service_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       verify_request_pin: {
         Args: { p_pin: string; p_request_id: string }
         Returns: Json
@@ -1935,6 +1927,7 @@ export type Database = {
         | "MESSAGE_SENT"
         | "RATING_SUBMITTED"
         | "COVERAGE_CHECKED"
+        | "PRICE_DISTANCE_CAPPED"
       request_status:
         | "initiated"
         | "assigned"
@@ -2629,6 +2622,7 @@ export const Constants = {
         "MESSAGE_SENT",
         "RATING_SUBMITTED",
         "COVERAGE_CHECKED",
+        "PRICE_DISTANCE_CAPPED",
       ],
       request_status: [
         "initiated",
