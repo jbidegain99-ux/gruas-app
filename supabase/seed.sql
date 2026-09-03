@@ -95,6 +95,59 @@ WHERE id = (SELECT id FROM auth.users WHERE email = 'jbidegain@republicode.com')
 */
 
 -- =====================================================
+-- =====================================================
+-- ASEGURADORAS, PLANES Y COBERTURA  (B-08, Fase 1)
+-- =====================================================
+-- Padron de demostracion para desarrollo. Las reglas van como FILAS en
+-- coverage_rules, no como columnas: ver el encabezado de la migracion 00044.
+-- `members.profile_id` se resuelve por email para que el afiliado quede
+-- vinculado a la cuenta de prueba usuario1@gruas.sv si existe.
+
+INSERT INTO insurers (id, name, tax_id, contact_name, contact_email, contact_phone) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'Seguros Demo, S.A. de C.V.', '0614-010101-001-1', 'Contacto Demo', 'contacto@segurosdemo.sv', '+503 2200-1000')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tax_id = EXCLUDED.tax_id;
+
+INSERT INTO coverage_plans (id, insurer_id, code, name, description) VALUES
+  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'ORO',    'Plan Oro',    'Cobertura amplia: grua con 25 km incluidos y 4 eventos al anio.'),
+  ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'BASICO', 'Plan Basico', 'Cobertura minima: 2 eventos al anio y 10 km de arrastre.')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+
+-- Plan Oro: todo cubierto salvo cerrajeria; grua 4/anio con 25 km.
+INSERT INTO coverage_rules (plan_id, service_type, rule_key, rule_value) VALUES
+  ('b0000000-0000-0000-0000-000000000001', NULL,        'covered',            1),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'services_per_year',  4),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'included_km',       25),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'max_covered_amount', 150),
+  ('b0000000-0000-0000-0000-000000000001', 'locksmith', 'covered',            0)
+ON CONFLICT (plan_id, COALESCE(service_type, '*'), rule_key) DO UPDATE SET rule_value = EXCLUDED.rule_value;
+
+-- Plan Basico: solo grua y bateria, con topes mas bajos.
+INSERT INTO coverage_rules (plan_id, service_type, rule_key, rule_value) VALUES
+  ('b0000000-0000-0000-0000-000000000002', NULL,      'covered',            0),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'covered',            1),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'services_per_year',  2),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'included_km',       10),
+  ('b0000000-0000-0000-0000-000000000002', 'battery', 'covered',            1)
+ON CONFLICT (plan_id, COALESCE(service_type, '*'), rule_key) DO UPDATE SET rule_value = EXCLUDED.rule_value;
+
+INSERT INTO policies (id, insurer_id, plan_id, policy_number, holder_name, starts_on, ends_on) VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'POL-2026-0001', 'Usuario Uno',  '2026-01-01', '2026-12-31'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'POL-2026-0002', 'Maria Ramirez', '2026-03-01', '2027-02-28')
+ON CONFLICT (id) DO UPDATE SET holder_name = EXCLUDED.holder_name;
+
+-- Titular vinculado a la cuenta de prueba (si existe) + un beneficiario sin cuenta.
+INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship)
+SELECT 'd0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
+       (SELECT id FROM profiles WHERE email = 'usuario1@gruas.sv'),
+       '01234567-8', 'Usuario Uno', '+503 7000-0001', 'holder'
+ON CONFLICT (id) DO UPDATE SET profile_id = EXCLUDED.profile_id;
+
+INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship) VALUES
+  ('d0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', NULL, '02345678-9', 'Ana Uno',       '+503 7000-0002', 'beneficiary'),
+  ('d0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000002', NULL, '03456789-0', 'Maria Ramirez', '+503 7000-0003', 'holder')
+ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+
+-- =====================================================
 -- Verify seed data
 -- =====================================================
 DO $$
@@ -113,5 +166,9 @@ BEGIN
   RAISE NOTICE 'Active Providers: %', v_providers;
   RAISE NOTICE 'Total Pricing Rules: %', v_pricing;
   RAISE NOTICE 'Active Pricing Rule: %', COALESCE(v_active_pricing, 'NONE');
+  RAISE NOTICE 'Insurers: %  Plans: %  Rules: %  Policies: %  Members: %',
+    (SELECT COUNT(*) FROM insurers), (SELECT COUNT(*) FROM coverage_plans),
+    (SELECT COUNT(*) FROM coverage_rules), (SELECT COUNT(*) FROM policies),
+    (SELECT COUNT(*) FROM members);
   RAISE NOTICE '==========================================';
 END $$;

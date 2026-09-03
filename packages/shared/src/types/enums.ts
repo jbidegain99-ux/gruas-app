@@ -1,4 +1,4 @@
-export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'MOP';
+export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
 
 export type TowType = 'light' | 'heavy';
 
@@ -24,6 +24,7 @@ export type RequestEventType =
   | 'ADMIN_CANCELLED'
   | 'USER_CANCELLED'
   | 'PRICE_COMPUTED'
-  | 'MOP_NOTIFIED'
+  // B-11: rastro de la verificacion de cobertura al crear la solicitud.
+  | 'COVERAGE_CHECKED'
   | 'MESSAGE_SENT'
   | 'RATING_SUBMITTED';

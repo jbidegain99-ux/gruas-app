@@ -9,6 +9,136 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      coverage_plans: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          insurer_id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          insurer_id: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          insurer_id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_plans_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_rules: {
+        Row: {
+          created_at: string
+          id: string
+          plan_id: string
+          rule_key: string
+          rule_value: number | null
+          service_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          plan_id: string
+          rule_key: string
+          rule_value?: number | null
+          service_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          plan_id?: string
+          rule_key?: string
+          rule_value?: number | null
+          service_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_rules_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_usage: {
+        Row: {
+          amount_copay: number
+          amount_covered: number
+          created_at: string
+          id: string
+          km_used: number | null
+          member_id: string
+          request_id: string
+          service_type: string
+          used_on: string
+        }
+        Insert: {
+          amount_copay?: number
+          amount_covered?: number
+          created_at?: string
+          id?: string
+          km_used?: number | null
+          member_id: string
+          request_id: string
+          service_type: string
+          used_on?: string
+        }
+        Update: {
+          amount_copay?: number
+          amount_covered?: number
+          created_at?: string
+          id?: string
+          km_used?: number | null
+          member_id?: string
+          request_id?: string
+          service_type?: string
+          used_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_usage_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_usage_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_tokens: {
         Row: {
           created_at: string
@@ -48,6 +178,167 @@ export type Database = {
           {
             foreignKeyName: "device_tokens_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurer_api_keys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          insurer_id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          insurer_id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          revoked_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          insurer_id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurer_api_keys_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "insurer_api_keys_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insurer_api_keys_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurers: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          tax_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      members: {
+        Row: {
+          created_at: string
+          document_number: string
+          ends_on: string | null
+          full_name: string
+          id: string
+          is_active: boolean
+          phone: string | null
+          policy_id: string
+          profile_id: string | null
+          relationship: string
+          starts_on: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_number: string
+          ends_on?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          policy_id: string
+          profile_id?: string | null
+          relationship?: string
+          starts_on?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string
+          ends_on?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          policy_id?: string
+          profile_id?: string | null
+          relationship?: string
+          starts_on?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "members_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -198,6 +489,92 @@ export type Database = {
           },
         ]
       }
+      pin_attempts: {
+        Row: {
+          attempted_at: string
+          id: string
+          operator_id: string
+          request_id: string
+          success: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          id?: string
+          operator_id: string
+          request_id: string
+          success: boolean
+        }
+        Update: {
+          attempted_at?: string
+          id?: string
+          operator_id?: string
+          request_id?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_attempts_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policies: {
+        Row: {
+          created_at: string
+          ends_on: string | null
+          holder_name: string
+          id: string
+          insurer_id: string
+          plan_id: string
+          policy_number: string
+          starts_on: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_on?: string | null
+          holder_name: string
+          id?: string
+          insurer_id: string
+          plan_id: string
+          policy_number: string
+          starts_on: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string | null
+          holder_name?: string
+          id?: string
+          insurer_id?: string
+          plan_id?: string
+          policy_number?: string
+          starts_on?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policies_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policies_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_rules: {
         Row: {
           base_exit_fee: number
@@ -240,15 +617,51 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_sensitive: {
+        Row: {
+          dui_number: string | null
+          id_doc_path: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          dui_number?: string | null
+          id_doc_path?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          dui_number?: string | null
+          id_doc_path?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_sensitive_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "profile_sensitive_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
-          dui_number: string | null
           email: string | null
           full_name: string
           id: string
-          id_doc_path: string | null
+          marketing_opt_in: boolean
           phone: string
+          privacy_accepted_at: string | null
           provider_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
@@ -260,12 +673,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          dui_number?: string | null
           email?: string | null
           full_name: string
           id: string
-          id_doc_path?: string | null
+          marketing_opt_in?: boolean
           phone: string
+          privacy_accepted_at?: string | null
           provider_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -277,12 +690,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          dui_number?: string | null
           email?: string | null
           full_name?: string
           id?: string
-          id_doc_path?: string | null
+          marketing_opt_in?: boolean
           phone?: string
+          privacy_accepted_at?: string | null
           provider_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
@@ -356,6 +769,13 @@ export type Database = {
             foreignKeyName: "provider_services_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
+            referencedRelation: "service_type_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
             referencedRelation: "services"
             referencedColumns: ["id"]
           },
@@ -364,35 +784,38 @@ export type Database = {
       providers: {
         Row: {
           address: string | null
+          business_type: string
           contact_email: string | null
           contact_phone: string | null
           created_at: string
           id: string
           is_active: boolean
           name: string
-          tow_type_supported: string
+          tow_type_supported: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
+          business_type?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           name: string
-          tow_type_supported: string
+          tow_type_supported?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
+          business_type?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           name?: string
-          tow_type_supported?: string
+          tow_type_supported?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -604,6 +1027,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -644,6 +1068,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           completed_at?: string | null
+          coverage_status?: string | null
           created_at?: string
           distance_operator_to_pickup_km?: number | null
           distance_pickup_to_dropoff_km?: number | null
@@ -684,6 +1109,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           completed_at?: string | null
+          coverage_status?: string | null
           created_at?: string
           distance_operator_to_pickup_km?: number | null
           distance_pickup_to_dropoff_km?: number | null
@@ -768,57 +1194,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      service_type_pricing: {
-        Row: {
-          base_price: number
-          created_at: string | null
-          currency: string
-          description: string
-          display_name: string
-          extra_fee: number
-          extra_fee_label: string | null
-          icon: string
-          id: string
-          is_active: boolean
-          requires_destination: boolean
-          service_type: string
-          sort_order: number
-          updated_at: string | null
-        }
-        Insert: {
-          base_price?: number
-          created_at?: string | null
-          currency?: string
-          description?: string
-          display_name: string
-          extra_fee?: number
-          extra_fee_label?: string | null
-          icon?: string
-          id?: string
-          is_active?: boolean
-          requires_destination?: boolean
-          service_type: string
-          sort_order?: number
-          updated_at?: string | null
-        }
-        Update: {
-          base_price?: number
-          created_at?: string | null
-          currency?: string
-          description?: string
-          display_name?: string
-          extra_fee?: number
-          extra_fee_label?: string | null
-          icon?: string
-          id?: string
-          is_active?: boolean
-          requires_destination?: boolean
-          service_type?: string
-          sort_order?: number
-          updated_at?: string | null
-        }
-        Relationships: []
       }
       services: {
         Row: {
@@ -939,8 +1314,63 @@ export type Database = {
         }
         Relationships: []
       }
+      service_type_pricing: {
+        Row: {
+          base_price: number | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          display_name: string | null
+          extra_fee: number | null
+          extra_fee_label: string | null
+          icon: string | null
+          id: string | null
+          is_active: boolean | null
+          requires_destination: boolean | null
+          service_type: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          base_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_name?: string | null
+          extra_fee?: number | null
+          extra_fee_label?: string | null
+          icon?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          requires_destination?: boolean | null
+          service_type?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          base_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_name?: string | null
+          extra_fee?: number | null
+          extra_fee_label?: string | null
+          icon?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          requires_destination?: boolean | null
+          service_type?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      _import_members: {
+        Args: { p_members: Json; p_policy_id: string }
+        Returns: Json
+      }
       accept_service_request: {
         Args: { p_request_id: string }
         Returns: {
@@ -950,6 +1380,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -999,6 +1430,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1048,6 +1480,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1092,22 +1525,14 @@ export type Database = {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
         Returns: undefined
       }
-      admin_update_user_role:
-        | {
-            Args: {
-              p_new_role: Database["public"]["Enums"]["user_role"]
-              p_user_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_new_role: Database["public"]["Enums"]["user_role"]
-              p_provider_id?: string
-              p_user_id: string
-            }
-            Returns: Json
-          }
+      admin_update_user_role: {
+        Args: {
+          p_new_role: Database["public"]["Enums"]["user_role"]
+          p_provider_id?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       alert_stale_pool_requests: { Args: never; Returns: undefined }
       assign_nearest_operator: {
         Args: { p_request_id: string }
@@ -1118,6 +1543,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1173,6 +1599,7 @@ export type Database = {
         Args: { p_reason: string; p_request_id: string }
         Returns: Json
       }
+      check_member_coverage: { Args: never; Returns: Json }
       complete_service_request: {
         Args: { p_distance_pickup_to_dropoff: number; p_request_id: string }
         Returns: {
@@ -1182,6 +1609,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1221,6 +1649,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      coverage_rule_lookup: {
+        Args: { p_plan_id: string; p_rule_key: string; p_service_type: string }
+        Returns: {
+          alcance: string
+          existe: boolean
+          valor: number
+        }[]
+      }
+      create_insurer_api_key: {
+        Args: { p_insurer_id: string; p_name: string }
+        Returns: Json
       }
       create_request_event: {
         Args: {
@@ -1264,6 +1704,18 @@ export type Database = {
         Returns: Json
       }
       drain_notification_queue: { Args: never; Returns: undefined }
+      evaluate_coverage: {
+        Args: {
+          p_exclude_request?: string
+          p_km?: number
+          p_member_id: string
+          p_service_type: string
+          p_total: number
+          p_tow_type?: Database["public"]["Enums"]["tow_type"]
+        }
+        Returns: Json
+      }
+      generate_secure_pin: { Args: never; Returns: string }
       get_active_pricing_rule: {
         Args: never
         Returns: {
@@ -1297,9 +1749,20 @@ export type Database = {
         }[]
       }
       hash_pin: { Args: { p_pin: string }; Returns: string }
+      import_members_for_insurer: {
+        Args: { p_insurer_id: string; p_members: Json; p_policy_number: string }
+        Returns: Json
+      }
+      import_policy_members: {
+        Args: { p_members: Json; p_policy_id: string }
+        Returns: Json
+      }
       is_admin: { Args: never; Returns: boolean }
-      is_mop: { Args: never; Returns: boolean }
+      is_my_insurer: { Args: { p_insurer_id: string }; Returns: boolean }
+      is_my_plan: { Args: { p_plan_id: string }; Returns: boolean }
+      is_my_policy: { Args: { p_policy_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      normalize_document: { Args: { p_doc: string }; Returns: string }
       operator_cancel_request: {
         Args: { p_request_id: string }
         Returns: {
@@ -1309,6 +1772,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1349,6 +1813,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      preview_my_coverage: {
+        Args: {
+          p_km?: number
+          p_service_type: string
+          p_total: number
+          p_tow_type?: Database["public"]["Enums"]["tow_type"]
+        }
+        Returns: Json
+      }
       rate_service: {
         Args: { p_comment?: string; p_request_id: string; p_stars: number }
         Returns: Json
@@ -1371,11 +1844,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      revoke_insurer_api_key: { Args: { p_key_id: string }; Returns: undefined }
       send_message: {
         Args: { p_message: string; p_request_id: string }
         Returns: Json
       }
       set_active_pricing_rule: { Args: { p_rule_id: string }; Returns: Json }
+      set_marketing_opt_in: { Args: { p_value: boolean }; Returns: undefined }
       submit_operator_verification: { Args: never; Returns: undefined }
       unregister_device_token: {
         Args: { p_expo_push_token: string }
@@ -1389,6 +1864,7 @@ export type Database = {
         Args: { p_is_online?: boolean; p_lat: number; p_lng: number }
         Returns: Json
       }
+      verify_insurer_api_key: { Args: { p_key: string }; Returns: string }
       verify_pin: { Args: { p_hash: string; p_pin: string }; Returns: boolean }
       verify_pin_and_activate: {
         Args: { p_pin: string; p_request_id: string }
@@ -1399,6 +1875,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           completed_at: string | null
+          coverage_status: string | null
           created_at: string
           distance_operator_to_pickup_km: number | null
           distance_pickup_to_dropoff_km: number | null
@@ -1455,9 +1932,9 @@ export type Database = {
         | "ADMIN_CANCELLED"
         | "USER_CANCELLED"
         | "PRICE_COMPUTED"
-        | "MOP_NOTIFIED"
         | "MESSAGE_SENT"
         | "RATING_SUBMITTED"
+        | "COVERAGE_CHECKED"
       request_status:
         | "initiated"
         | "assigned"
@@ -1466,7 +1943,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       tow_type: "light" | "heavy"
-      user_role: "USER" | "OPERATOR" | "ADMIN" | "MOP"
+      user_role: "USER" | "OPERATOR" | "ADMIN"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2149,9 +2626,9 @@ export const Constants = {
         "ADMIN_CANCELLED",
         "USER_CANCELLED",
         "PRICE_COMPUTED",
-        "MOP_NOTIFIED",
         "MESSAGE_SENT",
         "RATING_SUBMITTED",
+        "COVERAGE_CHECKED",
       ],
       request_status: [
         "initiated",
@@ -2162,7 +2639,7 @@ export const Constants = {
         "cancelled",
       ],
       tow_type: ["light", "heavy"],
-      user_role: ["USER", "OPERATOR", "ADMIN", "MOP"],
+      user_role: ["USER", "OPERATOR", "ADMIN"],
     },
   },
   storage: {

@@ -41,5 +41,9 @@ pnpm-debug.log*
 supabase/.branches/
 supabase/.temp/
 
-# Playwright ephemeral output (el reporte "de evidencia" se versiona aparte en docs/)
+# Salida de Playwright. El reporte HTML tambien se ignora: el reporter limpia y
+# regenera su carpeta en cada corrida, asi que versionarlo hacia que cualquiera
+# que corriera los tests ensuciara el arbol con adjuntos borrados y un index.html
+# distinto. Es output reproducible, no evidencia.
 **/test-results/
+**/playwright-report/

@@ -57,3 +57,10 @@ enabled = false
 # Authorization is also enforced inside the function via
 # requireRequestParticipant.
 verify_jwt = true
+
+[functions.import-members]
+# La aseguradora no tiene cuenta en la plataforma (su portal es B-17), asi que
+# no puede presentar un JWT de Supabase. Se autentica con una clave de API
+# propia que el gateway no sabe validar: la valida la funcion contra el hash
+# guardado en `insurer_api_keys` (ver el encabezado de import-members/index.ts).
+verify_jwt = false

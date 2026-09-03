@@ -18,6 +18,13 @@ export interface FuelServiceDetails {
 
 export type ServiceDetails = TireServiceDetails | FuelServiceDetails | Record<string, unknown>;
 
+/**
+ * Forma que usa el asistente de solicitud para un servicio del catalogo.
+ *
+ * Conserva los nombres de la vieja tabla `service_type_pricing`, que desde la
+ * migracion 00049 ya no existe: el catalogo unico es `services` y la pantalla
+ * mapea sus columnas (`slug`, `name_es`, `description_es`) a estos nombres.
+ */
 export interface ServiceTypePricing {
   id: string;
   service_type: ServiceType;
@@ -67,9 +74,25 @@ export interface Profile {
   role: UserRole;
   full_name: string;
   phone: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Documentos de identidad, deliberadamente FUERA de `Profile`.
+ *
+ * RLS filtra filas, no columnas: mientras el DUI vivio en `profiles`, todo rol
+ * que pudiera ver una fila lo veia tambien —el operador, el de sus clientes—.
+ * La migracion 00042 los movio a `profile_sensitive`, cuyo RLS los limita al
+ * titular y al admin. Ver docs/PROTECCION_DATOS.md §7.3.
+ *
+ * La misma razon vale para cualquier rol que se agregue despues: separar la
+ * tabla es lo que hace que ampliar el acceso a `profiles` no filtre el DUI.
+ */
+export interface ProfileSensitive {
+  profile_id: string;
   dui_number: string | null;
   id_doc_path: string | null;
-  created_at: string;
   updated_at: string;
 }
 
@@ -170,4 +193,30 @@ export interface Rating {
   stars: number; // 1-5
   comment: string | null;
   created_at: string;
+}
+
+/**
+ * B-11 — resultado de verificar si quien solicita es un afiliado con cobertura
+ * vigente. Lo devuelve el RPC `check_member_coverage()` y viene tambien dentro
+ * de la respuesta de `create_service_request`.
+ *
+ * `error` NO significa "sin cobertura": significa que no se pudo comprobar. La
+ * solicitud se crea igual (es asistencia vial: no se deja varado a nadie porque
+ * fallo una consulta), pero hay que decirselo al usuario y revisarla a mano.
+ * Ver supabase/migrations/00047_coverage_check_on_request.sql.
+ */
+export type CoverageStatus = 'covered' | 'none' | 'inactive' | 'error';
+
+export interface CoverageResult {
+  status: CoverageStatus;
+  member_id?: string;
+  policy_id?: string;
+  plan_id?: string;
+  policy_number?: string;
+  plan_code?: string;
+  plan_name?: string;
+  insurer_name?: string;
+  relationship?: 'holder' | 'beneficiary';
+  /** Por que no esta vigente, o que fallo. Presente en `inactive` y `error`. */
+  reason?: string;
 }
