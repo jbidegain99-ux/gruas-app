@@ -39,6 +39,19 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+    // Solo el sistema drena la cola. verify_jwt=true (default) solo garantiza un
+    // JWT valido — cualquier usuario autenticado podia disparar el drenado. La
+    // invocacion legitima es el cron (drain_notification_queue, migr. 00033), que
+    // llama con el service_role key en el Bearer. Se exige exactamente eso.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const bearer = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!supabaseServiceKey || bearer !== supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden' }),
+        { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create Supabase client with service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
