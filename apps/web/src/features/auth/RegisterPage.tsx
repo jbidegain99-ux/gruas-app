@@ -15,6 +15,11 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // Decreto 144: el aviso es requisito para usar la plataforma; el marketing es
+  // opcional y va aparte. Ninguna de las dos arranca marcada (el consentimiento
+  // premarcado no es "libre"). Ver docs/PROTECCION_DATOS.md §5.
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +38,12 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!privacyAccepted) {
+      setError('Debes aceptar el Aviso de privacidad para crear tu cuenta.');
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     const { error } = await supabase.auth.signUp({
@@ -43,6 +54,10 @@ export default function RegisterPage() {
           full_name: fullName,
           phone,
           role: 'USER',
+          // El trigger handle_new_user (migr. 00041) sella la fecha de aceptacion
+          // y guarda el opt-in: la ley pide poder acreditar el consentimiento.
+          privacy_accepted: 'true',
+          marketing_opt_in: marketingOptIn,
         },
       },
     });
@@ -215,9 +230,47 @@ export default function RegisterPage() {
               />
             </div>
 
+            <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+              <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                Para prestarte asistencia vial tratamos tu nombre, telefono, correo,
+                datos de tu vehiculo y <strong>tu ubicacion durante el servicio</strong>.
+                Compartimos tu nombre, telefono y ubicacion de recogida{' '}
+                <strong>unicamente con el operador que te atiende</strong>.
+              </p>
+
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                  className="mt-0.5 rounded border-zinc-300 text-budi-primary-500 focus:ring-budi-primary-500"
+                />
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                  He leido y acepto el{' '}
+                  <Link href="/privacidad" target="_blank" className="font-medium text-budi-primary-500 hover:underline">
+                    Aviso de privacidad
+                  </Link>
+                  .
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={(e) => setMarketingOptIn(e.target.checked)}
+                  className="mt-0.5 rounded border-zinc-300 text-budi-primary-500 focus:ring-budi-primary-500"
+                />
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                  Quiero recibir promociones y novedades de Budi.{' '}
+                  <span className="text-zinc-500">(opcional)</span>
+                </span>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
               className="w-full rounded-lg bg-budi-primary-500 px-4 py-2 font-medium text-white hover:bg-budi-primary-600 focus:outline-none focus:ring-2 focus:ring-budi-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
             >
               {loading ? 'Registrando...' : 'Crear Cuenta'}

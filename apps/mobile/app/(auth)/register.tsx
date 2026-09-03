@@ -10,10 +10,13 @@ import {
   Keyboard,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Check } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
+import { LEGAL_CONFIG } from '@/config/legal';
 import type { UserRole } from '@gruas-app/shared';
 import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -26,6 +29,11 @@ export default function Register() {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('USER');
   const [loading, setLoading] = useState(false);
+  // Decreto 144: el aviso es requisito para usar la plataforma; el marketing es
+  // opcional y va aparte. Ninguna arranca marcada — un consentimiento premarcado
+  // no es "libre". Ver docs/PROTECCION_DATOS.md §5.
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const handleRegister = async () => {
     if (!email || !password || !fullName || !phone) {
@@ -42,6 +50,13 @@ export default function Register() {
       Alert.alert('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
       return;
     }
+    if (!privacyAccepted) {
+      Alert.alert(
+        'Falta aceptar el aviso',
+        'Debes aceptar el Aviso de privacidad para crear tu cuenta.'
+      );
+      return;
+    }
 
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
@@ -52,6 +67,10 @@ export default function Register() {
           full_name: fullName,
           phone,
           role,
+          // El trigger handle_new_user (migr. 00041) sella la fecha de aceptación
+          // y guarda el opt-in: la ley pide poder acreditar el consentimiento.
+          privacy_accepted: 'true',
+          marketing_opt_in: marketingOptIn,
         },
       },
     });
@@ -148,11 +167,57 @@ export default function Register() {
               </Text>
             )}
 
+            <View style={styles.consentBox}>
+              <Text style={styles.consentIntro}>
+                {role === 'OPERATOR'
+                  ? 'Para verificar tu cuenta necesitamos tu DUI, licencia y tarjeta de circulación. Mientras estés en línea registramos tu ubicación, incluso con la app en segundo plano, para asignarte servicios cercanos.'
+                  : 'Para prestarte asistencia vial tratamos tu nombre, teléfono, correo, datos de tu vehículo y tu ubicación durante el servicio. Compartimos tu nombre, teléfono y ubicación de recogida únicamente con el operador que te atiende.'}
+              </Text>
+
+              <Pressable
+                style={styles.consentRow}
+                onPress={() => setPrivacyAccepted((v) => !v)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: privacyAccepted }}
+                accessibilityLabel="Acepto el Aviso de privacidad"
+              >
+                <View style={[styles.checkbox, privacyAccepted && styles.checkboxChecked]}>
+                  {privacyAccepted && <Check size={14} color={colors.text.inverse} strokeWidth={3} />}
+                </View>
+                <Text style={styles.consentText}>
+                  He leído y acepto el{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => Linking.openURL(LEGAL_CONFIG.PRIVACY_URL)}
+                  >
+                    Aviso de privacidad
+                  </Text>
+                  .
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.consentRow}
+                onPress={() => setMarketingOptIn((v) => !v)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: marketingOptIn }}
+                accessibilityLabel="Quiero recibir promociones y novedades"
+              >
+                <View style={[styles.checkbox, marketingOptIn && styles.checkboxChecked]}>
+                  {marketingOptIn && <Check size={14} color={colors.text.inverse} strokeWidth={3} />}
+                </View>
+                <Text style={styles.consentText}>
+                  Quiero recibir promociones y novedades de Budi.{' '}
+                  <Text style={styles.consentOptional}>(opcional)</Text>
+                </Text>
+              </Pressable>
+            </View>
+
             <Button
               title={loading ? 'Registrando...' : 'Registrarse'}
               onPress={handleRegister}
               loading={loading}
-              disabled={loading}
+              disabled={loading || !privacyAccepted}
             />
           </View>
 
@@ -233,5 +298,50 @@ const styles = StyleSheet.create({
     padding: spacing.s,
     borderRadius: radii.m,
     lineHeight: 18,
+  },
+  consentBox: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: radii.m,
+    padding: spacing.s,
+    gap: spacing.s,
+  },
+  consentIntro: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.s,
+    borderWidth: 2,
+    borderColor: colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  consentText: {
+    flex: 1,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.primary,
+    lineHeight: 18,
+  },
+  consentLink: {
+    color: colors.primary[500],
+    fontFamily: typography.fonts.bodyMedium,
+  },
+  consentOptional: {
+    color: colors.text.tertiary,
   },
 });

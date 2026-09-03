@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import { useBudiFonts } from '@/shared/hooks/useBudiFonts';
+import { loadDropoffCatalog } from '@/features/catalog/lib/loadDropoffCatalog';
 // Import con efecto secundario: registra la tarea de ubicación en segundo plano
 // (`TaskManager.defineTask`) al arrancar, antes de que el sistema pueda
 // entregar posiciones. Debe ocurrir en el arranque, no dentro de una pantalla.
@@ -37,6 +38,14 @@ function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Catalogo de servicios: que tipos trasladan el vehiculo y por lo tanto tienen
+  // destino. Se carga una vez al arrancar, antes de que monte ninguna pantalla,
+  // para que `requiresDropoff()` responda sincronicamente en historiales y mapas.
+  // Si falla, el helper cae a su respaldo.
+  useEffect(() => {
+    loadDropoffCatalog();
+  }, []);
 
   if (!fontsLoaded && !fontError) {
     return null;

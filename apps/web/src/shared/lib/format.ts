@@ -19,7 +19,14 @@ export function formatDate(
   options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }
 ): string {
   if (!date) return '—';
-  const d = typeof date === 'string' ? new Date(date) : date;
+  // Una fecha sin hora ('2026-01-01', como las columnas DATE de Postgres) la
+  // interpreta `new Date` como medianoche UTC; al formatearla en El Salvador
+  // (UTC-6) cae al dia anterior y una poliza que arranca el 1 de enero se
+  // mostraba como "31 dic". Agregarle la hora la ancla a la zona local.
+  const d =
+    typeof date === 'string'
+      ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T00:00:00` : date)
+      : date;
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(LOCALE, options);
 }

@@ -25,13 +25,15 @@ import { LocationPicker } from '@/features/tracking/components/LocationPicker';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { isWithinCoverage, COVERAGE } from '@/config/coverage';
 import { savePin } from '@/features/pin/lib/pinStorage';
-import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import type { ServiceType, ServiceTypePricing, FuelType, CoverageResult } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2, X, Check } from 'lucide-react-native';
 import { Button, Card, Input } from '@/shared/components/ui';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { colors, typography, spacing, radii } from '@/theme';
+import { useCoverage } from '@/features/coverage/hooks/useCoverage';
+import { CoverageBanner } from '@/features/coverage/components/CoverageBanner';
 
 // Pasos del wizard, con etiqueta para el indicador de progreso.
 const STEP_META = [
@@ -95,6 +97,16 @@ export default function RequestService() {
   const [successPin, setSuccessPin] = useState<string | null>(null);
   const [pinCopied, setPinCopied] = useState(false);
 
+  // B-11. Dos cosas distintas a proposito:
+  //  - `coverage` es la consulta previa, para que la persona sepa como va a
+  //    quedar el servicio ANTES de confirmarlo.
+  //  - `finalCoverage` es lo que dictamino el servidor al crear la solicitud, y
+  //    es lo que manda. Pueden diferir (la poliza vencio entre un paso y otro, o
+  //    la verificacion fallo justo al crear), y en ese caso se muestra la segunda.
+  const { coverage, loading: loadingCoverage } = useCoverage();
+
+  const [finalCoverage, setFinalCoverage] = useState<CoverageResult | null>(null);
+
   // Service type
   const [serviceType, setServiceType] = useState<ServiceType>('tow');
   const [serviceTypePricing, setServiceTypePricing] = useState<ServiceTypePricing[]>([]);
@@ -132,11 +144,11 @@ export default function RequestService() {
   const [pricing, setPricing] = useState<PricingRule | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
-  const requiresDestination = serviceType === 'tow';
+  const requiresDestination = requiresDropoff(serviceType);
   const currentPricingType = serviceTypePricing.find(p => p.service_type === serviceType);
 
   // Datos visuales del servicio, tomados de la DB con fallback seguro. Asi un
-  // service_type nuevo (agregado en service_type_pricing) fluye por todo el
+  // service_type nuevo (agregado en `services`) fluye por todo el
   // wizard sin romperse aunque no exista en SERVICE_TYPE_CONFIGS (7 fijos).
   const currentConfig = SERVICE_TYPE_CONFIGS[serviceType];
   const serviceName = currentPricingType?.display_name || currentConfig?.name || 'Servicio';
@@ -157,20 +169,44 @@ export default function RequestService() {
     requiresDestination ? dropoffCoords : null
   );
 
-  // Fetch service type pricing
+  // Catalogo de servicios. Lee de `services`, el catalogo unico desde la
+  // migracion 00049 — antes habia dos tablas con los mismos campos y datos
+  // distintos, y esta pantalla leia de la que nadie podia editar.
+  // De paso alimenta el catalogo de destinos, asi no hacen falta dos consultas.
   useEffect(() => {
     const fetchServicePricing = async () => {
       setLoadingPricingTypes(true);
       const { data, error } = await supabase
-        .from('service_type_pricing')
-        .select('*')
+        .from('services')
+        .select('id, slug, name_es, description_es, icon, base_price, extra_fee, extra_fee_label, requires_destination, sort_order, is_active, currency')
         .eq('is_active', true)
         .order('sort_order');
 
       if (error) {
-        console.error('Error fetching service type pricing:', error);
+        console.error('Error fetching service catalog:', error);
       } else if (data) {
-        setServiceTypePricing(data as ServiceTypePricing[]);
+        setServiceTypePricing(
+          data.map((s) => ({
+            id: s.id,
+            service_type: s.slug as ServiceType,
+            display_name: s.name_es,
+            description: s.description_es ?? '',
+            icon: s.icon ?? '',
+            base_price: Number(s.base_price ?? 0),
+            extra_fee: Number(s.extra_fee ?? 0),
+            extra_fee_label: s.extra_fee_label,
+            requires_destination: !!s.requires_destination,
+            sort_order: s.sort_order ?? 0,
+            is_active: !!s.is_active,
+            currency: s.currency ?? 'USD',
+          }))
+        );
+        setDropoffCatalog(
+          data.map((s) => ({
+            service_type: s.slug,
+            requires_destination: !!s.requires_destination,
+          }))
+        );
       }
       setLoadingPricingTypes(false);
     };
@@ -481,6 +517,8 @@ export default function RequestService() {
       // no en un Alert efímero. El reset del wizard ocurre al cerrar el modal.
       setSubmitting(false);
       setPinCopied(false);
+      // B-11: lo que dictamino el servidor manda sobre la consulta previa.
+      setFinalCoverage((data.coverage as CoverageResult) ?? null);
       setSuccessPin(data.pin);
     } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar con el servidor.');
@@ -519,6 +557,7 @@ export default function RequestService() {
   const handleSuccessClose = () => {
     resetForm();
     setSuccessPin(null);
+    setFinalCoverage(null);
     setPinCopied(false);
     router.replace('/(user)');
   };
@@ -841,7 +880,7 @@ export default function RequestService() {
 
     // Detalle generico para servicios sin campos propios (bateria, cerrajeria,
     // mecanico, winche, o cualquier servicio nuevo de la DB). Usa la descripcion
-    // de service_type_pricing para no quedar vacio.
+    // del catalogo (`services`) para no quedar vacio.
     const renderSimpleDetails = () => (
       <View style={styles.infoBox}>
         <Text style={styles.infoBoxText}>
@@ -961,6 +1000,9 @@ export default function RequestService() {
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
 
+        {/* B-11: como queda el servicio respecto del seguro, ANTES de confirmar. */}
+        <CoverageBanner coverage={coverage} loading={loadingCoverage} />
+
         {pickupCoords && (
           <View style={styles.summaryMap}>
             <MiniMap
@@ -1023,7 +1065,9 @@ export default function RequestService() {
                 </View>
               </>
             )}
-            {vehicleDescription && (
+            {/* `!!`: con && a secas, un string vacio se renderiza como nodo de texto
+                suelto dentro del View y react-native-web tira un error de consola. */}
+            {!!vehicleDescription && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Vehículo:</Text>
                 <Text style={styles.summaryValue}>{vehicleDescription}</Text>
@@ -1056,12 +1100,15 @@ export default function RequestService() {
                 <Text style={styles.priceValue}>
                   {displayPrice ? `$${displayPrice.toFixed(2)}` : '--'}
                 </Text>
-                {calculatedDistance && (
+                {/* Comparar contra null y no con &&: una distancia de 0 pintaria
+                    un "0" suelto en vez de la fila, y ocultarla con !! perderia
+                    un valor legitimo. */}
+                {calculatedDistance != null && (
                   <>
                     <Text style={styles.priceNote}>
                       Distancia: {distanceText || `${calculatedDistance.toFixed(1)} km`}
                     </Text>
-                    {calculatedDuration && (
+                    {calculatedDuration != null && (
                       <Text style={styles.priceNote}>
                         Tiempo estimado: {durationText || `${calculatedDuration} min`}
                       </Text>
@@ -1194,6 +1241,15 @@ export default function RequestService() {
               Siempre estará disponible en tu pantalla de inicio.
             </Text>
 
+            {/* B-11: el veredicto del servidor. Se muestra SIEMPRE, tambien cuando
+                la verificacion fallo — que la solicitud se haya creado no puede
+                dejar a la persona creyendo que su seguro la cubre. */}
+            {finalCoverage && (
+              <View style={styles.successCoverage}>
+                <CoverageBanner coverage={finalCoverage} />
+              </View>
+            )}
+
             <View style={styles.successButton}>
               <Button title="Ver estado del servicio" onPress={handleSuccessClose} size="medium" />
             </View>
@@ -1205,6 +1261,12 @@ export default function RequestService() {
 }
 
 const styles = StyleSheet.create({
+  successCoverage: {
+    alignSelf: 'stretch',
+    marginTop: spacing.m,
+    marginBottom: -spacing.s,
+  },
+
   // Layout
   screen: {
     flex: 1,

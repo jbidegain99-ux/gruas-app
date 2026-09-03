@@ -31,7 +31,7 @@ import { AddressText } from '@/shared/components/AddressText';
 import { cancellationPolicyMessage } from '@/lib/cancellation';
 import { getPin } from '@/features/pin/lib/pinStorage';
 import { friendlyError } from '@/lib/errorMessages';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone, Copy, CheckCircle2 } from 'lucide-react-native';
@@ -295,7 +295,13 @@ export default function UserHome() {
     const coords: LatLng[] = [];
     if (activeRequest) {
       coords.push({ latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng });
-      if (activeRequest.dropoff_lat && activeRequest.dropoff_lng) {
+      // Sin destino real el dropoff es una copia del pickup: meterlo aqui daria
+      // dos coordenadas identicas y fitToCoordinates haria un zoom degenerado.
+      if (
+        requiresDropoff(activeRequest.service_type) &&
+        activeRequest.dropoff_lat &&
+        activeRequest.dropoff_lng
+      ) {
         coords.push({ latitude: activeRequest.dropoff_lat, longitude: activeRequest.dropoff_lng });
       }
     }
@@ -413,7 +419,12 @@ export default function UserHome() {
 
     // hasRealRoute comes from useTrackingRoute
     const isFallback = isDemoMode ? false : (hasRealRoute ? false : (eta?.isFallback ?? true));
-    const hasDropoff = activeRequest.dropoff_lat && activeRequest.dropoff_lng;
+    // Sin destino real (bateria, llanta, cerrajeria...) el dropoff es una copia
+    // del pickup, asi que el pin rojo caeria justo encima del verde.
+    const hasDropoff =
+      requiresDropoff(activeRequest.service_type) &&
+      activeRequest.dropoff_lat &&
+      activeRequest.dropoff_lng;
     const showOperatorMarker = isDemoMode
       ? (simulator.currentPosition !== null)
       : (operatorLocation && operatorLocation.is_online);
@@ -587,7 +598,9 @@ export default function UserHome() {
             <MiniMap
               pickup={{ lat: activeRequest.pickup_lat, lng: activeRequest.pickup_lng }}
               dropoff={
-                activeRequest.dropoff_lat && activeRequest.dropoff_lng
+                requiresDropoff(activeRequest.service_type) &&
+                activeRequest.dropoff_lat &&
+                activeRequest.dropoff_lng
                   ? { lat: activeRequest.dropoff_lat, lng: activeRequest.dropoff_lng }
                   : null
               }
@@ -823,16 +836,18 @@ export default function UserHome() {
                   lng={activeRequest.pickup_lng}
                 />
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Destino</Text>
-                <AddressText
-                  style={styles.detailValue}
-                  numberOfLines={2}
-                  address={activeRequest.dropoff_address}
-                  lat={activeRequest.dropoff_lat}
-                  lng={activeRequest.dropoff_lng}
-                />
-              </View>
+              {requiresDropoff(activeRequest.service_type) && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Destino</Text>
+                  <AddressText
+                    style={styles.detailValue}
+                    numberOfLines={2}
+                    address={activeRequest.dropoff_address}
+                    lat={activeRequest.dropoff_lat}
+                    lng={activeRequest.dropoff_lng}
+                  />
+                </View>
+              )}
 
               {activeRequest.operator_name && (
                 <View style={styles.operatorSection}>

@@ -13,6 +13,7 @@ import {
   Wallet,
   Map,
   ShieldCheck,
+  ShieldPlus,
 } from 'lucide-react';
 
 const NAV_LINKS = [
@@ -20,6 +21,7 @@ const NAV_LINKS = [
   { href: '/admin/requests', label: 'Solicitudes', icon: Truck },
   { href: '/admin/fleet', label: 'Flota', icon: Map },
   { href: '/admin/finance', label: 'Finanzas', icon: Wallet },
+  { href: '/admin/insurers', label: 'Aseguradoras', icon: ShieldPlus },
   { href: '/admin/providers', label: 'Proveedores', icon: Building2 },
   { href: '/admin/services', label: 'Servicios', icon: Wrench },
   { href: '/admin/pricing', label: 'Precios', icon: DollarSign },

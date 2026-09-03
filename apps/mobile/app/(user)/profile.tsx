@@ -191,7 +191,6 @@ export default function Profile() {
       USER: 'Usuario',
       OPERATOR: 'Operador',
       ADMIN: 'Administrador',
-      MOP: 'MOP',
     };
     return roleLabels[role] || role;
   };

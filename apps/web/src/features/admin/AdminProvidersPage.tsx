@@ -8,7 +8,10 @@ import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
 type Provider = {
   id: string;
   name: string;
-  tow_type_supported: 'light' | 'heavy' | 'both';
+  /** A que se dedica la empresa. NO es la lista de servicios: eso es provider_services. */
+  business_type: string;
+  /** NULL cuando la empresa no remolca (una cerrajeria, un taller). */
+  tow_type_supported: 'light' | 'heavy' | 'both' | null;
   is_active: boolean;
   contact_phone: string | null;
   contact_email: string | null;
@@ -16,6 +19,18 @@ type Provider = {
   created_at: string;
   provider_services?: ProviderServiceRow[];
 };
+
+const BUSINESS_TYPES: { valor: string; etiqueta: string }[] = [
+  { valor: 'tow', etiqueta: 'Operadora de grúas' },
+  { valor: 'roadside', etiqueta: 'Asistencia vial (multiservicio)' },
+  { valor: 'mechanic', etiqueta: 'Taller mecánico' },
+  { valor: 'locksmith', etiqueta: 'Cerrajería' },
+  { valor: 'fuel', etiqueta: 'Combustible' },
+  { valor: 'other', etiqueta: 'Otro' },
+];
+
+const businessLabel = (v: string) =>
+  BUSINESS_TYPES.find((b) => b.valor === v)?.etiqueta ?? v;
 
 type ProviderServiceRow = {
   service_id: string;
@@ -135,6 +150,9 @@ export default function AdminProvidersPage() {
                   Nombre
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Negocio
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Tipo Grúa
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -180,9 +198,15 @@ export default function AdminProvidersPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                      {businessLabel(provider.business_type)}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                       {provider.tow_type_supported === 'light' && 'Liviana'}
                       {provider.tow_type_supported === 'heavy' && 'Pesada'}
                       {provider.tow_type_supported === 'both' && 'Ambas'}
+                      {!provider.tow_type_supported && (
+                        <span className="text-zinc-400 dark:text-zinc-600">No remolca</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
@@ -250,8 +274,10 @@ function ProviderForm({
 }) {
   const toast = useToast();
   const [name, setName] = useState(provider?.name || '');
-  const [towType, setTowType] = useState<'light' | 'heavy' | 'both'>(
-    provider?.tow_type_supported || 'both'
+  const [businessType, setBusinessType] = useState<string>(provider?.business_type || 'tow');
+  // '' = no remolca -> se guarda NULL.
+  const [towType, setTowType] = useState<'light' | 'heavy' | 'both' | ''>(
+    provider ? provider.tow_type_supported ?? '' : 'both'
   );
   const [phone, setPhone] = useState(provider?.contact_phone || '');
   const [email, setEmail] = useState(provider?.contact_email || '');
@@ -305,7 +331,9 @@ function ProviderForm({
 
     const providerData = {
       name,
-      tow_type_supported: towType,
+      business_type: businessType,
+      // '' significa "no remolca": se guarda NULL, no la cadena vacia.
+      tow_type_supported: towType || null,
       contact_phone: phone || null,
       contact_email: email || null,
       address: address || null,
@@ -393,13 +421,33 @@ function ProviderForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Tipo de negocio
+            </label>
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            >
+              {BUSINESS_TYPES.map((b) => (
+                <option key={b.valor} value={b.valor}>
+                  {b.etiqueta}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-zinc-500">
+              A qué se dedica la empresa. Los servicios que presta se eligen más abajo.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Tipo de Grúa
             </label>
             <select
               value={towType}
-              onChange={(e) => setTowType(e.target.value as 'light' | 'heavy' | 'both')}
+              onChange={(e) => setTowType(e.target.value as 'light' | 'heavy' | 'both' | '')}
               className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
             >
+              <option value="">No remolca</option>
               <option value="light">Liviana</option>
               <option value="heavy">Pesada</option>
               <option value="both">Ambas</option>

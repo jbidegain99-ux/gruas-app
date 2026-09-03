@@ -7,9 +7,11 @@ const ADMIN_PASSWORD = 'testpassword123';
 test.describe('Landing Page', () => {
   test('homepage displays correctly', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Gruas App/);
-    await expect(page.locator('text=Gruas App')).toBeVisible();
-    await expect(page.locator('text=El Salvador')).toBeVisible();
+    await expect(page).toHaveTitle(/Budi/);
+    await expect(page.getByRole('banner').getByText('Budi')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /asistencia vehicular/i })
+    ).toBeVisible();
   });
 
   test('has login and admin portal buttons', async ({ page }) => {
@@ -46,8 +48,32 @@ test.describe('Authentication', () => {
     await expect(page.getByLabel(/nombre completo/i)).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/telefono/i)).toBeVisible();
-    await expect(page.getByLabel(/contrasena/i)).toBeVisible();
+    // `exact` es necesario: /contrasena/i tambien casa con "Confirmar Contrasena".
+    await expect(page.getByLabel('Contrasena', { exact: true })).toBeVisible();
+    await expect(page.getByLabel(/confirmar contrasena/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /crear cuenta/i })).toBeVisible();
+  });
+
+  // Decreto 144: el aviso de privacidad es requisito para crear la cuenta,
+  // el marketing es opcional y va aparte (ver features/auth/RegisterPage.tsx).
+  test('register page requires accepting the privacy notice', async ({ page }) => {
+    await page.goto('/register');
+
+    const privacy = page.getByRole('checkbox', { name: /aviso de privacidad/i });
+    const marketing = page.getByRole('checkbox', { name: /promociones/i });
+    const submit = page.getByRole('button', { name: /crear cuenta/i });
+
+    // Ninguna casilla viene premarcada y el submit arranca deshabilitado.
+    await expect(privacy).not.toBeChecked();
+    await expect(marketing).not.toBeChecked();
+    await expect(submit).toBeDisabled();
+
+    // El marketing por si solo no habilita nada: son consentimientos separados.
+    await marketing.check();
+    await expect(submit).toBeDisabled();
+
+    await privacy.check();
+    await expect(submit).toBeEnabled();
   });
 
   test('shows error on invalid login', async ({ page }) => {
@@ -89,18 +115,6 @@ test.describe('Admin Portal (unauthenticated)', () => {
 
   test('redirects to login when accessing admin/users without auth', async ({ page }) => {
     await page.goto('/admin/users');
-    await expect(page).toHaveURL(/login/);
-  });
-});
-
-test.describe('MOP Portal (unauthenticated)', () => {
-  test('redirects to login when accessing MOP without auth', async ({ page }) => {
-    await page.goto('/mop');
-    await expect(page).toHaveURL(/login/);
-  });
-
-  test('redirects to login when accessing MOP/requests without auth', async ({ page }) => {
-    await page.goto('/mop/requests');
     await expect(page).toHaveURL(/login/);
   });
 });

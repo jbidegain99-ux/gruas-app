@@ -23,7 +23,7 @@ import { AddressText } from '@/shared/components/AddressText';
 import { isLateCancellation } from '@/lib/cancellation';
 import { friendlyError } from '@/lib/errorMessages';
 import { getAllPins } from '@/features/pin/lib/pinStorage';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -294,16 +294,18 @@ export default function History() {
             lng={item.pickup_lng}
           />
         </View>
-        <View style={styles.addressRow}>
-          <MapPin size={14} color={colors.error.main} />
-          <AddressText
-            style={styles.addressText}
-            numberOfLines={1}
-            address={item.dropoff_address}
-            lat={item.dropoff_lat}
-            lng={item.dropoff_lng}
-          />
-        </View>
+        {requiresDropoff(item.service_type) && (
+          <View style={styles.addressRow}>
+            <MapPin size={14} color={colors.error.main} />
+            <AddressText
+              style={styles.addressText}
+              numberOfLines={1}
+              address={item.dropoff_address}
+              lat={item.dropoff_lat}
+              lng={item.dropoff_lng}
+            />
+          </View>
+        )}
 
         <View style={styles.cardFooter}>
           <View style={styles.serviceTypeRow}>
@@ -415,7 +417,9 @@ export default function History() {
                 <MiniMap
                   pickup={{ lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng }}
                   dropoff={
-                    selectedRequest.dropoff_lat && selectedRequest.dropoff_lng
+                    requiresDropoff(selectedRequest.service_type) &&
+                    selectedRequest.dropoff_lat &&
+                    selectedRequest.dropoff_lng
                       ? { lat: selectedRequest.dropoff_lat, lng: selectedRequest.dropoff_lng }
                       : null
                   }
@@ -435,15 +439,17 @@ export default function History() {
               />
             </View>
 
-            <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Destino</Text>
-              <AddressText
-                style={styles.detailValue}
-                address={selectedRequest.dropoff_address}
-                lat={selectedRequest.dropoff_lat}
-                lng={selectedRequest.dropoff_lng}
-              />
-            </View>
+            {requiresDropoff(selectedRequest.service_type) && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Destino</Text>
+                <AddressText
+                  style={styles.detailValue}
+                  address={selectedRequest.dropoff_address}
+                  lat={selectedRequest.dropoff_lat}
+                  lng={selectedRequest.dropoff_lng}
+                />
+              </View>
+            )}
 
             {selectedRequest.notes && (
               <View style={styles.detailSection}>

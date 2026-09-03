@@ -16,7 +16,6 @@ type UserRole = Database['public']['Enums']['user_role'];
 // `null` = basta con estar autenticado (cualquier rol).
 const ROUTE_GUARDS: { prefix: string; allowedRoles: UserRole[] | null }[] = [
   { prefix: '/admin', allowedRoles: ['ADMIN'] },
-  { prefix: '/mop', allowedRoles: ['MOP', 'ADMIN'] },
   { prefix: '/dashboard', allowedRoles: null },
 ];
 

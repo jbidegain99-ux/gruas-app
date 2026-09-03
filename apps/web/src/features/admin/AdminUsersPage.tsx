@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Users, Truck, Briefcase, ShieldCheck, Search } from 'lucide-react';
+import { Users, Truck, ShieldCheck, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
 
 const PAGE_SIZE = 15;
 
-type UserRole = 'USER' | 'OPERATOR' | 'MOP' | 'ADMIN';
+type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
 
 type Profile = {
   id: string;
@@ -31,14 +31,12 @@ type Provider = {
 const ROLE_LABELS: Record<UserRole, string> = {
   USER: 'Usuario',
   OPERATOR: 'Operador',
-  MOP: 'MOP',
   ADMIN: 'Administrador',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
   USER: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200',
   OPERATOR: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  MOP: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   ADMIN: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
@@ -106,7 +104,7 @@ export default function AdminUsersPage() {
   };
 
   const getRoleStats = () => {
-    const stats = { USER: 0, OPERATOR: 0, MOP: 0, ADMIN: 0 };
+    const stats = { USER: 0, OPERATOR: 0, ADMIN: 0 };
     profiles.forEach((p) => {
       stats[p.role]++;
     });
@@ -152,7 +150,6 @@ export default function AdminUsersPage() {
         {[
           { label: 'Total Usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
           { label: 'Operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
-          { label: 'MOP', value: stats.MOP, Icon: Briefcase, tint: 'bg-purple-50 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300' },
           { label: 'Administradores', value: stats.ADMIN, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
         ].map(({ label, value, Icon, tint }) => (
           <div
@@ -212,7 +209,6 @@ export default function AdminUsersPage() {
             <option value="all">Todos los roles</option>
             <option value="USER">Usuarios</option>
             <option value="OPERATOR">Operadores</option>
-            <option value="MOP">MOP</option>
             <option value="ADMIN">Administradores</option>
           </select>
         </div>
@@ -351,7 +347,11 @@ function EditUserModal({
     const { error: rpcError } = await supabase.rpc('admin_update_user_role', {
       p_user_id: user.id,
       p_new_role: role,
-      p_provider_id: role === 'OPERATOR' && providerId ? providerId : null,
+      // `undefined`, no `null`: al retirarse la sobrecarga de dos argumentos en
+      // la migración 00045, el argumento quedó tipado como opcional por su
+      // DEFAULT y ya no acepta null. La función limpia el provider por su cuenta
+      // cuando el rol no es OPERATOR.
+      p_provider_id: role === 'OPERATOR' && providerId ? providerId : undefined,
     });
 
     if (rpcError) {
@@ -399,7 +399,6 @@ function EditUserModal({
             >
               <option value="USER">Usuario</option>
               <option value="OPERATOR">Operador</option>
-              <option value="MOP">MOP</option>
               <option value="ADMIN">Administrador</option>
             </select>
           </div>

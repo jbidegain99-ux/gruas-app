@@ -33,7 +33,7 @@ import { friendlyError } from '@/lib/errorMessages';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { ChatScreen } from '@/features/chat/components/ChatScreen';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -200,8 +200,8 @@ export default function ActiveService() {
       setRoutePath(null);
       return;
     }
-    const isTow = !service.service_type || service.service_type === 'tow';
-    const hasDropoff = isTow && !!service.dropoff_lat && !!service.dropoff_lng;
+    const hasDropoff =
+      requiresDropoff(service.service_type) && !!service.dropoff_lat && !!service.dropoff_lng;
 
     let cancelled = false;
     (async () => {
@@ -315,9 +315,8 @@ export default function ActiveService() {
     if (newStatus === 'completed') {
       // Completar vía RPC: calcula y guarda el precio (grúa por distancia,
       // otros servicios tarifa fija). Un UPDATE directo dejaría total_price NULL.
-      const isTow = !service.service_type || service.service_type === 'tow';
       let tripKm = 0;
-      if (isTow && service.dropoff_lat && service.dropoff_lng) {
+      if (requiresDropoff(service.service_type) && service.dropoff_lat && service.dropoff_lng) {
         // Distancia real por carretera (OSRM) recogida->destino. Si OSRM no
         // responde a tiempo, caemos al haversine*1.3 para no bloquear el cierre.
         const legs = await osrmLegs([
@@ -652,7 +651,7 @@ export default function ActiveService() {
           <MiniMap
             pickup={{ lat: service.pickup_lat, lng: service.pickup_lng }}
             dropoff={
-              service.dropoff_lat && service.dropoff_lng
+              requiresDropoff(service.service_type) && service.dropoff_lat && service.dropoff_lng
                 ? { lat: service.dropoff_lat, lng: service.dropoff_lng }
                 : null
             }
@@ -697,30 +696,38 @@ export default function ActiveService() {
             </View>
           </Pressable>
 
-          <View style={styles.addressLine} />
+          {requiresDropoff(service.service_type) ? (
+            <>
+              <View style={styles.addressLine} />
 
-          <Pressable
-            style={styles.addressRow}
-            onPress={() =>
-              service.dropoff_lat && service.dropoff_lng
-                ? openMaps(service.dropoff_lat, service.dropoff_lng, 'Destino')
-                : null
-            }
-          >
-            <MapPin size={14} color={colors.error.main} strokeWidth={2} />
-            <View style={styles.addressContent}>
-              <Text style={styles.addressLabel}>Destino</Text>
-              <AddressText
-                style={styles.addressText}
-                address={service.dropoff_address}
-                lat={service.dropoff_lat}
-                lng={service.dropoff_lng}
-              />
-              {service.dropoff_lat && (
-                <Text style={styles.navigationHint}>Toca para navegar</Text>
-              )}
-            </View>
-          </Pressable>
+              <Pressable
+                style={styles.addressRow}
+                onPress={() =>
+                  service.dropoff_lat && service.dropoff_lng
+                    ? openMaps(service.dropoff_lat, service.dropoff_lng, 'Destino')
+                    : null
+                }
+              >
+                <MapPin size={14} color={colors.error.main} strokeWidth={2} />
+                <View style={styles.addressContent}>
+                  <Text style={styles.addressLabel}>Destino</Text>
+                  <AddressText
+                    style={styles.addressText}
+                    address={service.dropoff_address}
+                    lat={service.dropoff_lat}
+                    lng={service.dropoff_lng}
+                  />
+                  {service.dropoff_lat && (
+                    <Text style={styles.navigationHint}>Toca para navegar</Text>
+                  )}
+                </View>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.pickupOnlyText}>
+              Este servicio se realiza en el lugar de recogida.
+            </Text>
+          )}
         </View>
 
         {/* Notes */}
@@ -783,7 +790,7 @@ export default function ActiveService() {
           />
         )}
 
-        {isTow && service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
+        {requiresDropoff(service.service_type) && service.status === 'active' && service.dropoff_lat && service.dropoff_lng && (
           <Button
             title="Navegar al Destino"
             onPress={() => openNavigation(service.dropoff_lat!, service.dropoff_lng!, 'Destino')}
@@ -857,7 +864,7 @@ export default function ActiveService() {
                 style={styles.modalCancelButton}
                 onPress={() => setShowPinVerification(false)}
               >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
+                <Text style={styles.modalCancelText}>Cerrar</Text>
               </Pressable>
               <Pressable
                 style={styles.modalConfirmButton}
@@ -1042,6 +1049,14 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.micro,
     color: colors.primary[500],
     marginTop: spacing.micro,
+  },
+  pickupOnlyText: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    fontStyle: 'italic',
+    marginTop: spacing.xs,
+    marginLeft: spacing.xl,
   },
   addressLine: {
     width: 2,

@@ -198,7 +198,7 @@ Independiente del provisioning del VPS, hay items del [CHECKLIST.md](./CHECKLIST
 ## 9. Riesgos conocidos
 
 1. **Standalone output + monorepo pnpm** — depende de `outputFileTracingRoot` en `next.config.ts`. Revalidar tras upgrade de Next 17+.
-2. **`MOP_WHATSAPP_TO` hardcodeado** — funciona para un solo país. Mover a config DB si crece.
+2. ~~**`MOP_WHATSAPP_TO` hardcodeado**~~ — ya no aplica: el rol MOP y su Edge Function `notify-mop-whatsapp` se eliminaron en la migración 00045. La variable puede retirarse del entorno.
 3. **Sin CI que buildee/pushee la imagen** — hoy el build es manual desde tu máquina. Cuando estabilice, GitHub Actions con `docker/build-push-action` a GHCR.
 4. **Backups del VPS** — el único estado persistente local son los volúmenes de Caddy (`caddy_data`, `caddy_config`). Los certificados son re-emitibles, así que el VPS es básicamente stateless. Si se rompe, redeploy desde cero en otro VPS toma <30 min.
 5. **Single point of failure** — un VPS sin reverse proxy ni load balancer no tolera caída. Para MVP es aceptable; para crecimiento considerar Hetzner Load Balancer + 2 VPS detrás.

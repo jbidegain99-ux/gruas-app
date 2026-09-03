@@ -44,18 +44,12 @@ export default function Home() {
               vehicular, con asignacion por zona usando GPS en tiempo real,
               seguimiento en mapa, y sistema de precios dinamico.
             </p>
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="mt-10 flex items-center justify-center">
               <Link
                 href="/admin"
                 className="w-full rounded-lg bg-budi-primary-500 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-budi-primary-600 sm:w-auto"
               >
                 Portal Administrativo
-              </Link>
-              <Link
-                href="/mop"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-6 py-3 text-base font-semibold text-zinc-900 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800 sm:w-auto"
-              >
-                Portal MOP
               </Link>
             </div>
           </div>
@@ -167,10 +161,5 @@ const roles = [
     title: "Administrador",
     description:
       "Gestiona proveedores, configura precios, supervisa operaciones y genera reportes.",
-  },
-  {
-    title: "MOP",
-    description:
-      "Visualiza estadisticas de servicios y recibe notificaciones informativas via WhatsApp.",
   },
 ];
