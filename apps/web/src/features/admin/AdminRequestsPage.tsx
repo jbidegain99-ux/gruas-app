@@ -9,6 +9,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { CaseTimeline } from './CaseTimeline';
 import { CaseSla } from './CaseSla';
+import { NearestOperators } from './NearestOperators';
 import { LocationMap } from '@/shared/components/LocationMap';
 import { resolveDisplayAddress } from '@/shared/lib/geocoding';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
@@ -308,22 +309,6 @@ export default function AdminRequestsPage() {
       return;
     }
     toast.success(selectedRequest?.operator_id ? 'Solicitud reasignada.' : 'Operador asignado.');
-    refetch();
-    setSelectedRequest(null);
-  };
-
-  const handleAssignNearest = async (requestId: string) => {
-    setAssigning(true);
-    const supabase = createClient();
-    const { error } = await supabase.rpc('assign_nearest_operator', {
-      p_request_id: requestId,
-    });
-    setAssigning(false);
-    if (error) {
-      toast.error(`No se pudo asignar automáticamente al más cercano: ${error.message}`);
-      return;
-    }
-    toast.success('Operador asignado.');
     refetch();
     setSelectedRequest(null);
   };
@@ -756,38 +741,40 @@ export default function AdminRequestsPage() {
                 )}
 
                 {ASSIGNABLE_STATUSES.includes(selectedRequest.status) && (
-                  <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-                    <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
-                      {selectedRequest.operator_id ? 'Reasignar operador' : 'Asignar operador'}
-                    </p>
-                    <select
-                      value={assignOperatorId}
-                      onChange={(e) => setAssignOperatorId(e.target.value)}
-                      className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
-                    >
-                      <option value="">Selecciona un operador...</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.id}>
-                          {op.full_name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => handleAssignRequest(selectedRequest.id)}
-                      disabled={!assignOperatorId || assigning || assignOperatorId === selectedRequest.operator_id}
-                      className="mt-2 w-full rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {assigning ? 'Asignando...' : 'Asignar Operador'}
-                    </button>
-                    {selectedRequest.status === 'initiated' && (
-                      <button
-                        onClick={() => handleAssignNearest(selectedRequest.id)}
-                        disabled={assigning}
-                        className="mt-2 w-full rounded-lg border border-budi-primary-500 px-4 py-2 text-sm font-medium text-budi-primary-600 hover:bg-budi-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-budi-primary-400 dark:hover:bg-budi-primary-900/20"
+                  <div className="mt-4 space-y-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                    {/* B-16: sugerencia de despacho — los más cercanos, con distancia. */}
+                    <NearestOperators
+                      requestId={selectedRequest.id}
+                      onAssigned={() => {
+                        refetch();
+                        setSelectedRequest(null);
+                      }}
+                    />
+
+                    <div>
+                      <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
+                        {selectedRequest.operator_id ? 'Reasignar manualmente' : 'Asignar manualmente'}
+                      </p>
+                      <select
+                        value={assignOperatorId}
+                        onChange={(e) => setAssignOperatorId(e.target.value)}
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
                       >
-                        Asignar al más cercano (en línea)
+                        <option value="">Selecciona un operador...</option>
+                        {operators.map((op) => (
+                          <option key={op.id} value={op.id}>
+                            {op.full_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleAssignRequest(selectedRequest.id)}
+                        disabled={!assignOperatorId || assigning || assignOperatorId === selectedRequest.operator_id}
+                        className="mt-2 w-full rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {assigning ? 'Asignando...' : 'Asignar Operador'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
 

@@ -1901,6 +1901,16 @@ export type Database = {
       set_active_pricing_rule: { Args: { p_rule_id: string }; Returns: Json }
       set_marketing_opt_in: { Args: { p_value: boolean }; Returns: undefined }
       submit_operator_verification: { Args: never; Returns: undefined }
+      suggest_nearest_operators: {
+        Args: { p_limit?: number; p_request_id: string }
+        Returns: {
+          distance_km: number
+          full_name: string
+          last_seen: string
+          operator_id: string
+          provider_name: string
+        }[]
+      }
       unregister_device_token: {
         Args: { p_expo_push_token: string }
         Returns: boolean
