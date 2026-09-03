@@ -72,7 +72,9 @@ export default function OperatorRatings() {
 
     const { count: completedCount } = await supabase
       .from('service_requests')
-      .select('*', { count: 'exact', head: true })
+      // `id`, no `*`: contar no necesita proyectar columnas, y `*` incluiría
+      // `pin_hash`, que el cliente ya no puede leer (migr. 00056) → 403.
+      .select('id', { count: 'exact', head: true })
       .eq('operator_id', user.id)
       .eq('status', 'completed');
 

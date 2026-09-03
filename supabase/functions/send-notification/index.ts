@@ -56,6 +56,72 @@ serve(async (req) => {
       );
     }
 
+    // user_id tiene que ser un UUID: mas abajo va interpolado en un filtro
+    // PostgREST `.or(...)`, asi que un valor con comas/parentesis podria alterar
+    // el filtro. Validarlo aqui cierra esa inyeccion.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(user_id)) {
+      return new Response(
+        JSON.stringify({ error: 'user_id invalido' }),
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // --- Autorizacion (00061) --------------------------------------------
+    // Esta funcion corre con service_role (salta RLS) y aceptaba cualquier JWT
+    // valido: un usuario autenticado podia mandar una push arbitraria (titulo,
+    // cuerpo y `data` de deep-link) a CUALQUIER user_id -> spam / phishing. Se
+    // exige que el llamador tenga un servicio EN CURSO con el destinatario, o
+    // que sea el sistema (service_role, que drena notificaciones legitimas).
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const bearer = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const isSystem = bearer.length > 0 && bearer === supabaseServiceKey;
+
+    if (!isSystem) {
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: caller } } = await callerClient.auth.getUser();
+      if (!caller) {
+        return new Response(
+          JSON.stringify({ error: 'No autorizado' }),
+          { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Debe existir un servicio entre el llamador y el destinatario, en
+      // cualquiera de los dos sentidos (operador->cliente o cliente->operador).
+      // Se incluye 'completed' porque la app manda la push de cierre DESPUES de
+      // pasar el servicio a completed; pero solo dentro de una ventana corta,
+      // para que un operador no pueda notificar a un ex-cliente para siempre.
+      const RECENT_MS = 24 * 60 * 60 * 1000;
+      const { data: rel } = await supabase
+        .from('service_requests')
+        .select('id, status, completed_at')
+        .or(
+          `and(operator_id.eq.${caller.id},user_id.eq.${user_id}),` +
+          `and(user_id.eq.${caller.id},operator_id.eq.${user_id})`
+        )
+        .in('status', ['assigned', 'en_route', 'active', 'completed'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const authorized = !!rel && rel.length > 0 && (
+        rel[0].status !== 'completed' ||
+        (!!rel[0].completed_at &&
+          Date.now() - new Date(rel[0].completed_at as string).getTime() < RECENT_MS)
+      );
+
+      if (!authorized) {
+        return new Response(
+          JSON.stringify({ error: 'No autorizado para notificar a este usuario' }),
+          { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    // ---------------------------------------------------------------------
+
     // Get user's active device tokens
     const { data: tokens, error: tokensError } = await supabase
       .from('device_tokens')

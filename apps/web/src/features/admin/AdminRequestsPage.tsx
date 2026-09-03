@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Inbox, Search } from 'lucide-react';
 import type { ServiceRequestStatus } from '@gruas-app/shared';
+import { requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
@@ -33,6 +34,15 @@ type ServiceRequest = {
   cancelled_at: string | null;
   cancelled_by: string | null;
   cancellation_reason: string | null;
+  /**
+   * B-11. covered | none | inactive | error; NULL = solicitud anterior a la
+   * verificacion. Se tipa `string` como el resto de las columnas con CHECK de
+   * esta tabla (`status`, `service_type`): la restriccion vive en la DB y el
+   * tipo generado por Supabase es TEXT.
+   */
+  coverage_status: string | null;
+  /** JSONB libre. Se lee con `coberturaDe()`, que valida la forma. */
+  price_breakdown: unknown;
   profiles: { full_name: string; phone: string | null } | null;
   operator: { full_name: string; phone: string | null } | null;
 };
@@ -41,6 +51,48 @@ type Operator = { id: string; full_name: string };
 
 const ASSIGNABLE_STATUSES = ['initiated', 'assigned', 'en_route'];
 
+// B-11. `error` es el unico que exige accion humana: la solicitud se atendio sin
+// saber si habia cobertura, asi que alguien tiene que revisar la poliza y decidir
+// quien paga. Por eso es el unico que se pinta en rojo y se muestra en la tabla;
+// el resto solo aparece en el detalle para no ensuciar la lista.
+const COVERAGE_LABEL: Record<string, { texto: string; clase: string }> = {
+  covered:  { texto: 'Con cobertura',      clase: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+  none:     { texto: 'Particular',         clase: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  inactive: { texto: 'Cobertura vencida',  clase: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  error:    { texto: 'Cobertura sin verificar', clase: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' },
+};
+
+/**
+ * B-12 guarda el reparto de la cobertura bajo la clave `coverage` de
+ * `price_breakdown` al cerrar el servicio.
+ *
+ * `price_breakdown` es JSONB: el tipo generado es `Json`, que tambien admite
+ * string, numero y arreglo. Se valida la forma aca en vez de forzar un cast,
+ * porque una fila vieja o escrita a mano puede traer cualquier cosa.
+ */
+type RepartoCobertura = {
+  covered?: boolean;
+  reason?: string;
+  amount_covered?: number;
+  amount_copay?: number;
+  excess_km?: number;
+  excess_km_charge?: number;
+  included_km?: number;
+  capped?: boolean;
+  max_covered_amount?: number;
+  events_used?: number;
+  events_left?: number;
+  services_per_year?: number;
+};
+
+function coberturaDe(r: ServiceRequest): RepartoCobertura | null {
+  const pb = r.price_breakdown;
+  if (!pb || typeof pb !== 'object' || Array.isArray(pb)) return null;
+  const c = (pb as Record<string, unknown>).coverage;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  return c as RepartoCobertura;
+}
+
 // Una solicitud sin operador que lleva mucho tiempo esperando es urgente.
 const URGENT_AFTER_MINUTES = 10;
 
@@ -48,6 +100,44 @@ function isUrgent(r: ServiceRequest): boolean {
   if (r.status !== 'initiated' || r.operator_id) return false;
   const ageMin = (Date.now() - new Date(r.created_at).getTime()) / 60000;
   return ageMin >= URGENT_AFTER_MINUTES;
+}
+
+// Que tipos de servicio trasladan el vehiculo lo decide `services`, la tabla que
+// el admin edita en /admin/services (columna "Requiere destino"), no una
+// constante del codigo. Una sola vez por carga de pagina; si falla,
+// `requiresDropoff` cae a su respaldo.
+let catalogoEnVuelo: Promise<void> | null = null;
+
+// El reset va en su propia funcion y no dentro del cuerpo async: ahi TypeScript
+// estrecha la variable a Promise<void> por la asignacion de afuera y rechaza null.
+function olvidarCatalogo(): void {
+  catalogoEnVuelo = null;
+}
+
+function cargarCatalogoDestinos(supabase: ReturnType<typeof createClient>): Promise<void> {
+  if (catalogoEnVuelo) return catalogoEnVuelo;
+  // Envuelto en un async: el builder de Supabase devuelve un PromiseLike, no una
+  // Promise real (no trae catch/finally).
+  const promesa = (async () => {
+    const { data, error } = await supabase
+      .from('services')
+      .select('slug, requires_destination')
+      .eq('is_active', true);
+    if (error) {
+      console.error('[catalogo] no se pudo cargar, se usa el respaldo:', error.message);
+      olvidarCatalogo(); // que el proximo refresco reintente
+      return;
+    }
+    // `slug` de `services` es el mismo valor que `service_requests.service_type`.
+    setDropoffCatalog(
+      (data ?? []).map((s) => ({
+        service_type: s.slug,
+        requires_destination: !!s.requires_destination,
+      }))
+    );
+  })();
+  catalogoEnVuelo = promesa;
+  return promesa;
 }
 
 export default function AdminRequestsPage() {
@@ -71,10 +161,27 @@ export default function AdminRequestsPage() {
   useEffect(() => {
     const fetchRequests = async () => {
       const supabase = createClient();
+      // El catalogo primero: `requiresDropoff` lo lee de estado de modulo, que no
+      // dispara re-render por si solo. Cargandolo ANTES de traer las filas, para
+      // cuando estas se pintan ya esta puesto y no hace falta un flag de estado.
+      await cargarCatalogoDestinos(supabase);
       let query = supabase
         .from('service_requests')
+        // Columnas explícitas, no `*`: el admin también es rol `authenticated`,
+        // y `*` incluiría `pin_hash`, que dejó de ser legible (migr. 00056) → 403.
+        // Están todas menos ese hash, que la vista de admin no necesita.
         .select(`
-          *,
+          id, user_id, operator_id, provider_id, tow_type, status,
+          pickup_lat, pickup_lng, pickup_address,
+          dropoff_lat, dropoff_lng, dropoff_address,
+          incident_type, incident_description,
+          vehicle_plate, vehicle_make, vehicle_model, vehicle_color,
+          vehicle_doc_path, vehicle_photo_url,
+          distance_operator_to_pickup_km, distance_pickup_to_dropoff_km,
+          price_breakdown, total_price,
+          created_at, updated_at, assigned_at, activated_at, completed_at, cancelled_at,
+          notes, cancellation_reason, cancelled_by,
+          service_type, service_details, route_polyline, pool_alerted_at, coverage_status,
           profiles!service_requests_user_id_fkey(full_name, phone),
           operator:profiles!service_requests_operator_id_fkey(full_name, phone)
         `)
@@ -225,7 +332,9 @@ export default function AdminRequestsPage() {
       r.service_type || 'tow',
       r.status,
       r.pickup_address,
-      r.dropoff_address,
+      // Sin destino real el dropoff es una copia del origen: dejamos la celda
+      // vacia en vez de repetir la direccion.
+      requiresDropoff(r.service_type) ? r.dropoff_address : '',
       r.total_price || 'N/A',
       new Date(r.created_at).toISOString(),
     ]);
@@ -401,6 +510,14 @@ export default function AdminRequestsPage() {
                               Urgente
                             </span>
                           )}
+                          {request.coverage_status === 'error' && (
+                            <span
+                              className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-950 dark:text-red-300"
+                              title="La verificación de cobertura falló; hay que revisar la póliza a mano"
+                            >
+                              Cobertura sin verificar
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
@@ -498,7 +615,9 @@ export default function AdminRequestsPage() {
                   <LocationMap
                     pickup={{ lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng }}
                     dropoff={
-                      selectedRequest.dropoff_lat != null && selectedRequest.dropoff_lng != null
+                      requiresDropoff(selectedRequest.service_type) &&
+                      selectedRequest.dropoff_lat != null &&
+                      selectedRequest.dropoff_lng != null
                         ? { lat: selectedRequest.dropoff_lat, lng: selectedRequest.dropoff_lng }
                         : null
                     }
@@ -512,17 +631,91 @@ export default function AdminRequestsPage() {
                   </p>
                 </div>
 
-                <div>
-                  <p className="text-xs text-zinc-500">Destino</p>
-                  <p className="text-sm text-zinc-900 dark:text-white">
-                    {dropoffDisplay || selectedRequest.dropoff_address}
-                  </p>
-                </div>
+                {requiresDropoff(selectedRequest.service_type) && (
+                  <div>
+                    <p className="text-xs text-zinc-500">Destino</p>
+                    <p className="text-sm text-zinc-900 dark:text-white">
+                      {dropoffDisplay || selectedRequest.dropoff_address}
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <p className="text-xs text-zinc-500">Estado</p>
                   <StatusBadge status={selectedRequest.status} />
                 </div>
+
+                {/* B-11: cobertura. Se muestra tambien cuando es NULL para no dejar
+                    la duda de si se verificó y salió vacío o nunca se verificó. */}
+                <div>
+                  <p className="text-xs text-zinc-500">Cobertura</p>
+                  {selectedRequest.coverage_status ? (
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        COVERAGE_LABEL[selectedRequest.coverage_status]?.clase ?? ''
+                      }`}
+                    >
+                      {COVERAGE_LABEL[selectedRequest.coverage_status]?.texto ??
+                        selectedRequest.coverage_status}
+                    </span>
+                  ) : (
+                    <p className="text-sm text-zinc-500">
+                      Anterior a la verificación de cobertura
+                    </p>
+                  )}
+                  {selectedRequest.coverage_status === 'error' && (
+                    <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                      El servicio se atendió sin poder confirmar la póliza. Revisá al afiliado
+                      y decidí quién paga; el motivo del fallo quedó en el historial del caso.
+                    </p>
+                  )}
+                </div>
+
+                {/* B-12: cómo se repartió el total. Solo existe una vez cerrado el
+                    servicio, que es cuando hay precio final y km reales. */}
+                {coberturaDe(selectedRequest) && (
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      Reparto de la cobertura
+                    </p>
+                    {(() => {
+                      const c = coberturaDe(selectedRequest)!;
+                      if (!c.covered) {
+                        return (
+                          <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                            No cubierto{c.reason ? `: ${c.reason}` : ''}. Paga el cliente:{' '}
+                            <strong>{money(c.amount_copay ?? 0)}</strong>
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 space-y-0.5 text-sm text-zinc-700 dark:text-zinc-300">
+                          <p>
+                            Aseguradora: <strong>{money(c.amount_covered ?? 0)}</strong> · Afiliado:{' '}
+                            <strong>{money(c.amount_copay ?? 0)}</strong>
+                          </p>
+                          {!!c.excess_km && c.excess_km > 0 && (
+                            <p className="text-xs text-zinc-500">
+                              {c.excess_km} km por encima de los {c.included_km} incluidos ={' '}
+                              {money(c.excess_km_charge ?? 0)} de copago
+                            </p>
+                          )}
+                          {c.capped && (
+                            <p className="text-xs text-zinc-500">
+                              Alcanzó el tope de {money(c.max_covered_amount ?? 0)} por evento
+                            </p>
+                          )}
+                          {c.services_per_year != null && (
+                            <p className="text-xs text-zinc-500">
+                              Evento {(c.events_used ?? 0) + 1} de {c.services_per_year} del año
+                              {c.events_left != null && ` · quedan ${c.events_left}`}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {selectedRequest.status === 'cancelled' && (
                   <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">

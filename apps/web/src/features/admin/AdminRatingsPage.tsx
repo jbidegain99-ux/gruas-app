@@ -84,10 +84,11 @@ export default function AdminRatingsPage() {
             .select('stars')
             .eq('rated_operator_id', op.id);
 
-          // Get completed services count
+          // Get completed services count. `id`, no `*`: el admin también es rol
+          // `authenticated`, y `*` incluiría `pin_hash`, ilegible desde 00056.
           const { count: completedCount } = await supabase
             .from('service_requests')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('operator_id', op.id)
             .eq('status', 'completed');
 
