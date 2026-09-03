@@ -38,6 +38,7 @@ tiempos.
 - ✅ **Hecho** — Tracking del operador en **segundo plano** (no depender de la app abierta).
 - ✅ **Hecho** — Ganancias del operador (hoy / semana) en su app.
 - ⏳ **Pendiente** — Notificaciones push confiables + distribución a testers (EAS). _(requiere `eas init` + build EAS)_
+- 🔄 **En curso** — Baseline Decreto 144: consentimiento, retención y checklist RLS **hechos**; falta designar DPO y revisión legal. Ver [`docs/PROTECCION_DATOS.md`](./PROTECCION_DATOS.md). _(B-07)_
 
 **Datos:** reutiliza `operator_locations` · `request_events`.
 
