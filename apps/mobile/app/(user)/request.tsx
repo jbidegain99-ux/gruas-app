@@ -34,6 +34,8 @@ import { MiniMap } from '@/shared/components/MiniMap';
 import { colors, typography, spacing, radii } from '@/theme';
 import { useCoverage } from '@/features/coverage/hooks/useCoverage';
 import { CoverageBanner } from '@/features/coverage/components/CoverageBanner';
+import { useCoveragePreview } from '@/features/coverage/hooks/useCoveragePreview';
+import { CopayBreakdown } from '@/features/coverage/components/CopayBreakdown';
 
 // Pasos del wizard, con etiqueta para el indicador de progreso.
 const STEP_META = [
@@ -357,6 +359,19 @@ export default function RequestService() {
     }
     return Math.round((currentPricingType.base_price + extra) * 100) / 100;
   };
+
+  // B-13: copago estimado. Solo cuando el usuario esta cubierto y ya en el
+  // resumen (step 5), sobre el precio estimado. La logica vive en la base
+  // (preview_my_coverage); si falla, el hook deja el preview en null y el
+  // resumen muestra el precio a secas.
+  const previewTotal = requiresDestination ? estimatedPrice : calculateFlatPrice();
+  const { preview: copayPreview } = useCoveragePreview({
+    enabled: step === 5 && coverage?.status === 'covered',
+    serviceType,
+    total: previewTotal,
+    km: requiresDestination ? calculatedDistance : null,
+    towType,
+  });
 
   useEffect(() => {
     if (serviceType === 'tow' && calculatedDistance && pricing) {
@@ -1135,6 +1150,14 @@ export default function RequestService() {
               : 'Precio fijo por el servicio.'}
           </Text>
         </View>
+
+        {/* B-13: cuanto cubre el seguro y cuanto queda de copago, antes de confirmar.
+            Se muestra tambien cuando el afiliado esta cubierto pero ESTE servicio
+            esta excluido del plan (copayPreview.covered === false): ahi el desglose
+            aclara que paga todo, en vez de dejar solo el banner "cubierto". */}
+        {coverage?.status === 'covered' && copayPreview && (
+          <CopayBreakdown preview={copayPreview} isEstimate={requiresDestination} />
+        )}
 
         <View style={styles.navButtons}>
           <View style={styles.navBack}>
