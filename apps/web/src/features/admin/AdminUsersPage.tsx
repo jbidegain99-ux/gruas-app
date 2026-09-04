@@ -20,6 +20,8 @@ type Profile = {
   provider_id: string | null;
   provider_name?: string | null;
   verification_status: string;
+  /** Comisión propia del operador independiente. NULL = default de plataforma. */
+  commission_rate: number | null;
   created_at: string;
 };
 
@@ -65,6 +67,7 @@ export default function AdminUsersPage() {
           role,
           provider_id,
           verification_status,
+          commission_rate,
           created_at,
           providers:provider_id (name)
         `)
@@ -334,6 +337,11 @@ function EditUserModal({
   const [providerId, setProviderId] = useState<string>(user.provider_id || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Solo aplica al independiente: si pertenece a una empresa manda la de la
+  // empresa, y la RPC rechaza guardarla (00080).
+  const [commission, setCommission] = useState<string>(
+    user.commission_rate == null ? '' : String(user.commission_rate)
+  );
   const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -353,6 +361,23 @@ function EditUserModal({
       // cuando el rol no es OPERATOR.
       p_provider_id: role === 'OPERATOR' && providerId ? providerId : undefined,
     });
+
+    // La comisión propia va aparte y SOLO para el independiente: el cambio de
+    // rol ya la limpia si entró a una empresa.
+    if (!rpcError && role === 'OPERATOR' && !providerId) {
+      // Omitir `p_rate` es como se expresa "sin comisión propia": la función lo
+      // tiene con DEFAULT NULL y eso limpia la columna.
+      const { error: comError } = await supabase.rpc('admin_set_operator_commission', {
+        p_operator_id: user.id,
+        ...(commission.trim() === '' ? {} : { p_rate: Number(commission) }),
+      });
+      if (comError) {
+        setLoading(false);
+        setError(comError.message);
+        toast.error('No se pudo guardar la comisión.');
+        return;
+      }
+    }
 
     if (rpcError) {
       console.error('Error updating user:', rpcError);
@@ -411,10 +436,9 @@ function EditUserModal({
               <select
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
-                required
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               >
-                <option value="">Seleccionar proveedor...</option>
+                <option value="">Independiente (sin empresa)</option>
                 {providers.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -422,7 +446,26 @@ function EditUserModal({
                 ))}
               </select>
               <p className="mt-1 text-xs text-zinc-500">
-                Los operadores deben estar asignados a un proveedor
+                Si pertenece a una empresa, se le liquida a la empresa con la comisión de ella.
+              </p>
+            </div>
+          )}
+
+          {/* Un independiente cobra él, así que su comisión se configura acá. */}
+          {role === 'OPERATOR' && !providerId && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Comisión de Budi (%)
+              </label>
+              <input
+                type="number" min={0} max={100} step="0.01"
+                value={commission}
+                onChange={(e) => setCommission(e.target.value)}
+                placeholder="Por defecto de la plataforma"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              />
+              <p className="mt-1 text-xs text-zinc-500">
+                Vacío = se usa el porcentaje por defecto de la plataforma.
               </p>
             </div>
           )}

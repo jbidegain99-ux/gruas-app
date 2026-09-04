@@ -690,6 +690,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          commission_rate: number | null
           created_at: string
           email: string | null
           full_name: string
@@ -708,6 +709,7 @@ export type Database = {
           verification_submitted_at: string | null
         }
         Insert: {
+          commission_rate?: number | null
           created_at?: string
           email?: string | null
           full_name: string
@@ -726,6 +728,7 @@ export type Database = {
           verification_submitted_at?: string | null
         }
         Update: {
+          commission_rate?: number | null
           created_at?: string
           email?: string | null
           full_name?: string
@@ -1654,6 +1657,10 @@ export type Database = {
         Args: { p_insurer_id: string; p_user_id: string }
         Returns: undefined
       }
+      admin_set_operator_commission: {
+        Args: { p_operator_id: string; p_rate?: number }
+        Returns: Json
+      }
       admin_set_operator_verification: {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
         Returns: undefined
@@ -1878,6 +1885,7 @@ export type Database = {
         }
         Returns: Json
       }
+      default_commission_rate: { Args: never; Returns: number }
       drain_notification_queue: { Args: never; Returns: undefined }
       evaluate_coverage: {
         Args: {
