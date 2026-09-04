@@ -151,7 +151,7 @@ export default function AdminUsersPage() {
       {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
+          { label: 'Total de usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
           { label: 'Operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
           { label: 'Administradores', value: stats.ADMIN, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
         ].map(({ label, value, Icon, tint }) => (

@@ -1522,107 +1522,56 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      admin_cancel_request:
-        | {
-            Args: { p_request_id: string }
-            Returns: {
-              activated_at: string | null
-              assigned_at: string | null
-              cancellation_reason: string | null
-              cancelled_at: string | null
-              cancelled_by: string | null
-              completed_at: string | null
-              coverage_status: string | null
-              created_at: string
-              distance_operator_to_pickup_km: number | null
-              distance_pickup_to_dropoff_km: number | null
-              dropoff_address: string
-              dropoff_lat: number
-              dropoff_lng: number
-              id: string
-              incident_description: string | null
-              incident_type: string
-              notes: string | null
-              operator_id: string | null
-              pickup_address: string
-              pickup_lat: number
-              pickup_lng: number
-              pin_hash: string
-              pool_alerted_at: string | null
-              price_breakdown: Json | null
-              provider_id: string | null
-              route_polyline: string | null
-              service_details: Json | null
-              service_type: string
-              status: Database["public"]["Enums"]["request_status"]
-              total_price: number | null
-              tow_type: Database["public"]["Enums"]["tow_type"]
-              updated_at: string
-              user_id: string
-              vehicle_color: string | null
-              vehicle_doc_path: string | null
-              vehicle_make: string | null
-              vehicle_model: string | null
-              vehicle_photo_url: string | null
-              vehicle_plate: string | null
-            }
-            SetofOptions: {
-              from: "*"
-              to: "service_requests"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
-        | {
-            Args: { p_reason?: string; p_request_id: string }
-            Returns: {
-              activated_at: string | null
-              assigned_at: string | null
-              cancellation_reason: string | null
-              cancelled_at: string | null
-              cancelled_by: string | null
-              completed_at: string | null
-              coverage_status: string | null
-              created_at: string
-              distance_operator_to_pickup_km: number | null
-              distance_pickup_to_dropoff_km: number | null
-              dropoff_address: string
-              dropoff_lat: number
-              dropoff_lng: number
-              id: string
-              incident_description: string | null
-              incident_type: string
-              notes: string | null
-              operator_id: string | null
-              pickup_address: string
-              pickup_lat: number
-              pickup_lng: number
-              pin_hash: string
-              pool_alerted_at: string | null
-              price_breakdown: Json | null
-              provider_id: string | null
-              route_polyline: string | null
-              service_details: Json | null
-              service_type: string
-              status: Database["public"]["Enums"]["request_status"]
-              total_price: number | null
-              tow_type: Database["public"]["Enums"]["tow_type"]
-              updated_at: string
-              user_id: string
-              vehicle_color: string | null
-              vehicle_doc_path: string | null
-              vehicle_make: string | null
-              vehicle_model: string | null
-              vehicle_photo_url: string | null
-              vehicle_plate: string | null
-            }
-            SetofOptions: {
-              from: "*"
-              to: "service_requests"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
+      admin_cancel_request: {
+        Args: { p_reason?: string; p_request_id: string }
+        Returns: {
+          activated_at: string | null
+          assigned_at: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          completed_at: string | null
+          coverage_status: string | null
+          created_at: string
+          distance_operator_to_pickup_km: number | null
+          distance_pickup_to_dropoff_km: number | null
+          dropoff_address: string
+          dropoff_lat: number
+          dropoff_lng: number
+          id: string
+          incident_description: string | null
+          incident_type: string
+          notes: string | null
+          operator_id: string | null
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          pin_hash: string
+          pool_alerted_at: string | null
+          price_breakdown: Json | null
+          provider_id: string | null
+          route_polyline: string | null
+          service_details: Json | null
+          service_type: string
+          status: Database["public"]["Enums"]["request_status"]
+          total_price: number | null
+          tow_type: Database["public"]["Enums"]["tow_type"]
+          updated_at: string
+          user_id: string
+          vehicle_color: string | null
+          vehicle_doc_path: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_photo_url: string | null
+          vehicle_plate: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "service_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_finance_by_insurer: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -1973,10 +1922,24 @@ export type Database = {
         }[]
       }
       member_document_key: { Args: { p_doc: string }; Returns: string }
+      my_operator_earnings: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          a_pagar: number
+          bruto: number
+          comision: number
+          comision_pct: number
+          servicios: number
+        }[]
+      }
       next_case_folio: { Args: never; Returns: string }
       normalize_document: { Args: { p_doc: string }; Returns: string }
       operator_can_serve: {
         Args: { p_operator: string; p_service_type: string }
+        Returns: boolean
+      }
+      plan_cubre_servicio: {
+        Args: { p_plan_id: string; p_service_type: string }
         Returns: boolean
       }
       preview_my_coverage: {

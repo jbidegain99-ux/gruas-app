@@ -174,7 +174,7 @@ export default function AdminRatingsPage() {
       {/* Overall Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 bg-white shadow-sm p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">Total Calificaciones</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">Total de calificaciones</p>
           <p className="text-2xl font-bold text-zinc-900 dark:text-white">{overallStats.totalRatings}</p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white shadow-sm p-4 dark:border-zinc-800 dark:bg-zinc-900">
