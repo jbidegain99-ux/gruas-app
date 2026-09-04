@@ -70,13 +70,20 @@ export default async function AdminDashboardPage() {
   // Server component: se renderiza por request, así que la hora actual es válida.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const todayIso = startOfToday.toISOString();
-  // Semana en curso: lunes 00:00 (es-SV arranca la semana en lunes).
-  const startOfWeek = new Date(startOfToday);
-  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
-  const weekIso = startOfWeek.toISOString();
+
+  // "Hoy" es el de El Salvador, no el del proceso. `setHours(0,0,0,0)` usaba la
+  // zona de Node: en la máquina de desarrollo coincide, pero en el VPS (UTC) el
+  // día habría arrancado a las 18:00 del día anterior y el conteo de "solicitudes
+  // hoy" saldría mal todas las noches. Misma raíz que la migración 00082.
+  // El Salvador no tiene horario de verano, así que -06:00 vale todo el año.
+  const diaSV = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador' }).format(now);
+  const todayIso = `${diaSV}T00:00:00-06:00`;
+  // Semana en curso: lunes 00:00 (es-SV arranca la semana en lunes). El
+  // retroceso se hace sobre la fecha calendario en UTC —no sobre un instante—
+  // para que no se cuele el desfase al restar días.
+  const cal = new Date(`${diaSV}T00:00:00Z`);
+  cal.setUTCDate(cal.getUTCDate() - ((cal.getUTCDay() + 6) % 7));
+  const weekIso = `${cal.toISOString().slice(0, 10)}T00:00:00-06:00`;
   const freshIso = new Date(now - 5 * 60 * 1000).toISOString();
   // Ventana de SLA: 30 días, para tener muestra suficiente aunque el volumen sea bajo.
   const slaWindowIso = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
