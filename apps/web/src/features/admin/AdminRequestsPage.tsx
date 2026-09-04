@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Inbox, Search } from 'lucide-react';
-import type { ServiceRequestStatus } from '@gruas-app/shared';
-import { requiresDropoff } from '@gruas-app/shared';
+import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
+import { requiresDropoff, SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
 import { cargarCatalogoDestinos } from '@/shared/lib/dropoff-catalog';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -53,7 +53,16 @@ type ServiceRequest = {
   cases: { folio: string } | null;
 };
 
-type Operator = { id: string; full_name: string };
+// `servicios` son los slugs que declara la empresa del operador. Vacio = la
+// empresa no declaro nada, y entonces no se filtra (misma regla que la 00073:
+// falla abierta mientras no haya catalogo contra que contrastar).
+type Operator = { id: string; full_name: string; servicios: Set<string> };
+
+/** ¿La empresa de este operador presta el servicio de esta solicitud? */
+function operadorPuedeAtender(op: Operator, serviceType: string | null): boolean {
+  if (op.servicios.size === 0) return true;
+  return op.servicios.has(serviceType || 'tow');
+}
 
 const ASSIGNABLE_STATUSES = ['initiated', 'assigned', 'en_route'];
 
@@ -183,16 +192,41 @@ export default function AdminRequestsPage() {
     };
   }, []);
 
-  // Cargar operadores disponibles para asignar
+  // Cargar operadores disponibles para asignar, con lo que presta su empresa.
+  // El servidor ya no se los sugiere al despachador si no corresponden (00074),
+  // pero esta lista es la salida manual: se los deja elegir y se avisa.
   useEffect(() => {
     const fetchOperators = async () => {
       const supabase = createClient();
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, provider_id')
         .eq('role', 'OPERATOR')
         .order('full_name');
-      setOperators(data || []);
+      if (!data) return;
+
+      // Catalogo por empresa en una sola consulta, en vez de anidar la relacion
+      // dos niveles por cada operador.
+      const { data: catalogo } = await supabase
+        .from('provider_services')
+        .select('provider_id, is_available, services(slug)')
+        .eq('is_available', true);
+
+      const porEmpresa = new Map<string, Set<string>>();
+      for (const fila of catalogo ?? []) {
+        const slug = (fila.services as unknown as { slug: string } | null)?.slug;
+        if (!slug || !fila.provider_id) continue;
+        if (!porEmpresa.has(fila.provider_id)) porEmpresa.set(fila.provider_id, new Set());
+        porEmpresa.get(fila.provider_id)!.add(slug);
+      }
+
+      setOperators(
+        data.map((op) => ({
+          id: op.id,
+          full_name: op.full_name,
+          servicios: (op.provider_id && porEmpresa.get(op.provider_id)) || new Set<string>(),
+        }))
+      );
     };
     fetchOperators();
   }, []);
@@ -260,6 +294,23 @@ export default function AdminRequestsPage() {
 
   const handleAssignRequest = async (requestId: string) => {
     if (!assignOperatorId) return;
+
+    // El servidor deja forzar la asignación a propósito (00074): el despachador
+    // puede saber algo que el sistema no, y con un cliente varado al teléfono no
+    // se le quita la última salida manual. Pero que sea a sabiendas.
+    const op = operators.find((o) => o.id === assignOperatorId);
+    const tipo = selectedRequest?.service_type || 'tow';
+    if (op && !operadorPuedeAtender(op, tipo)) {
+      const ok = await confirm({
+        title: 'Esta empresa no presta este servicio',
+        message:
+          `La empresa de ${op.full_name} no tiene declarado "${SERVICE_TYPE_CONFIGS[tipo as ServiceType]?.name ?? tipo}" ` +
+          'entre sus servicios, así que esta solicitud nunca le habría aparecido en su app. ¿Asignársela igual?',
+        confirmLabel: 'Asignar de todos modos',
+      });
+      if (!ok) return;
+    }
+
     setAssigning(true);
     const supabase = createClient();
     const { error } = await supabase.rpc('admin_assign_request', {
@@ -724,11 +775,17 @@ export default function AdminRequestsPage() {
                         className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
                       >
                         <option value="">Selecciona un operador...</option>
-                        {operators.map((op) => (
-                          <option key={op.id} value={op.id}>
-                            {op.full_name}
-                          </option>
-                        ))}
+                        {/* Se marcan, no se ocultan: la lista manual es la
+                            salida de emergencia del despachador. */}
+                        {operators.map((op) => {
+                          const puede = operadorPuedeAtender(op, selectedRequest.service_type);
+                          return (
+                            <option key={op.id} value={op.id}>
+                              {op.full_name}
+                              {puede ? '' : ' — no presta este servicio'}
+                            </option>
+                          );
+                        })}
                       </select>
                       <button
                         onClick={() => handleAssignRequest(selectedRequest.id)}
