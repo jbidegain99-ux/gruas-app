@@ -284,9 +284,12 @@ export default function AdminRequestsPage() {
     if (!ok) return;
 
     const supabase = createClient();
+    // `p_reason` es opcional en la funcion, no nullable: se omite la clave
+    // cuando no hay motivo en vez de mandar null.
+    const motivo = cancelReason.trim();
     const { error } = await supabase.rpc('admin_cancel_request', {
       p_request_id: requestId,
-      p_reason: cancelReason.trim() || null,
+      ...(motivo ? { p_reason: motivo } : {}),
     });
     if (error) {
       toast.error('No se pudo cancelar la solicitud.');
