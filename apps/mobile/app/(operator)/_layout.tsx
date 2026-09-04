@@ -2,15 +2,23 @@ import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { List, Zap, Clock, Star, User } from 'lucide-react-native';
 import { usePushNotifications } from '@/features/notifications/hooks/usePushNotifications';
+import { useRoleGuard } from '@/shared/hooks/useRoleGuard';
+import { LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography } from '@/theme';
 
 export default function OperatorLayout() {
+  // Estas pantallas son del operador. Sin esto, llegar por un deep link con una
+  // sesion de cliente dejaba ver la app equivocada.
+  const estado = useRoleGuard('OPERATOR');
   const { registerForPushNotifications } = usePushNotifications();
 
-  // Register for push notifications when operator is authenticated
+  // El token se registra recien cuando el rol dio bien: no tiene sentido atar el
+  // dispositivo a un rol que esta a punto de ser redirigido.
   useEffect(() => {
-    registerForPushNotifications();
-  }, [registerForPushNotifications]);
+    if (estado === 'autorizado') registerForPushNotifications();
+  }, [estado, registerForPushNotifications]);
+
+  if (estado !== 'autorizado') return <LoadingSpinner fullScreen />;
 
   return (
     <Tabs

@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
+import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
 import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
@@ -48,10 +49,19 @@ export default function Login() {
         .eq('id', data.user.id)
         .single();
 
-      if (profile?.role === 'OPERATOR') {
-        router.replace('/(operator)');
+      // Antes cualquier rol que no fuera OPERATOR caia en `(user)`, asi que un
+      // admin o una aseguradora entraban a la app del cliente — donde no tienen
+      // nada que hacer y ni siquiera pueden crear una solicitud (migr. 00069).
+      // Ahora se resuelve por el mismo mapa que usa el guard de los grupos.
+      const destino = rutaDeInicio(profile?.role);
+      if (destino) {
+        router.replace(destino);
       } else {
-        router.replace('/(user)');
+        await supabase.auth.signOut();
+        Alert.alert(
+          'Esta cuenta se usa desde la web',
+          'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.'
+        );
       }
     }
   };
