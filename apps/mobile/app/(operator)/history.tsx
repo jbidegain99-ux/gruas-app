@@ -14,7 +14,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock, MapPin, Phone, Truck, CheckCircle2 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
-import { money, startOfToday, startOfWeek } from '@/lib/earnings';
+import {
+  money,
+  fetchOperatorEarnings,
+  fetchOperatorTotal,
+  EMPTY_EARNINGS,
+  type EarningsSummary,
+  type Periodo,
+} from '@/lib/earnings';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
 import { AddressText } from '@/shared/components/AddressText';
@@ -61,6 +68,11 @@ export default function OperatorHistory() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  // El resumen no se calcula sobre las filas de la lista: sumarlas daria el
+  // bruto, y lo que el operador cobra es el bruto menos la comision. Lo
+  // resuelve la misma RPC que usa la liquidacion del admin.
+  const [earnings, setEarnings] = useState<EarningsSummary>(EMPTY_EARNINGS);
+  const [total, setTotal] = useState<Periodo | null>(null);
   // Recorrido real del servicio seleccionado (se carga al abrir el detalle).
   const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
 
@@ -139,6 +151,8 @@ export default function OperatorHistory() {
   useFocusEffect(
     useCallback(() => {
       fetchRequests();
+      fetchOperatorEarnings().then(setEarnings);
+      fetchOperatorTotal().then(setTotal);
     }, [fetchRequests])
   );
 
@@ -159,17 +173,15 @@ export default function OperatorHistory() {
     }
   });
 
-  // Resumen: cantidad y ganancias (hoy / semana / histórico) de servicios completados
+  // Resumen: lo que el operador COBRA (hoy / semana / histórico).
   const completed = requests.filter((r) => r.status === 'completed');
-  const totalEarned = completed.reduce((sum, r) => sum + (r.total_price || 0), 0);
-  const todayIso = startOfToday().toISOString();
-  const weekIso = startOfWeek().toISOString();
-  const earnedSince = (sinceIso: string) =>
-    completed
-      .filter((r) => r.completed_at && r.completed_at >= sinceIso)
-      .reduce((sum, r) => sum + (r.total_price || 0), 0);
-  const earnedToday = earnedSince(todayIso);
-  const earnedWeek = earnedSince(weekIso);
+  const earnedToday = earnings.hoy.aCobrar;
+  const earnedWeek = earnings.semana.aCobrar;
+  const totalEarned = total?.aCobrar ?? 0;
+  // La comision es constante por operador; la RPC la devuelve incluso sin
+  // servicios en el periodo, asi que sirve para repartir cada linea.
+  const comisionPct = total?.comisionPct ?? 0;
+  const loQueTeQueda = (bruto: number) => bruto - Math.round(bruto * comisionPct) / 100;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -238,7 +250,7 @@ export default function OperatorHistory() {
             </Text>
           </View>
           {item.status === 'completed' && item.total_price != null && (
-            <Text style={styles.price}>${item.total_price.toFixed(2)}</Text>
+            <Text style={styles.price}>${loQueTeQueda(item.total_price).toFixed(2)}</Text>
           )}
         </View>
       </Card>
@@ -357,9 +369,13 @@ export default function OperatorHistory() {
 
             {selectedRequest.status === 'completed' && selectedRequest.total_price != null && (
               <View style={styles.priceSection}>
-                <Text style={styles.priceSectionLabel}>Ganancia del Servicio</Text>
+                <Text style={styles.priceSectionLabel}>Lo que cobras</Text>
                 <Text style={styles.priceSectionValue}>
-                  ${selectedRequest.total_price.toFixed(2)}
+                  ${loQueTeQueda(selectedRequest.total_price).toFixed(2)}
+                </Text>
+                <Text style={styles.priceSectionNote}>
+                  Cobrado al cliente ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
+                  {comisionPct}%
                 </Text>
               </View>
             )}
@@ -760,6 +776,13 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.heading,
     fontSize: typography.sizes.h1,
     color: colors.success.dark,
+  },
+  priceSectionNote: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
   timelineSection: {
     backgroundColor: colors.background.secondary,

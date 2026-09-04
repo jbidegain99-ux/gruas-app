@@ -93,7 +93,7 @@ export default function OperatorRequests() {
     setVerified(profile?.verification_status === 'approved');
 
     // Ganancias de hoy / esta semana (se muestran siempre, incluso con servicio activo)
-    setEarnings(await fetchOperatorEarnings(user.id));
+    setEarnings(await fetchOperatorEarnings());
 
     // Check if operator has an active service
     const { data: activeServices } = await supabase
@@ -518,22 +518,30 @@ export default function OperatorRequests() {
           <View style={styles.earningsBlock}>
             <View style={styles.earningsLabelRow}>
               <Wallet size={13} color={colors.text.tertiary} strokeWidth={2} />
-              <Text style={styles.earningsLabel}>Hoy</Text>
+              <Text style={styles.earningsLabel}>Cobras hoy</Text>
             </View>
-            <Text style={styles.earningsAmount}>{money(earnings.todayAmount)}</Text>
+            <Text style={styles.earningsAmount}>{money(earnings.hoy.aCobrar)}</Text>
             <Text style={styles.earningsCount}>
-              {earnings.todayCount} servicio{earnings.todayCount === 1 ? '' : 's'}
+              {earnings.hoy.servicios} servicio{earnings.hoy.servicios === 1 ? '' : 's'}
             </Text>
           </View>
           <View style={styles.earningsDivider} />
           <View style={styles.earningsBlock}>
-            <Text style={styles.earningsLabel}>Esta semana</Text>
-            <Text style={styles.earningsAmount}>{money(earnings.weekAmount)}</Text>
+            <Text style={styles.earningsLabel}>Cobras esta semana</Text>
+            <Text style={styles.earningsAmount}>{money(earnings.semana.aCobrar)}</Text>
             <Text style={styles.earningsCount}>
-              {earnings.weekCount} servicio{earnings.weekCount === 1 ? '' : 's'}
+              {earnings.semana.servicios} servicio{earnings.semana.servicios === 1 ? '' : 's'}
             </Text>
           </View>
         </View>
+        {/* De donde sale el neto: sin esto el operador ve una cifra menor que la
+            que le cobro al cliente y no tiene como cuadrarla. */}
+        {earnings.semana.bruto > 0 && (
+          <Text style={styles.earningsNote}>
+            Facturado esta semana {money(earnings.semana.bruto)} · Budi retiene{' '}
+            {earnings.semana.comisionPct}% ({money(earnings.semana.comision)})
+          </Text>
+        )}
 
         {/* Cuenta en revisión: aún no aprobado por un administrador */}
         {!hasActiveService && !verified && (
@@ -694,6 +702,13 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.body,
     fontSize: typography.sizes.caption,
     color: colors.text.secondary,
+  },
+  earningsNote: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   earningsDivider: {
     width: 1,
