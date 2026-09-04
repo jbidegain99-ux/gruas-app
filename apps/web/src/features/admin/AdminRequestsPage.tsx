@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Inbox, Search } from 'lucide-react';
 import type { ServiceRequestStatus } from '@gruas-app/shared';
-import { requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
+import { requiresDropoff } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
+import { cargarCatalogoDestinos } from '@/shared/lib/dropoff-catalog';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { CaseTimeline } from './CaseTimeline';
@@ -105,44 +106,6 @@ function isUrgent(r: ServiceRequest): boolean {
   if (r.status !== 'initiated' || r.operator_id) return false;
   const ageMin = (Date.now() - new Date(r.created_at).getTime()) / 60000;
   return ageMin >= URGENT_AFTER_MINUTES;
-}
-
-// Que tipos de servicio trasladan el vehiculo lo decide `services`, la tabla que
-// el admin edita en /admin/services (columna "Requiere destino"), no una
-// constante del codigo. Una sola vez por carga de pagina; si falla,
-// `requiresDropoff` cae a su respaldo.
-let catalogoEnVuelo: Promise<void> | null = null;
-
-// El reset va en su propia funcion y no dentro del cuerpo async: ahi TypeScript
-// estrecha la variable a Promise<void> por la asignacion de afuera y rechaza null.
-function olvidarCatalogo(): void {
-  catalogoEnVuelo = null;
-}
-
-function cargarCatalogoDestinos(supabase: ReturnType<typeof createClient>): Promise<void> {
-  if (catalogoEnVuelo) return catalogoEnVuelo;
-  // Envuelto en un async: el builder de Supabase devuelve un PromiseLike, no una
-  // Promise real (no trae catch/finally).
-  const promesa = (async () => {
-    const { data, error } = await supabase
-      .from('services')
-      .select('slug, requires_destination')
-      .eq('is_active', true);
-    if (error) {
-      console.error('[catalogo] no se pudo cargar, se usa el respaldo:', error.message);
-      olvidarCatalogo(); // que el proximo refresco reintente
-      return;
-    }
-    // `slug` de `services` es el mismo valor que `service_requests.service_type`.
-    setDropoffCatalog(
-      (data ?? []).map((s) => ({
-        service_type: s.slug,
-        requires_destination: !!s.requires_destination,
-      }))
-    );
-  })();
-  catalogoEnVuelo = promesa;
-  return promesa;
 }
 
 export default function AdminRequestsPage() {

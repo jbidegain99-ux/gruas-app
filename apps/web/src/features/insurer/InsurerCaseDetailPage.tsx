@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { requiresDropoff } from '@gruas-app/shared';
 import { createClient } from '@/shared/lib/supabase/client';
+import { cargarCatalogoDestinos } from '@/shared/lib/dropoff-catalog';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { money } from '@/shared/lib/format';
@@ -29,20 +31,25 @@ export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
 
   useEffect(() => {
     let alive = true;
-    createClient()
-      .from('cases')
-      .select(
-        'folio, service_requests(status, service_type, created_at, pickup_address, dropoff_address, total_price, coverage_status)',
-      )
-      .eq('folio', folio)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!alive) return;
-        const sr = (data as { service_requests: Detail } | null)?.service_requests ?? null;
-        if (!sr) setNotFound(true);
-        else setDetail(sr);
-        setLoading(false);
-      });
+    (async () => {
+      const supabase = createClient();
+      // El catalogo primero: `requiresDropoff` lo lee de estado de modulo, que no
+      // dispara re-render por si solo. Cargandolo ANTES de guardar el detalle,
+      // para cuando este se pinta ya esta puesto.
+      await cargarCatalogoDestinos(supabase);
+      const { data } = await supabase
+        .from('cases')
+        .select(
+          'folio, service_requests(status, service_type, created_at, pickup_address, dropoff_address, total_price, coverage_status)',
+        )
+        .eq('folio', folio)
+        .maybeSingle();
+      if (!alive) return;
+      const sr = (data as { service_requests: Detail } | null)?.service_requests ?? null;
+      if (!sr) setNotFound(true);
+      else setDetail(sr);
+      setLoading(false);
+    })();
     return () => {
       alive = false;
     };
@@ -89,7 +96,11 @@ export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
           <Field label="Origen">
             <span className="text-sm text-zinc-900 dark:text-white">{detail.pickup_address || '—'}</span>
           </Field>
-          {detail.dropoff_address && (
+          {/* `dropoff_address` SIEMPRE viene lleno: las columnas son NOT NULL y la
+              movil copia el origen cuando el servicio no traslada el vehiculo. Sin
+              preguntarle al catalogo, una cerrajeria mostraba "Destino" repitiendo
+              la direccion de recogida. */}
+          {requiresDropoff(detail.service_type) && detail.dropoff_address && (
             <Field label="Destino">
               <span className="text-sm text-zinc-900 dark:text-white">{detail.dropoff_address}</span>
             </Field>
