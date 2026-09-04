@@ -49,6 +49,9 @@ type PorAseguradora = {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
+/** El día después de una fecha 'YYYY-MM-DD', para usarla como borde superior. */
+const diaSiguiente = (f: string) => iso(new Date(new Date(f + 'T00:00:00Z').getTime() + 86400000));
+
 /** Rangos de uso frecuente al cerrar un mes. */
 function periodos(hoy: Date) {
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -83,17 +86,20 @@ export default async function AdminFinancePage({
     supabase.rpc('admin_finance_by_insurer', { p_from: desde, p_to: hasta }),
     supabase.rpc('admin_settlement_by_provider', { p_from: desde, p_to: hasta }),
     // El desglose por operador y por proveedor sigue saliendo de la tabla: son
-    // agregados simples y no necesitan una RPC propia. El corte es el mismo que
-    // el de las funciones —completed_at, `hasta` inclusive— para que los totales
-    // de las tres tablas cierren contra los KPI.
+    // agregados simples y no necesitan una RPC propia. Pero el corte tiene que
+    // ser EL MISMO que el de las funciones o los totales de las tablas no
+    // cerrarían contra los KPI: se mandan los bordes con el desfase de El
+    // Salvador (-06:00, sin horario de verano), porque `completed_at` es
+    // timestamptz y comparar contra una fecha pelada la interpreta en UTC —
+    // el bug que arregló la migración 00082.
     supabase
       .from('service_requests')
       .select(
         'total_price, completed_at, operator_id, provider_id, operator:profiles!service_requests_operator_id_fkey(full_name), providers(name)'
       )
       .eq('status', 'completed')
-      .gte('completed_at', desde)
-      .lt('completed_at', new Date(new Date(hasta).getTime() + 86400000).toISOString().slice(0, 10)),
+      .gte('completed_at', `${desde}T00:00:00-06:00`)
+      .lt('completed_at', `${diaSiguiente(hasta)}T00:00:00-06:00`),
   ]);
 
   const r = (resumenRaw as Resumen | null) ?? {
