@@ -13,13 +13,26 @@ import { colors, typography, spacing, radii } from '@/theme';
  *
  * `none` (no es afiliado) no es un problema y por eso va en gris neutro, no en
  * rojo: la mayoria de los clientes de Budi no vienen de una aseguradora.
+ *
+ * OJO con la diferencia entre `coverage.status` y `serviceCovered`. El status
+ * responde la pregunta de B-11 —"¿es un afiliado con poliza vigente?"— y no sabe
+ * nada del servicio pedido; que este entre en el plan lo decide B-13, evaluando
+ * `coverage_rules`. Cuando el afiliado pide algo excluido (una cerrajeria en el
+ * Plan Oro, por ejemplo) los dos son ciertos a la vez, y este banner llego a
+ * decir "Cubierto por tu seguro" justo encima de un "Este servicio no lo cubre
+ * tu plan". Por eso entra `serviceCovered`: con el veredicto del servicio en la
+ * mano, el banner deja de prometer cobertura y solo declara la afiliacion, que
+ * es el unico dato que aporta y que la caja de copago no repite.
  */
 export function CoverageBanner({
   coverage,
   loading,
+  serviceCovered,
 }: {
   coverage: CoverageResult | null;
   loading?: boolean;
+  /** ¿El plan cubre ESTE tipo de servicio? `null`/`undefined` = todavia no se sabe. */
+  serviceCovered?: boolean | null;
 }) {
   if (loading) {
     return (
@@ -32,8 +45,29 @@ export function CoverageBanner({
 
   if (!coverage) return null;
 
+  const poliza = [coverage.insurer_name, coverage.plan_name, coverage.policy_number]
+    .filter(Boolean)
+    .join(' · ');
+
   switch (coverage.status) {
     case 'covered':
+      // Afiliado, pero el plan no incluye este servicio: se declara el vinculo y
+      // nada mas. El "cuanto pagas" lo dice CopayBreakdown, debajo.
+      if (serviceCovered === false) {
+        return (
+          <View style={[styles.banner, styles.neutral]}>
+            <ShieldCheck size={18} color={colors.text.secondary} strokeWidth={2} />
+            <View style={styles.cuerpo}>
+              <Text style={[styles.titulo, { color: colors.text.primary }]}>
+                Afiliado a {coverage.insurer_name}
+              </Text>
+              <Text style={styles.texto}>
+                {[coverage.plan_name, coverage.policy_number].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </View>
+        );
+      }
       return (
         <View style={[styles.banner, styles.ok]}>
           <ShieldCheck size={18} color={colors.success.dark} strokeWidth={2} />
@@ -41,11 +75,7 @@ export function CoverageBanner({
             <Text style={[styles.titulo, { color: colors.success.dark }]}>
               Cubierto por tu seguro
             </Text>
-            <Text style={styles.texto}>
-              {coverage.insurer_name}
-              {coverage.plan_name ? ` · ${coverage.plan_name}` : ''}
-              {coverage.policy_number ? ` · ${coverage.policy_number}` : ''}
-            </Text>
+            <Text style={styles.texto}>{poliza}</Text>
           </View>
         </View>
       );

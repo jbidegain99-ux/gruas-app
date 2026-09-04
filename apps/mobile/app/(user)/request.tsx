@@ -1015,8 +1015,15 @@ export default function RequestService() {
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
 
-        {/* B-11: como queda el servicio respecto del seguro, ANTES de confirmar. */}
-        <CoverageBanner coverage={coverage} loading={loadingCoverage} />
+        {/* B-11: como queda el servicio respecto del seguro, ANTES de confirmar.
+            `serviceCovered` viene de B-13: sin eso el banner anunciaba "Cubierto
+            por tu seguro" aunque el plan excluyera justo este servicio, y se
+            contradecia con el desglose de copago de mas abajo. */}
+        <CoverageBanner
+          coverage={coverage}
+          loading={loadingCoverage}
+          serviceCovered={copayPreview ? copayPreview.covered : null}
+        />
 
         {pickupCoords && (
           <View style={styles.summaryMap}>
@@ -1269,7 +1276,10 @@ export default function RequestService() {
                 dejar a la persona creyendo que su seguro la cubre. */}
             {finalCoverage && (
               <View style={styles.successCoverage}>
-                <CoverageBanner coverage={finalCoverage} />
+                <CoverageBanner
+                  coverage={finalCoverage}
+                  serviceCovered={copayPreview ? copayPreview.covered : null}
+                />
               </View>
             )}
 
