@@ -19,6 +19,37 @@ ON CONFLICT (id) DO UPDATE SET
   address = EXCLUDED.address;
 
 -- =====================================================
+-- QUE SERVICIOS PRESTA CADA EMPRESA (provider_services)
+--
+-- No es decoracion: `operator_can_serve` (00073) filtra el pool y
+-- `accept_service_request` con esto. Un tipo de servicio que ninguna empresa
+-- tilde queda huerfano — el catalogo se lo ofrece al cliente con su precio y
+-- despues no lo ve ningun operador nunca.
+--
+-- Ojo con el fail-open: una empresa que NO declara nada ve TODOS los tipos. Por
+-- eso las tres se declaran explicitamente, aunque una todavia no tenga
+-- operadores, para que nadie herede ese comodin sin querer.
+-- =====================================================
+INSERT INTO provider_services (provider_id, service_id, is_available)
+SELECT p.id, s.id, true
+  FROM providers p
+  JOIN services s ON s.slug = ANY (
+    CASE p.id
+      -- Grua liviana y pesada + trabajo de calle liviano.
+      WHEN '11111111-1111-1111-1111-111111111111'::uuid
+        THEN ARRAY['tow','winch','tire','locksmith']
+      -- Liviana: los apoyos rapidos de carretera.
+      WHEN '22222222-2222-2222-2222-222222222222'::uuid
+        THEN ARRAY['tow','tire','battery','fuel']
+      -- Pesada: arrastre grande y lo que necesita herramienta.
+      WHEN '33333333-3333-3333-3333-333333333333'::uuid
+        THEN ARRAY['tow','battery','fuel','mechanic']
+      ELSE ARRAY[]::TEXT[]
+    END
+  )
+ON CONFLICT (provider_id, service_id) DO UPDATE SET is_available = true;
+
+-- =====================================================
 -- PRICING RULES (2 rules for testing activation)
 -- =====================================================
 -- Deactivate any existing active rules first
