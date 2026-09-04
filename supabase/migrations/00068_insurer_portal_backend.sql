@@ -17,8 +17,17 @@
 -- ---------------------------------------------------------------
 -- 1. El rol y el vínculo
 -- ---------------------------------------------------------------
--- ADD VALUE va en autocommit (fuera de un BEGIN) y no se usa hasta que commitea;
--- las funciones de abajo lo referencian ya commiteado.
+-- OJO con este ADD VALUE. `supabase db push` corre cada archivo de migración
+-- dentro de una transacción, y Postgres no deja USAR un valor de enum recién
+-- agregado antes de que commitee:
+--     ERROR: unsafe use of new value "INSURER" of enum type user_role
+--     HINT:  New enum values must be committed before they can be used.
+-- El cuerpo de una función `LANGUAGE sql` se parsea al crearla, así que un
+-- `role = 'INSURER'` ahí abajo cuenta como uso y revienta la migración entera.
+-- (En plpgsql el cuerpo es una cadena que no se valida hasta ejecutarse, por eso
+-- la 00047 y la 00060 hacen lo mismo sin problema.)
+-- La salida es comparar por texto: `role::text = 'INSURER'` no toca el enum
+-- nuevo. Ver `auth_insurer_id()` justo abajo.
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'INSURER';
 
 ALTER TABLE public.profiles
@@ -40,8 +49,11 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+  -- `role::text`, no `role = 'INSURER'`: esta función se crea en la misma
+  -- transacción que el ADD VALUE de arriba, y comparar contra el enum haría
+  -- fallar la migración. Ver la nota del paso 1.
   SELECT insurer_id FROM public.profiles
-   WHERE id = auth.uid() AND role = 'INSURER';
+   WHERE id = auth.uid() AND role::text = 'INSURER';
 $$;
 
 REVOKE ALL ON FUNCTION public.auth_insurer_id() FROM PUBLIC, anon;
