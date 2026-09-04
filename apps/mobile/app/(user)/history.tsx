@@ -52,7 +52,31 @@ type ServiceRequest = {
   provider_name: string | null;
   pin: string | null;
   service_type: string;
+  // Cobertura: `total_price` es el precio bruto del servicio (lo que se le
+  // factura al seguro), no lo que pago la persona. Sin esto el historial
+  // contradecia el desglose que se le mostro antes de confirmar: un servicio
+  // con copago $0 aparecia como "$60.00".
+  coverage_status: string | null;
+  amount_covered: number | null;
+  amount_copay: number | null;
 };
+
+const money = (n: number) => `$${n.toFixed(2)}`;
+
+/**
+ * Lo que realmente paga la persona por este servicio, o null si todavia no hay
+ * un monto que mostrar.
+ *
+ * Solo se considera cubierto cuando existe la fila de `coverage_usage`, que es
+ * la que fija el reparto definitivo al completar. `coverage_status = 'covered'`
+ * por si solo se decidio al crear la solicitud y puede no haber terminado en
+ * consumo (cancelaciones, servicios excluidos del plan).
+ */
+function precioAPagar(req: ServiceRequest): { valor: number; cubierto: boolean } | null {
+  if (req.amount_copay != null) return { valor: req.amount_copay, cubierto: true };
+  if (req.total_price != null) return { valor: req.total_price, cubierto: false };
+  return null;
+}
 
 type FilterType = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -117,6 +141,7 @@ export default function History() {
         dropoff_lat,
         dropoff_lng,
         total_price,
+        coverage_status,
         created_at,
         completed_at,
         cancelled_at,
@@ -141,6 +166,30 @@ export default function History() {
     }
 
     if (data) {
+      // El reparto seguro/copago vive en `coverage_usage`, no en
+      // `service_requests`. La politica "Afiliado ve su consumo" deja al titular
+      // leer sus propias filas, asi que va en una consulta aparte acotada a las
+      // solicitudes que ya trajimos. Si falla, se cae al precio bruto — es peor
+      // no mostrar nada que mostrar el bruto.
+      const consumo = new Map<string, { covered: number; copay: number }>();
+      const ids = data.map((r) => r.id);
+      if (ids.length > 0) {
+        const { data: usos, error: errUso } = await supabase
+          .from('coverage_usage')
+          .select('request_id, amount_covered, amount_copay')
+          .in('request_id', ids);
+        if (errUso) {
+          console.error('Error loading coverage usage:', errUso.message);
+        } else {
+          for (const u of usos ?? []) {
+            consumo.set(u.request_id, {
+              covered: Number(u.amount_covered),
+              copay: Number(u.amount_copay),
+            });
+          }
+        }
+      }
+
       const formattedRequests: ServiceRequest[] = data.map((req) => ({
         id: req.id,
         status: req.status,
@@ -165,6 +214,9 @@ export default function History() {
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         pin: savedPins[req.id] || null,
         service_type: req.service_type || 'tow',
+        coverage_status: (req as Record<string, unknown>).coverage_status as string | null ?? null,
+        amount_covered: consumo.get(req.id)?.covered ?? null,
+        amount_copay: consumo.get(req.id)?.copay ?? null,
       }));
       setRequests(formattedRequests);
     }
@@ -317,9 +369,14 @@ export default function History() {
               {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
             </Text>
           </View>
-          {item.total_price && (
-            <Text style={styles.price}>${item.total_price.toFixed(2)}</Text>
-          )}
+          {(() => {
+            const pago = precioAPagar(item);
+            if (!pago) return null;
+            if (pago.cubierto && pago.valor <= 0) {
+              return <Text style={styles.priceFree}>Sin costo</Text>;
+            }
+            return <Text style={styles.price}>{money(pago.valor)}</Text>;
+          })()}
         </View>
       </Card>
     );
@@ -485,14 +542,42 @@ export default function History() {
               </View>
             )}
 
-            {selectedRequest.total_price && (
-              <View style={styles.priceSection}>
-                <Text style={styles.priceSectionLabel}>Precio Final</Text>
-                <Text style={styles.priceSectionValue}>
-                  ${selectedRequest.total_price.toFixed(2)}
-                </Text>
-              </View>
-            )}
+            {(() => {
+              const pago = precioAPagar(selectedRequest);
+              if (!pago) return null;
+              const sinCosto = pago.cubierto && pago.valor <= 0;
+              return (
+                <View style={styles.priceSection}>
+                  <Text style={styles.priceSectionLabel}>
+                    {pago.cubierto ? 'Lo que pagaste' : 'Precio Final'}
+                  </Text>
+                  <Text style={styles.priceSectionValue}>
+                    {sinCosto ? 'Sin costo' : money(pago.valor)}
+                  </Text>
+                  {/* El desglose solo cuando el seguro puso algo: repite el mismo
+                      reparto que se le mostro antes de confirmar (B-13). Si el
+                      servicio estaba excluido del plan, `amount_covered` es 0 y
+                      las dos lineas dirian "$35.00" y "−$0.00" — ruido: ahi el
+                      monto de arriba ya es toda la historia. */}
+                  {pago.cubierto && (selectedRequest.amount_covered ?? 0) > 0 && (
+                    <View style={styles.coverageBreakdown}>
+                      <View style={styles.coverageRow}>
+                        <Text style={styles.coverageLabel}>Precio del servicio</Text>
+                        <Text style={styles.coverageValue}>
+                          {money(selectedRequest.total_price ?? 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.coverageRow}>
+                        <Text style={styles.coverageLabel}>Cubrió tu seguro</Text>
+                        <Text style={styles.coverageValue}>
+                          −{money(selectedRequest.amount_covered ?? 0)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
 
             <View style={styles.timelineSection}>
               <Text style={styles.timelineTitle}>Fechas</Text>
@@ -834,6 +919,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     color: colors.accent[600],
   },
+  priceFree: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.body,
+    color: colors.success.dark,
+  },
   // Empty state
   emptyContainer: {
     flex: 1,
@@ -959,6 +1049,29 @@ const styles = StyleSheet.create({
   priceSectionValue: {
     fontFamily: typography.fonts.heading,
     fontSize: typography.sizes.h1,
+    color: colors.success.dark,
+  },
+  coverageBreakdown: {
+    alignSelf: 'stretch',
+    marginTop: spacing.s,
+    paddingTop: spacing.s,
+    borderTopWidth: 1,
+    borderTopColor: colors.success.dark,
+    opacity: 0.85,
+  },
+  coverageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  coverageLabel: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
+  },
+  coverageValue: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
     color: colors.success.dark,
   },
   timelineSection: {
