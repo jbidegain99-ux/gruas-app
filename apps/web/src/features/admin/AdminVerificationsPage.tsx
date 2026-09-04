@@ -80,7 +80,11 @@ export default function AdminVerificationsPage() {
           full_name: p.full_name,
           phone: p.phone,
           provider_name: (p.providers as unknown as { name: string } | null)?.name || null,
-          verification_status: p.verification_status,
+          // La columna pasó a ser nullable en la 00076 (solo los operadores
+          // llevan estado). Esta consulta ya filtra por rol OPERATOR, así que un
+          // NULL aquí solo puede ser un operador dado de alta por una vía que no
+          // pasó por el trigger: sin revisar, o sea pendiente.
+          verification_status: p.verification_status ?? 'pending',
           verification_submitted_at: p.verification_submitted_at,
           verification_rejection_reason: p.verification_rejection_reason,
         }))
