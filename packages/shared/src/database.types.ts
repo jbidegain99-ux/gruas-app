@@ -1617,6 +1617,36 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      admin_finance_by_insurer: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          a_facturar: number
+          aseguradora: string
+          bruto: number
+          copagos: number
+          insurer_id: string
+          servicios: number
+        }[]
+      }
+      admin_finance_detail: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          aseguradora: string
+          bruto: number
+          cliente: string
+          completado: string
+          copago: number
+          cubierto: number
+          folio: string
+          operador: string
+          proveedor: string
+          servicio: string
+        }[]
+      }
+      admin_finance_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       admin_link_insurer_user: {
         Args: { p_insurer_id: string; p_user_id: string }
         Returns: undefined
