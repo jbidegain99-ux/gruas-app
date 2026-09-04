@@ -100,8 +100,19 @@ WHERE id = (SELECT id FROM auth.users WHERE email = 'jbidegain@republicode.com')
 -- =====================================================
 -- Padron de demostracion para desarrollo. Las reglas van como FILAS en
 -- coverage_rules, no como columnas: ver el encabezado de la migracion 00044.
--- `members.profile_id` se resuelve por email para que el afiliado quede
--- vinculado a la cuenta de prueba usuario1@gruas.sv si existe.
+-- SOBRE LA VINCULACION DEL AFILIADO A SU CUENTA
+-- En produccion NO se hace por email: la aseguradora carga su padron antes de
+-- que la persona se instale la app, asi que `members.profile_id` nace NULL y
+-- `check_member_coverage` lo vincula por DUI la primera vez que coinciden.
+-- Este seed ejercita ese mismo camino en vez de tomar un atajo que no existe
+-- fuera de desarrollo: le siembra el DUI a la cuenta de prueba y deja que la
+-- vinculacion ocurra sola en la primera consulta de cobertura.
+--
+-- Ojo con el ORDEN: `supabase db reset` corre este archivo ANTES de que existan
+-- las cuentas de auth (el seed no las crea). Por eso el bloque de abajo no falla
+-- si la cuenta no esta: avisa por consola que hay que volver a correrlo. Es
+-- deliberado que avise y no que lo haga en silencio — antes ponia el profile_id
+-- en NULL sin decir nada y el afiliado quedaba sin cobertura sin motivo visible.
 
 INSERT INTO insurers (id, name, tax_id, contact_name, contact_email, contact_phone) VALUES
   ('a0000000-0000-0000-0000-000000000001', 'Seguros Demo, S.A. de C.V.', '0614-010101-001-1', 'Contacto Demo', 'contacto@segurosdemo.sv', '+503 2200-1000')
@@ -142,12 +153,30 @@ INSERT INTO policies (id, insurer_id, plan_id, policy_number, holder_name, start
   ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'POL-2026-0002', 'Maria Ramirez', '2026-03-01', '2027-02-28')
 ON CONFLICT (id) DO UPDATE SET holder_name = EXCLUDED.holder_name;
 
--- Titular vinculado a la cuenta de prueba (si existe) + un beneficiario sin cuenta.
-INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship)
-SELECT 'd0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
-       (SELECT id FROM profiles WHERE email = 'usuario1@gruas.sv'),
-       '01234567-8', 'Usuario Uno', '+503 7000-0001', 'holder'
-ON CONFLICT (id) DO UPDATE SET profile_id = EXCLUDED.profile_id;
+-- El padron llega como llega de la aseguradora: sin `profile_id`.
+INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship) VALUES
+  ('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', NULL,
+   '01234567-8', 'Usuario Uno', '+503 7000-0001', 'holder')
+ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+
+-- Y el DUI de la cuenta de prueba, que es lo que dispara la vinculacion real.
+-- Si la cuenta todavia no existe (reset recien corrido), lo dice en vez de
+-- callarse.
+DO $seed$
+DECLARE
+  v_profile UUID;
+BEGIN
+  SELECT id INTO v_profile FROM profiles WHERE email = 'usuario1@gruas.sv';
+  IF v_profile IS NULL THEN
+    RAISE NOTICE 'seed: la cuenta usuario1@gruas.sv todavia no existe, asi que el afiliado del padron queda sin vincular. Crea las cuentas de prueba y volve a correr este seed (psql -f supabase/seed.sql) para que quede cubierta.';
+  ELSE
+    INSERT INTO profile_sensitive (profile_id, dui_number)
+    VALUES (v_profile, '01234567-8')
+    ON CONFLICT (profile_id) DO UPDATE SET dui_number = EXCLUDED.dui_number;
+    RAISE NOTICE 'seed: DUI sembrado para usuario1@gruas.sv; la vinculacion al padron ocurre en su primera consulta de cobertura.';
+  END IF;
+END
+$seed$;
 
 INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship) VALUES
   ('d0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', NULL, '02345678-9', 'Ana Uno',       '+503 7000-0002', 'beneficiary'),

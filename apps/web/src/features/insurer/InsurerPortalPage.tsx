@@ -6,6 +6,7 @@ import { ChevronRight, Inbox } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { StatusBadge } from '@/shared/components/StatusBadge';
+import { money } from '@/shared/lib/format';
 
 // B-17: fila de list_insurer_cases().
 type Row = {
@@ -15,6 +16,8 @@ type Row = {
   created_at: string;
   total_price: number | null;
   coverage_status: string | null;
+  cubierto: number | null;
+  copago: number | null;
   assignment_met: boolean | null;
   arrival_met: boolean | null;
 };
@@ -53,7 +56,10 @@ export default function InsurerPortalPage() {
     const conSla = rows.filter((r) => r.arrival_met !== null);
     const enTiempo = conSla.filter((r) => r.arrival_met).length;
     const pct = conSla.length ? Math.round((enTiempo / conSla.length) * 100) : null;
-    return { total, completados, pct };
+    // Lo que asumen sus pólizas. El bruto incluye el copago del afiliado, que no
+    // se le factura a ella: mostrar el bruto acá sería prometerle otra cifra.
+    const aCargo = rows.reduce((a, r) => a + Number(r.cubierto ?? 0), 0);
+    return { total, completados, pct, aCargo };
   }, [rows]);
 
   return (
@@ -66,10 +72,11 @@ export default function InsurerPortalPage() {
       </div>
 
       {/* Resumen */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Casos" value={String(stats.total)} />
         <Stat label="Completados" value={String(stats.completados)} />
         <Stat label="Llegada en tiempo" value={stats.pct == null ? '—' : `${stats.pct}%`} />
+        <Stat label="A cargo de tus pólizas" value={money(stats.aCargo)} />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -80,6 +87,7 @@ export default function InsurerPortalPage() {
                 <th className="px-4 py-3 font-medium">Folio</th>
                 <th className="px-4 py-3 font-medium">Servicio</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 text-right font-medium">A tu cargo</th>
                 <th className="px-4 py-3 font-medium">Llegada (SLA)</th>
                 <th className="px-4 py-3 text-right font-medium">Fecha</th>
                 <th className="px-4 py-3" />
@@ -88,13 +96,13 @@ export default function InsurerPortalPage() {
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-sm text-zinc-500">
+                  <td colSpan={7} className="px-4 py-16 text-center text-sm text-zinc-500">
                     Cargando…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <Inbox className="mx-auto h-10 w-10 text-zinc-300 dark:text-zinc-600" />
                     <p className="mt-3 text-sm text-zinc-500">Todavía no hay casos de tus afiliados.</p>
                   </td>
@@ -115,6 +123,9 @@ export default function InsurerPortalPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={r.status} />
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">
+                      {r.cubierto == null ? '—' : money(Number(r.cubierto))}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <SlaPill met={r.arrival_met} />

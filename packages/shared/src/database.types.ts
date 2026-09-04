@@ -1962,8 +1962,10 @@ export type Database = {
         Returns: {
           arrival_met: boolean
           assignment_met: boolean
+          copago: number
           coverage_status: string
           created_at: string
+          cubierto: number
           folio: string
           service_type: string
           status: string
@@ -2030,6 +2032,8 @@ export type Database = {
           provider_name: string
         }[]
       }
+      sv_day_start: { Args: { d: string }; Returns: string }
+      sv_today: { Args: never; Returns: string }
       unregister_device_token: {
         Args: { p_expo_push_token: string }
         Returns: boolean

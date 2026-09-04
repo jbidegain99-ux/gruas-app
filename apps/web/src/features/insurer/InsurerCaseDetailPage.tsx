@@ -24,8 +24,12 @@ type Detail = {
   coverage_status: string | null;
 };
 
+/** El reparto del caso. Vive en `coverage_usage`; la aseguradora ve el suyo desde la migr. 00084. */
+type Reparto = { amount_covered: number; amount_copay: number };
+
 export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [reparto, setReparto] = useState<Reparto | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -40,11 +44,22 @@ export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
       const { data } = await supabase
         .from('cases')
         .select(
-          'folio, service_requests(status, service_type, created_at, pickup_address, dropoff_address, total_price, coverage_status)',
+          'folio, request_id, service_requests(status, service_type, created_at, pickup_address, dropoff_address, total_price, coverage_status)',
         )
         .eq('folio', folio)
         .maybeSingle();
       if (!alive) return;
+
+      // El reparto va aparte: `coverage_usage` no cuelga de `cases`.
+      const requestId = (data as { request_id?: string } | null)?.request_id;
+      if (requestId) {
+        const { data: cu } = await supabase
+          .from('coverage_usage')
+          .select('amount_covered, amount_copay')
+          .eq('request_id', requestId)
+          .maybeSingle();
+        if (alive && cu) setReparto(cu as Reparto);
+      }
       const sr = (data as { service_requests: Detail } | null)?.service_requests ?? null;
       if (!sr) setNotFound(true);
       else setDetail(sr);
@@ -107,8 +122,22 @@ export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
           )}
           {detail.total_price != null && (
             <Field label="Precio del servicio">
-              <span className="text-lg font-bold text-zinc-900 dark:text-white">{money(detail.total_price)}</span>
+              <span className="text-sm text-zinc-900 dark:text-white">{money(detail.total_price)}</span>
             </Field>
+          )}
+          {/* Lo que de verdad se le factura. El precio de arriba incluye el
+              copago del afiliado, que no le corresponde a la aseguradora:
+              destacar el bruto le prometía una cifra que no era la suya. */}
+          {reparto && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
+              <p className="text-xs text-emerald-800 dark:text-emerald-300">A cargo de tu póliza</p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums text-emerald-900 dark:text-emerald-200">
+                {money(Number(reparto.amount_covered))}
+              </p>
+              <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300/80">
+                El afiliado paga {money(Number(reparto.amount_copay))} de copago.
+              </p>
+            </div>
           )}
           <CaseSla folio={folio} />
         </div>
