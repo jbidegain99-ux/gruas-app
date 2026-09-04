@@ -3,6 +3,7 @@ import { DollarSign, ShieldCheck, Wallet, Receipt, AlertTriangle } from 'lucide-
 import { createClient } from '@/shared/lib/supabase/server';
 import { money } from '@/shared/lib/format';
 import { FinanceExportButton } from './FinanceExportButton';
+import { SettlementExportButton } from './SettlementExportButton';
 
 type Row = {
   total_price: number | null;
@@ -23,6 +24,18 @@ type Resumen = {
   copagos: number;
   particulares: number;
   ticket_promedio: number;
+};
+
+type Liquidacion = {
+  provider_id: string | null;
+  destinatario: string;
+  es_independiente: boolean;
+  comision_pct: number;
+  servicios: number;
+  sin_precio: number;
+  bruto: number;
+  comision: number;
+  a_pagar: number;
 };
 
 type PorAseguradora = {
@@ -65,9 +78,10 @@ export default async function AdminFinancePage({
 
   const supabase = await createClient();
 
-  const [{ data: resumenRaw }, { data: porAseguradoraRaw }, { data: filasRaw }] = await Promise.all([
+  const [{ data: resumenRaw }, { data: porAseguradoraRaw }, { data: liquidacionRaw }, { data: filasRaw }] = await Promise.all([
     supabase.rpc('admin_finance_summary', { p_from: desde, p_to: hasta }),
     supabase.rpc('admin_finance_by_insurer', { p_from: desde, p_to: hasta }),
+    supabase.rpc('admin_settlement_by_provider', { p_from: desde, p_to: hasta }),
     // El desglose por operador y por proveedor sigue saliendo de la tabla: son
     // agregados simples y no necesitan una RPC propia. El corte es el mismo que
     // el de las funciones —completed_at, `hasta` inclusive— para que los totales
@@ -86,6 +100,9 @@ export default async function AdminFinancePage({
     servicios: 0, sin_precio: 0, bruto: 0, aseguradoras: 0, copagos: 0, particulares: 0, ticket_promedio: 0,
   };
   const porAseguradora = (porAseguradoraRaw as PorAseguradora[] | null) ?? [];
+  const liquidacion = (liquidacionRaw as Liquidacion[] | null) ?? [];
+  const totalAPagar = liquidacion.reduce((a, l) => a + Number(l.a_pagar), 0);
+  const totalComision = liquidacion.reduce((a, l) => a + Number(l.comision), 0);
   const rows = (filasRaw || []) as unknown as Row[];
   const alCliente = Number(r.copagos) + Number(r.particulares);
 
@@ -261,10 +278,74 @@ export default async function AdminFinancePage({
         </div>
       </div>
 
+      {/* Liquidación (B-23, parcial: el cálculo; el registro de pagos depende del
+          procesador que decida B-20). */}
+      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Liquidación a la red</h2>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Se calcula sobre el bruto del servicio: el proveedor hizo el trabajo completo, sin
+              importar quién lo pagó. Retenido por Budi {money(totalComision)} · a pagar{' '}
+              <strong className="text-zinc-700 dark:text-zinc-300">{money(totalAPagar)}</strong>.
+            </p>
+          </div>
+          <SettlementExportButton desde={desde} hasta={hasta} />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-zinc-50 dark:bg-zinc-800/60">
+              <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <th className="px-5 py-3 font-medium">Se le paga a</th>
+                <th className="px-5 py-3 text-right font-medium">Comisión</th>
+                <th className="px-5 py-3 text-right font-medium">Servicios</th>
+                <th className="px-5 py-3 text-right font-medium">Bruto</th>
+                <th className="px-5 py-3 text-right font-medium">Retiene Budi</th>
+                <th className="px-5 py-3 text-right font-medium">A pagar</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {liquidacion.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-zinc-500">
+                    Sin servicios completados en el periodo.
+                  </td>
+                </tr>
+              ) : (
+                liquidacion.map((l) => (
+                  <tr key={l.provider_id ?? l.destinatario} className="text-sm">
+                    <td className="whitespace-nowrap px-5 py-3 font-medium text-zinc-900 dark:text-white">
+                      {l.destinatario}
+                      {l.es_independiente && (
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                          independiente
+                        </span>
+                      )}
+                      {Number(l.sin_precio) > 0 && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          {l.sin_precio} sin precio
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{Number(l.comision_pct)}%</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{l.servicios}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(Number(l.bruto))}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">−{money(Number(l.comision))}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">{money(Number(l.a_pagar))}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Facturado por operador</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">Monto de sus servicios completados (sin comisiones/liquidación aún).</p>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            Bruto de sus servicios completados. Lo que se le paga a su empresa está arriba, en Liquidación.
+          </p>
         </div>
         <FinTable rows={operators} firstHeader="Operador" total={Number(r.bruto)} />
       </div>

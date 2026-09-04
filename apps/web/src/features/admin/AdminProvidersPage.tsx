@@ -10,6 +10,8 @@ type Provider = {
   name: string;
   /** A que se dedica la empresa. NO es la lista de servicios: eso es provider_services. */
   business_type: string;
+  /** Porcentaje del bruto que retiene Budi por cada servicio de esta empresa. */
+  commission_rate: number;
   /** NULL cuando la empresa no remolca (una cerrajeria, un taller). */
   tow_type_supported: 'light' | 'heavy' | 'both' | null;
   is_active: boolean;
@@ -275,6 +277,8 @@ function ProviderForm({
   const toast = useToast();
   const [name, setName] = useState(provider?.name || '');
   const [businessType, setBusinessType] = useState<string>(provider?.business_type || 'tow');
+  // Se negocia empresa por empresa. El 20 es solo el valor con el que nace una nueva.
+  const [commission, setCommission] = useState<string>(String(provider?.commission_rate ?? 20));
   // '' = no remolca -> se guarda NULL.
   const [towType, setTowType] = useState<'light' | 'heavy' | 'both' | ''>(
     provider ? provider.tow_type_supported ?? '' : 'both'
@@ -332,6 +336,7 @@ function ProviderForm({
     const providerData = {
       name,
       business_type: businessType,
+      commission_rate: Number(commission),
       // '' significa "no remolca": se guarda NULL, no la cadena vacia.
       tow_type_supported: towType || null,
       contact_phone: phone || null,
@@ -438,6 +443,21 @@ function ProviderForm({
               A qué se dedica la empresa. Los servicios que presta se eligen más abajo.
             </p>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Comisión de Budi (%)
+            </label>
+            <input
+              type="number" min={0} max={100} step="0.01"
+              value={commission}
+              onChange={(e) => setCommission(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+            />
+            <p className="mt-1 text-xs text-zinc-500">
+              Porcentaje del bruto que retiene Budi. El resto se le liquida a la empresa.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Tipo de Grúa

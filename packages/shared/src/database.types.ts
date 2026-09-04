@@ -830,6 +830,7 @@ export type Database = {
         Row: {
           address: string | null
           business_type: string
+          commission_rate: number
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -842,6 +843,7 @@ export type Database = {
         Insert: {
           address?: string | null
           business_type?: string
+          commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -854,6 +856,7 @@ export type Database = {
         Update: {
           address?: string | null
           business_type?: string
+          commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -1654,6 +1657,47 @@ export type Database = {
       admin_set_operator_verification: {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
         Returns: undefined
+      }
+      admin_settlement_by_operator: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          a_pagar: number
+          bruto: number
+          comision: number
+          comision_pct: number
+          empresa: string
+          operador: string
+          operator_id: string
+          servicios: number
+        }[]
+      }
+      admin_settlement_by_provider: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          a_pagar: number
+          bruto: number
+          comision: number
+          comision_pct: number
+          destinatario: string
+          es_independiente: boolean
+          provider_id: string
+          servicios: number
+          sin_precio: number
+        }[]
+      }
+      admin_settlement_detail: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          a_pagar: number
+          bruto: number
+          comision: number
+          comision_pct: number
+          completado: string
+          destinatario: string
+          folio: string
+          operador: string
+          servicio: string
+        }[]
       }
       admin_update_user_role: {
         Args: {
