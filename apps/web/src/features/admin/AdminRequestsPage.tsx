@@ -128,6 +128,7 @@ export default function AdminRequestsPage() {
   const [operators, setOperators] = useState<Operator[]>([]);
   const [assignOperatorId, setAssignOperatorId] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [pickupDisplay, setPickupDisplay] = useState('');
   const [dropoffDisplay, setDropoffDisplay] = useState('');
   const selectedIdRef = useRef<string | null>(null);
@@ -235,6 +236,7 @@ export default function AdminRequestsPage() {
   const selectRequest = (r: ServiceRequest | null) => {
     setSelectedRequest(r);
     setAssignOperatorId(r?.operator_id ?? '');
+    setCancelReason('');
     selectedIdRef.current = r?.id ?? null;
     if (!r) {
       setPickupDisplay('');
@@ -282,7 +284,10 @@ export default function AdminRequestsPage() {
     if (!ok) return;
 
     const supabase = createClient();
-    const { error } = await supabase.rpc('admin_cancel_request', { p_request_id: requestId });
+    const { error } = await supabase.rpc('admin_cancel_request', {
+      p_request_id: requestId,
+      p_reason: cancelReason.trim() || null,
+    });
     if (error) {
       toast.error('No se pudo cancelar la solicitud.');
       return;
@@ -799,12 +804,28 @@ export default function AdminRequestsPage() {
                 )}
 
                 {!['completed', 'cancelled'].includes(selectedRequest.status) && (
-                  <button
-                    onClick={() => handleCancelRequest(selectedRequest.id)}
-                    className="mt-4 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                  >
-                    Cancelar Solicitud
-                  </button>
+                  <div className="mt-4">
+                    {/* El motivo viaja al RPC y termina en la línea de tiempo del
+                        caso (00072/00075). Sin esto las cancelaciones del panel
+                        se veían mudas justo donde alguien las va a querer
+                        explicar después. */}
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Motivo de la cancelación
+                    </label>
+                    <input
+                      type="text"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Ej: duplicada, el cliente ya no la necesita…"
+                      className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+                    />
+                    <button
+                      onClick={() => handleCancelRequest(selectedRequest.id)}
+                      className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                    >
+                      Cancelar Solicitud
+                    </button>
+                  </div>
                 )}
 
                 {/* B-15: cumplimiento de SLA del caso. */}
