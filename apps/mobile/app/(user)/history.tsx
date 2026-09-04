@@ -67,12 +67,19 @@ const money = (n: number) => `$${n.toFixed(2)}`;
  * Lo que realmente paga la persona por este servicio, o null si todavia no hay
  * un monto que mostrar.
  *
- * Solo se considera cubierto cuando existe la fila de `coverage_usage`, que es
- * la que fija el reparto definitivo al completar. `coverage_status = 'covered'`
- * por si solo se decidio al crear la solicitud y puede no haber terminado en
- * consumo (cancelaciones, servicios excluidos del plan).
+ * El estado va PRIMERO y no es opcional. La fila de `coverage_usage` nace al
+ * crear la solicitud con 0/0 —la llena `complete_service_request` recien al
+ * cerrar (00047)—, asi que `amount_copay` no nulo significa "esta persona tiene
+ * poliza", no "esto costo cero". Sin este guard, toda solicitud de un afiliado
+ * que no llegara a completarse (cancelada, asignada, en curso) se mostraba como
+ * "Sin costo", como si el servicio se hubiera prestado gratis.
+ *
+ * Cubierto solo cuando existe el consumo: `coverage_status = 'covered'` se
+ * decidio al crear la solicitud y pudo no terminar en consumo (servicio
+ * excluido del plan).
  */
 function precioAPagar(req: ServiceRequest): { valor: number; cubierto: boolean } | null {
+  if (req.status !== 'completed') return null;
   if (req.amount_copay != null) return { valor: req.amount_copay, cubierto: true };
   if (req.total_price != null) return { valor: req.total_price, cubierto: false };
   return null;
