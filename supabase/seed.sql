@@ -112,11 +112,18 @@ INSERT INTO coverage_plans (id, insurer_id, code, name, description) VALUES
   ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'BASICO', 'Plan Basico', 'Cobertura minima: 2 eventos al anio y 10 km de arrastre.')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
 
--- Plan Oro: todo cubierto salvo cerrajeria; grua 4/anio con 25 km.
+-- Plan Oro: todo cubierto salvo cerrajeria; grua 4/anio con 61 km.
+--
+-- Los 61 km no son un numero redondo por casualidad. Lo que asume la aseguradora
+-- sale de `base + (km_del_plan - km_de_la_tarifa) * precio_por_km`, y por lo
+-- tanto NO depende de la distancia del servicio: con la tarifa vigente (base
+-- $60, 25 km incluidos, $2.50/km liviana) son 60 + 36*2.50 = $150 exactos, que
+-- es el `max_covered_amount`. Con los 25 km que habia antes daba $60 y el tope
+-- no llegaba a aplicarse nunca: era configuracion muerta.
 INSERT INTO coverage_rules (plan_id, service_type, rule_key, rule_value) VALUES
   ('b0000000-0000-0000-0000-000000000001', NULL,        'covered',            1),
   ('b0000000-0000-0000-0000-000000000001', 'tow',       'services_per_year',  4),
-  ('b0000000-0000-0000-0000-000000000001', 'tow',       'included_km',       25),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'included_km',       61),
   ('b0000000-0000-0000-0000-000000000001', 'tow',       'max_covered_amount', 150),
   ('b0000000-0000-0000-0000-000000000001', 'locksmith', 'covered',            0)
 ON CONFLICT (plan_id, COALESCE(service_type, '*'), rule_key) DO UPDATE SET rule_value = EXCLUDED.rule_value;
