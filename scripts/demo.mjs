@@ -170,6 +170,21 @@ async function reset({ silencioso = false } = {}) {
   return perfiles.length;
 }
 
+// `suggest_nearest_operators` solo mira ubicaciones de los ultimos 5 minutos —y
+// hace bien, no se despacha a alguien cuyo ultimo ping es de hace una hora—. Pero
+// eso apaga la flota de la demo a los 5 minutos de sembrarla: el mapa sigue con
+// pines y el despacho devuelve cero candidatos. Esto le vuelve a poner la hora.
+async function ping() {
+  const perfiles = await sel('profiles', `email=like.*${encodeURIComponent(DOMINIO)}&role=eq.OPERATOR&select=id`);
+  if (!perfiles.length) { console.log('\n  La demo no está puesta.  ->  pnpm demo:seed\n'); return; }
+  const ids = perfiles.map((p) => p.id);
+  await patch('operator_locations', `operator_id=in.(${ids.join(',')})`, {
+    is_online: true, updated_at: new Date().toISOString(),
+  });
+  console.log(`\n  Flota al día: ${ids.length} operadores transmitiendo ahora mismo.`);
+  console.log('  (correlo justo antes de mostrar la demo: el despacho solo mira los últimos 5 min)\n');
+}
+
 async function status() {
   const perfiles = await sel('profiles', `email=like.*${encodeURIComponent(DOMINIO)}&select=id,email,full_name,role`);
   if (!perfiles.length) { console.log('\n  La demo no está puesta.  ->  node scripts/demo.mjs seed\n'); return; }
@@ -356,7 +371,7 @@ async function seed() {
 
 // ---------- main ----------
 const cmd = process.argv[2] || 'status';
-const acciones = { seed, reset, status };
+const acciones = { seed, reset, status, ping };
 if (!acciones[cmd]) {
   console.error('\n  uso: node scripts/demo.mjs seed | reset | status\n');
   process.exit(1);

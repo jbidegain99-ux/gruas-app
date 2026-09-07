@@ -16,6 +16,7 @@
     "demo:seed": "node scripts/demo.mjs seed",
     "demo:reset": "node scripts/demo.mjs reset",
     "demo:status": "node scripts/demo.mjs status",
+    "demo:ping": "node scripts/demo.mjs ping",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
     "db:seed": "supabase db seed",
