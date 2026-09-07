@@ -10,7 +10,11 @@ type Provider = {
   name: string;
   /** A que se dedica la empresa. NO es la lista de servicios: eso es provider_services. */
   business_type: string;
-  /** Porcentaje del bruto que retiene Budi por cada servicio de esta empresa. */
+  /**
+   * Porcentaje del bruto que retiene Budi por cada servicio de esta empresa.
+   * NO viene en la fila de `providers`: vive en `provider_commissions`, que solo
+   * el admin puede leer. Se completa aparte, con admin_list_provider_commissions.
+   */
   commission_rate: number;
   /** NULL cuando la empresa no remolca (una cerrajeria, un taller). */
   tow_type_supported: 'light' | 'heavy' | 'both' | null;
@@ -21,6 +25,9 @@ type Provider = {
   created_at: string;
   provider_services?: ProviderServiceRow[];
 };
+
+/** Espeja `default_commission_rate()` en la DB: con lo que nace una empresa nueva. */
+const DEFAULT_COMMISSION = 20;
 
 const BUSINESS_TYPES: { valor: string; etiqueta: string }[] = [
   { valor: 'tow', etiqueta: 'Operadora de grúas' },
@@ -58,14 +65,30 @@ export default function AdminProvidersPage() {
   useEffect(() => {
     const fetchProviders = async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from('providers')
-        .select(`
-          *,
-          provider_services(service_id, is_available, services(slug, name_es))
-        `)
-        .order('created_at', { ascending: false });
-      setProviders((data as Provider[]) || []);
+      // Dos consultas porque son dos niveles de acceso distintos: `providers` la
+      // lee cualquiera con sesion (la movil la necesita para el nombre de la
+      // empresa) y las comisiones son solo del admin.
+      const [{ data }, { data: comisiones }] = await Promise.all([
+        supabase
+          .from('providers')
+          .select(`
+            *,
+            provider_services(service_id, is_available, services(slug, name_es))
+          `)
+          .order('created_at', { ascending: false }),
+        supabase.rpc('admin_list_provider_commissions'),
+      ]);
+      const porProveedor = new Map(
+        (comisiones ?? []).map((c) => [c.provider_id, Number(c.commission_rate)])
+      );
+      // La fila de `providers` ya no trae la comision, asi que el cast va contra
+      // el tipo sin ella y el campo se completa aca.
+      setProviders(
+        ((data as Omit<Provider, 'commission_rate'>[]) || []).map((p) => ({
+          ...p,
+          commission_rate: porProveedor.get(p.id) ?? DEFAULT_COMMISSION,
+        }))
+      );
       setLoading(false);
     };
     fetchProviders();
@@ -277,8 +300,10 @@ function ProviderForm({
   const toast = useToast();
   const [name, setName] = useState(provider?.name || '');
   const [businessType, setBusinessType] = useState<string>(provider?.business_type || 'tow');
-  // Se negocia empresa por empresa. El 20 es solo el valor con el que nace una nueva.
-  const [commission, setCommission] = useState<string>(String(provider?.commission_rate ?? 20));
+  // Se negocia empresa por empresa. El default es solo el valor con el que nace una nueva.
+  const [commission, setCommission] = useState<string>(
+    String(provider?.commission_rate ?? DEFAULT_COMMISSION)
+  );
   // '' = no remolca -> se guarda NULL.
   const [towType, setTowType] = useState<'light' | 'heavy' | 'both' | ''>(
     provider ? provider.tow_type_supported ?? '' : 'both'
@@ -333,10 +358,10 @@ function ProviderForm({
 
     const supabase = createClient();
 
+    // La comision no va aca: se guarda aparte, por RPC, en cuanto haya un id.
     const providerData = {
       name,
       business_type: businessType,
-      commission_rate: Number(commission),
       // '' significa "no remolca": se guarda NULL, no la cadena vacia.
       tow_type_supported: towType || null,
       contact_phone: phone || null,
@@ -368,6 +393,19 @@ function ProviderForm({
         return;
       }
       providerId = data?.id;
+    }
+
+    // La comision va a `provider_commissions`, no a la fila del proveedor.
+    if (providerId) {
+      const { error: comisionError } = await supabase.rpc('admin_set_provider_commission', {
+        p_provider_id: providerId,
+        p_rate: Number(commission),
+      });
+      if (comisionError) {
+        toast.error('Se guardó el proveedor, pero no la comisión.');
+        setLoading(false);
+        return;
+      }
     }
 
     // Sync provider_services
