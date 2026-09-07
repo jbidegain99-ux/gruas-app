@@ -777,6 +777,32 @@ export type Database = {
           },
         ]
       }
+      provider_commissions: {
+        Row: {
+          commission_rate: number
+          provider_id: string
+          updated_at: string
+        }
+        Insert: {
+          commission_rate: number
+          provider_id: string
+          updated_at?: string
+        }
+        Update: {
+          commission_rate?: number
+          provider_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_commissions_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_services: {
         Row: {
           created_at: string | null
@@ -833,7 +859,6 @@ export type Database = {
         Row: {
           address: string | null
           business_type: string
-          commission_rate: number
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -846,7 +871,6 @@ export type Database = {
         Insert: {
           address?: string | null
           business_type?: string
-          commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -859,7 +883,6 @@ export type Database = {
         Update: {
           address?: string | null
           business_type?: string
-          commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -1606,6 +1629,13 @@ export type Database = {
         Args: { p_insurer_id: string; p_user_id: string }
         Returns: undefined
       }
+      admin_list_provider_commissions: {
+        Args: never
+        Returns: {
+          commission_rate: number
+          provider_id: string
+        }[]
+      }
       admin_set_operator_commission: {
         Args: { p_operator_id: string; p_rate?: number }
         Returns: Json
@@ -1613,6 +1643,10 @@ export type Database = {
       admin_set_operator_verification: {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
         Returns: undefined
+      }
+      admin_set_provider_commission: {
+        Args: { p_provider_id: string; p_rate: number }
+        Returns: Json
       }
       admin_settlement_by_operator: {
         Args: { p_from: string; p_to: string }
@@ -1836,6 +1870,10 @@ export type Database = {
       }
       default_commission_rate: { Args: never; Returns: number }
       drain_notification_queue: { Args: never; Returns: undefined }
+      effective_commission_rate: {
+        Args: { p_operator_rate?: number; p_provider_id: string }
+        Returns: number
+      }
       evaluate_coverage: {
         Args: {
           p_exclude_request?: string
@@ -1922,6 +1960,7 @@ export type Database = {
         }[]
       }
       member_document_key: { Args: { p_doc: string }; Returns: string }
+      member_relationship: { Args: { p_texto: string }; Returns: string }
       my_operator_earnings: {
         Args: { p_from: string; p_to: string }
         Returns: {
