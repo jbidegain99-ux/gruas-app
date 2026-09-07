@@ -4,6 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { osrmRoute } from '../_shared/routing.ts';
+import { AuthError, requireUser } from '../_shared/auth.ts';
 
 const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
 
@@ -127,6 +128,19 @@ serve(async (req: Request) => {
   const cors = corsHeaders(req);
 
   try {
+    // 1. Autenticar ANTES de mirar el payload.
+    //
+    // Esta funcion no tenia ninguna verificacion: alcanzaba la publishable key
+    // —que es publica, va dentro del bundle de la app y del JS de la web— para
+    // que cualquiera la usara como proxy de ruteo gratis. Con GOOGLE_MAPS_API_KEY
+    // configurada eso es la Distance Matrix API facturandose a nuestra cuenta.
+    //
+    // `verify_jwt` del gateway NO alcanza para esto: da por buena la anon key,
+    // que es justamente la que tiene cualquiera. Por eso la comprobacion va aca
+    // adentro, igual que en get-eta.
+    await requireUser(req);
+
+    // 2. Recien ahora, el payload.
     const payload: DistanceRequest = await req.json();
     const { origin_lat, origin_lng, destination_lat, destination_lng } = payload;
 
@@ -247,6 +261,12 @@ serve(async (req: Request) => {
     );
 
   } catch (error) {
+    if (error instanceof AuthError) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        { status: error.status, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
     console.error('Error calculating distance:', error);
     return new Response(
       JSON.stringify({

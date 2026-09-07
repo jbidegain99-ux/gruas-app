@@ -51,6 +51,12 @@ enable_confirmations = false
 [analytics]
 enabled = false
 
+[functions.calculate-distance]
+# Solo la llama la app movil desde el flujo de solicitud, siempre con sesion.
+# El gateway no alcanza como defensa —da por buena la anon key, que es publica—
+# asi que la funcion tambien llama requireUser(). Esto es la otra mitad.
+verify_jwt = true
+
 [functions.get-eta]
 # Was false to ease early development; flipped 2026-05-25 to close the
 # privacy leak (anyone with a request_id could pull operator coords).
