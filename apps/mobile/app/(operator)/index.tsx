@@ -4,12 +4,13 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   RefreshControl,
   Alert,
   Image,
   Switch,
 } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -126,9 +127,17 @@ export default function OperatorRequests() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchData();
+  // Refresca cada vez que se entra a la pestaña. El realtime es el camino
+  // normal, pero si un evento se pierde (pasa) la pantalla se quedaba
+  // congelada en "tienes un servicio activo" despues de completarlo, sin
+  // forma de volver al pool salvo reiniciar la app. Volver aca la pone al dia.
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
+  useEffect(() => {
     // Subscribe to real-time updates
     const channel = supabase
       .channel('operator-requests')
@@ -572,7 +581,15 @@ export default function OperatorRequests() {
       </View>
 
       {hasActiveService ? (
-        <View style={styles.activeServiceWrapper}>
+        // Va en ScrollView y no en View para que este estado tambien tenga
+        // pull-to-refresh: es justo donde el operador se queda esperando, y sin
+        // el quedaba encerrado si se perdia el evento de realtime del cierre.
+        <ScrollView
+          contentContainerStyle={[styles.pullable, styles.activeServiceWrapper]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
+          }
+        >
           <Card variant="outlined" padding="l">
             <View style={styles.activeServiceContent}>
               <Zap size={32} color={colors.accent[500]} strokeWidth={2} />
@@ -586,9 +603,14 @@ export default function OperatorRequests() {
               />
             </View>
           </Card>
-        </View>
+        </ScrollView>
       ) : !verified ? (
-        <View style={styles.emptyState}>
+        <ScrollView
+          contentContainerStyle={[styles.pullable, styles.emptyState]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
+          }
+        >
           <ClipboardList size={56} color={colors.warning.main} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Verificación pendiente</Text>
           <Text style={styles.emptyText}>
@@ -602,7 +624,7 @@ export default function OperatorRequests() {
               size="medium"
             />
           </View>
-        </View>
+        </ScrollView>
       ) : !online ? (
         <View style={styles.emptyState}>
           <PowerOff size={56} color={colors.text.tertiary} strokeWidth={1.5} />
@@ -619,13 +641,18 @@ export default function OperatorRequests() {
           onRetry={onRefresh}
         />
       ) : requests.length === 0 ? (
-        <View style={styles.emptyState}>
+        <ScrollView
+          contentContainerStyle={[styles.pullable, styles.emptyState]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
+          }
+        >
           <ClipboardList size={56} color={colors.text.tertiary} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Sin solicitudes</Text>
           <Text style={styles.emptyText}>
             Las nuevas solicitudes aparecerán aquí automáticamente.
           </Text>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={requests}
@@ -875,6 +902,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     color: colors.text.secondary,
     textAlign: 'center',
+  },
+  // Para los estados sin lista: hace que el contenido corto siga llenando la
+  // pantalla y que el ScrollView acepte el gesto de pull-to-refresh.
+  pullable: {
+    flexGrow: 1,
   },
   emptyState: {
     flex: 1,

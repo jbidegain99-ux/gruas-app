@@ -17,6 +17,14 @@ export function looksLikeCoords(address: string | null | undefined): boolean {
   return !!address && COORD_RE.test(address);
 }
 
+// Un "plus code" de Google (MQRV+7C5): codifica coordenadas, no una direccion.
+// Su alfabeto excluye vocales y las letras que se confunden (A,E,I,L,O,S,U,Z),
+// por eso el rango raro.
+const PLUS_CODE_RE = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i;
+export function isPlusCode(text: string): boolean {
+  return PLUS_CODE_RE.test(text.trim());
+}
+
 // Caché en memoria de direcciones ya resueltas (evita repetir llamadas).
 const displayCache = new Map<string, string>();
 
@@ -47,13 +55,21 @@ export async function resolveDisplayAddress(
  * falla, retorna las coords formateadas.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  // Respaldo por si el geocoder nativo solo da ciudad/pais y Nominatim falla.
+  let coarse = '';
+
   // 1. Geocoder nativo de Expo
   try {
     const [r] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
     if (r) {
-      const parts = [r.street, r.name, r.city, r.region, r.country].filter(Boolean);
+      // Google usa el `name` para devolver un plus code (MQRV+7C5) cuando el
+      // punto no tiene direccion postal. Al operador eso no le dice nada, asi
+      // que lo descartamos y probamos con Nominatim, que suele traer la calle.
+      const name = r.name && !isPlusCode(r.name) ? r.name : null;
+      const parts = [r.street, name, r.city, r.region, r.country].filter(Boolean);
       const addr = [...new Set(parts)].join(', ');
-      if (addr) return addr;
+      if (addr && (r.street || name)) return addr;
+      coarse = addr;
     }
   } catch {
     // Esperado en Expo Go; seguimos al fallback.
@@ -85,6 +101,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     // Sin red o bloqueado; caemos a coords.
   }
 
-  // 3. Respaldo
-  return coordsLabel(lat, lng);
+  // 3. Respaldo: lo poco que dio el geocoder nativo antes que las coordenadas.
+  return coarse || coordsLabel(lat, lng);
 }

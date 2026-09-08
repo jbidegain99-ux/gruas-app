@@ -42,7 +42,14 @@ interface LocationData {
 interface LocationPickerProps {
   visible: boolean;
   title: string;
+  /** Punto ya elegido: centra el mapa Y queda seleccionado (para editar). */
   initialLocation?: { latitude: number; longitude: number };
+  /**
+   * Solo centra el mapa, sin seleccionar nada. Para abrir cerca del cliente
+   * cuando todavia no eligio el punto (p. ej. el destino, que arranca donde
+   * esta la grua averiada pero NO puede quedar pre-confirmado ahi).
+   */
+  initialRegion?: { latitude: number; longitude: number };
   onLocationSelected: (location: LocationData) => void;
   onClose: () => void;
 }
@@ -67,11 +74,15 @@ export function LocationPicker({
   visible,
   title,
   initialLocation,
+  initialRegion,
   onLocationSelected,
   onClose,
 }: LocationPickerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
+  // Marca que el texto del buscador lo puso el componente (no la persona), para
+  // no disparar una busqueda con el (ver el efecto de busqueda mas abajo).
+  const writtenByUs = useRef(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<{
@@ -82,10 +93,12 @@ export function LocationPicker({
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Default region: DEFAULT_LOCATION (San Salvador unless overridden via env)
+  // Donde abre el mapa: el punto ya elegido, si no el que nos pasen para
+  // centrar, si no DEFAULT_LOCATION (San Salvador salvo que el env lo cambie).
+  const centerOn = initialLocation ?? initialRegion;
   const defaultRegion: Region = {
-    latitude: initialLocation?.latitude || DEFAULT_LOCATION.latitude,
-    longitude: initialLocation?.longitude || DEFAULT_LOCATION.longitude,
+    latitude: centerOn?.latitude || DEFAULT_LOCATION.latitude,
+    longitude: centerOn?.longitude || DEFAULT_LOCATION.longitude,
     ...DEFAULT_MAP_DELTA,
   };
 
@@ -104,8 +117,17 @@ export function LocationPicker({
     }
   }, [visible, initialLocation]);
 
-  // Debounced place search
+  // Debounced place search. Solo cuando el texto lo escribio la persona: al
+  // tocar el mapa tambien escribimos ahi la direccion resuelta, y sin esta
+  // guarda esa escritura disparaba una busqueda cuyo panel de sugerencias
+  // tapaba el mapa justo despues de elegir el punto.
   useEffect(() => {
+    if (writtenByUs.current) {
+      writtenByUs.current = false;
+      setPredictions([]);
+      return;
+    }
+
     const timer = setTimeout(() => {
       if (searchQuery.length >= 3) {
         searchPlaces(searchQuery);
@@ -170,6 +192,7 @@ export function LocationPicker({
     setIsLoading(true);
     Keyboard.dismiss();
     setPredictions([]);
+    writtenByUs.current = true;
     setSearchQuery(description);
 
     // If using local geocoding (no API key)
@@ -230,6 +253,7 @@ export function LocationPicker({
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     const addr = await resolveAddress(lat, lng);
     setAddress(addr);
+    writtenByUs.current = true;
     setSearchQuery(addr);
   }, []);
 

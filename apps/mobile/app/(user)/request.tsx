@@ -754,7 +754,11 @@ export default function RequestService() {
         <LocationPicker
           visible={showDestinationPicker}
           title="Destino"
-          initialLocation={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
+          // Centra el mapa donde esta el vehiculo, pero SIN dejarlo
+          // preseleccionado: si no, el destino salia confirmable igual al
+          // punto de recogida (viaje de 0 km) con solo tocar "Confirmar".
+          initialLocation={dropoffCoords ? { latitude: dropoffCoords.lat, longitude: dropoffCoords.lng } : undefined}
+          initialRegion={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
           onLocationSelected={(loc) => {
             setDropoffCoords({ lat: loc.latitude, lng: loc.longitude });
             setDropoffAddress(loc.address);

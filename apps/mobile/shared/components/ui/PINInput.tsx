@@ -51,10 +51,19 @@ export function PINInput({
     if (digit && index < length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
+
+    // Borrar tambien retrocede. No alcanza con hacerlo en onKeyPress: en
+    // Android el teclado numerico no emite el evento Backspace de forma
+    // fiable, asi que el operador que se equivocaba en el ultimo digito
+    // borraba esa casilla y ahi se quedaba, sin poder seguir hacia atras.
+    if (!digit && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
   }, [value, length, onChangeText]);
 
   const handleKeyPress = useCallback((index: number, key: string) => {
-    // Handle backspace - go to previous input
+    // Backspace sobre una casilla ya vacia: borra la anterior y va hacia ella.
+    // (Cuando la casilla tiene digito, de esto se encarga handleDigitChange.)
     if (key === 'Backspace' && !digits[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
       const newDigits = [...digits];
