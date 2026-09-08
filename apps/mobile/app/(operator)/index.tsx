@@ -606,7 +606,7 @@ export default function OperatorRequests() {
         </ScrollView>
       ) : !verified ? (
         <ScrollView
-          contentContainerStyle={[styles.pullable, styles.emptyState]}
+          contentContainerStyle={[styles.pullable, styles.emptyContent]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
           }
@@ -642,7 +642,7 @@ export default function OperatorRequests() {
         />
       ) : requests.length === 0 ? (
         <ScrollView
-          contentContainerStyle={[styles.pullable, styles.emptyState]}
+          contentContainerStyle={[styles.pullable, styles.emptyContent]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
           }
@@ -910,6 +910,16 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xxxl,
+    gap: spacing.s,
+  },
+  // Igual que emptyState pero SIN flex:1: dentro de un ScrollView el centrado y
+  // el llenado los da `pullable` (flexGrow:1) en el contentContainer; poner
+  // flex:1 ahi es un anti-patron de RN (flexBasis:0/flexShrink:1) que puede
+  // encoger contenido que deberia scrollear.
+  emptyContent: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.xxxl,

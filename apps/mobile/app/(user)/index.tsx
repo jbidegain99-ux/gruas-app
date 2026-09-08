@@ -113,11 +113,18 @@ export default function UserHome() {
   } = useActiveRequest();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Refresca al enfocar el home: el realtime del hook es el camino normal, pero
-  // los "servicios sin calificar" y el estado del servicio activo se veian
-  // viejos si un evento se perdia mientras el usuario estaba en otra pestana.
+  // Refresca al VOLVER al home desde otra pestana: el realtime del hook es el
+  // camino normal, pero los "servicios sin calificar" y el estado del servicio
+  // activo se veian viejos si un evento se perdia estando en otra pestana. Se
+  // salta el primer focus (montaje) porque ahi el hook ya hace su fetch inicial;
+  // sin esto se disparaban dos refetch identicos en el arranque.
+  const skipFirstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
+      if (skipFirstFocus.current) {
+        skipFirstFocus.current = false;
+        return;
+      }
       fetchActiveRequest();
     }, [fetchActiveRequest])
   );

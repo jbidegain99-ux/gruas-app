@@ -80,9 +80,13 @@ export function LocationPicker({
 }: LocationPickerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
-  // Marca que el texto del buscador lo puso el componente (no la persona), para
-  // no disparar una busqueda con el (ver el efecto de busqueda mas abajo).
-  const writtenByUs = useRef(false);
+  // Guarda el ULTIMO texto que el componente escribio en el buscador (al tocar
+  // el mapa o elegir una prediccion), para no dispararle una busqueda a ese
+  // valor. Se compara por igualdad —no un booleano de un solo uso— porque si la
+  // direccion resuelta coincide con lo que ya habia, setSearchQuery es no-op y
+  // el efecto no corre; guardar el string evita que la proxima tecla del
+  // usuario quede marcada por error como "escrita por nosotros".
+  const autoFilledQuery = useRef<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<{
@@ -122,11 +126,14 @@ export function LocationPicker({
   // guarda esa escritura disparaba una busqueda cuyo panel de sugerencias
   // tapaba el mapa justo despues de elegir el punto.
   useEffect(() => {
-    if (writtenByUs.current) {
-      writtenByUs.current = false;
+    // Si el texto actual es el que escribimos nosotros (una direccion ya
+    // resuelta), no buscar. Apenas el usuario lo cambia, deja de coincidir y
+    // volvemos a buscar con normalidad.
+    if (autoFilledQuery.current !== null && searchQuery === autoFilledQuery.current) {
       setPredictions([]);
       return;
     }
+    autoFilledQuery.current = null;
 
     const timer = setTimeout(() => {
       if (searchQuery.length >= 3) {
@@ -192,7 +199,7 @@ export function LocationPicker({
     setIsLoading(true);
     Keyboard.dismiss();
     setPredictions([]);
-    writtenByUs.current = true;
+    autoFilledQuery.current = description;
     setSearchQuery(description);
 
     // If using local geocoding (no API key)
@@ -253,7 +260,7 @@ export function LocationPicker({
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     const addr = await resolveAddress(lat, lng);
     setAddress(addr);
-    writtenByUs.current = true;
+    autoFilledQuery.current = addr;
     setSearchQuery(addr);
   }, []);
 
