@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ChevronRight } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
@@ -120,9 +120,14 @@ export default function OperatorProfile() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // Al enfocar la pestana, no solo al montar: los stats (total/activos/
+  // completados) cambian mientras la app esta abierta y esta pantalla queda
+  // montada como tab, asi que sin esto mostraba numeros viejos hasta reiniciar.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -13,7 +13,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '@/lib/supabase';
 import { useOperatorRealtimeTracking } from '@/features/tracking/hooks/useOperatorRealtimeTracking';
@@ -112,6 +112,15 @@ export default function UserHome() {
     refetch: fetchActiveRequest,
   } = useActiveRequest();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Refresca al enfocar el home: el realtime del hook es el camino normal, pero
+  // los "servicios sin calificar" y el estado del servicio activo se veian
+  // viejos si un evento se perdia mientras el usuario estaba en otra pestana.
+  useFocusEffect(
+    useCallback(() => {
+      fetchActiveRequest();
+    }, [fetchActiveRequest])
+  );
 
   // Rating modal state
   const [showRatingModal, setShowRatingModal] = useState(false);

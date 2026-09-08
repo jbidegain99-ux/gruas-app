@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogOut, Pencil, AlertCircle, HelpCircle, Car } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
@@ -85,9 +85,14 @@ export default function Profile() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // Al enfocar la pestana, no solo al montar: si el perfil cambia (p. ej. se
+  // edita el nombre o el telefono) esta pantalla queda montada como tab y sin
+  // esto mostraria los datos viejos hasta reiniciar la app.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
