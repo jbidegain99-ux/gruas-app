@@ -19,6 +19,37 @@ ON CONFLICT (id) DO UPDATE SET
   address = EXCLUDED.address;
 
 -- =====================================================
+-- QUE SERVICIOS PRESTA CADA EMPRESA (provider_services)
+--
+-- No es decoracion: `operator_can_serve` (00073) filtra el pool y
+-- `accept_service_request` con esto. Un tipo de servicio que ninguna empresa
+-- tilde queda huerfano — el catalogo se lo ofrece al cliente con su precio y
+-- despues no lo ve ningun operador nunca.
+--
+-- Ojo con el fail-open: una empresa que NO declara nada ve TODOS los tipos. Por
+-- eso las tres se declaran explicitamente, aunque una todavia no tenga
+-- operadores, para que nadie herede ese comodin sin querer.
+-- =====================================================
+INSERT INTO provider_services (provider_id, service_id, is_available)
+SELECT p.id, s.id, true
+  FROM providers p
+  JOIN services s ON s.slug = ANY (
+    CASE p.id
+      -- Grua liviana y pesada + trabajo de calle liviano.
+      WHEN '11111111-1111-1111-1111-111111111111'::uuid
+        THEN ARRAY['tow','winch','tire','locksmith']
+      -- Liviana: los apoyos rapidos de carretera.
+      WHEN '22222222-2222-2222-2222-222222222222'::uuid
+        THEN ARRAY['tow','tire','battery','fuel']
+      -- Pesada: arrastre grande y lo que necesita herramienta.
+      WHEN '33333333-3333-3333-3333-333333333333'::uuid
+        THEN ARRAY['tow','battery','fuel','mechanic']
+      ELSE ARRAY[]::TEXT[]
+    END
+  )
+ON CONFLICT (provider_id, service_id) DO UPDATE SET is_available = true;
+
+-- =====================================================
 -- PRICING RULES (2 rules for testing activation)
 -- =====================================================
 -- Deactivate any existing active rules first
@@ -95,6 +126,95 @@ WHERE id = (SELECT id FROM auth.users WHERE email = 'jbidegain@republicode.com')
 */
 
 -- =====================================================
+-- =====================================================
+-- ASEGURADORAS, PLANES Y COBERTURA  (B-08, Fase 1)
+-- =====================================================
+-- Padron de demostracion para desarrollo. Las reglas van como FILAS en
+-- coverage_rules, no como columnas: ver el encabezado de la migracion 00044.
+-- SOBRE LA VINCULACION DEL AFILIADO A SU CUENTA
+-- En produccion NO se hace por email: la aseguradora carga su padron antes de
+-- que la persona se instale la app, asi que `members.profile_id` nace NULL y
+-- `check_member_coverage` lo vincula por DUI la primera vez que coinciden.
+-- Este seed ejercita ese mismo camino en vez de tomar un atajo que no existe
+-- fuera de desarrollo: le siembra el DUI a la cuenta de prueba y deja que la
+-- vinculacion ocurra sola en la primera consulta de cobertura.
+--
+-- Ojo con el ORDEN: `supabase db reset` corre este archivo ANTES de que existan
+-- las cuentas de auth (el seed no las crea). Por eso el bloque de abajo no falla
+-- si la cuenta no esta: avisa por consola que hay que volver a correrlo. Es
+-- deliberado que avise y no que lo haga en silencio — antes ponia el profile_id
+-- en NULL sin decir nada y el afiliado quedaba sin cobertura sin motivo visible.
+
+INSERT INTO insurers (id, name, tax_id, contact_name, contact_email, contact_phone) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'Seguros Demo, S.A. de C.V.', '0614-010101-001-1', 'Contacto Demo', 'contacto@segurosdemo.sv', '+503 2200-1000')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tax_id = EXCLUDED.tax_id;
+
+INSERT INTO coverage_plans (id, insurer_id, code, name, description) VALUES
+  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'ORO',    'Plan Oro',    'Cobertura amplia: grua con 25 km incluidos y 4 eventos al anio.'),
+  ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'BASICO', 'Plan Basico', 'Cobertura minima: 2 eventos al anio y 10 km de arrastre.')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+
+-- Plan Oro: todo cubierto salvo cerrajeria; grua 4/anio con 61 km.
+--
+-- Los 61 km no son un numero redondo por casualidad. Lo que asume la aseguradora
+-- sale de `base + (km_del_plan - km_de_la_tarifa) * precio_por_km`, y por lo
+-- tanto NO depende de la distancia del servicio: con la tarifa vigente (base
+-- $60, 25 km incluidos, $2.50/km liviana) son 60 + 36*2.50 = $150 exactos, que
+-- es el `max_covered_amount`. Con los 25 km que habia antes daba $60 y el tope
+-- no llegaba a aplicarse nunca: era configuracion muerta.
+INSERT INTO coverage_rules (plan_id, service_type, rule_key, rule_value) VALUES
+  ('b0000000-0000-0000-0000-000000000001', NULL,        'covered',            1),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'services_per_year',  4),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'included_km',       61),
+  ('b0000000-0000-0000-0000-000000000001', 'tow',       'max_covered_amount', 150),
+  ('b0000000-0000-0000-0000-000000000001', 'locksmith', 'covered',            0)
+ON CONFLICT (plan_id, COALESCE(service_type, '*'), rule_key) DO UPDATE SET rule_value = EXCLUDED.rule_value;
+
+-- Plan Basico: solo grua y bateria, con topes mas bajos.
+INSERT INTO coverage_rules (plan_id, service_type, rule_key, rule_value) VALUES
+  ('b0000000-0000-0000-0000-000000000002', NULL,      'covered',            0),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'covered',            1),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'services_per_year',  2),
+  ('b0000000-0000-0000-0000-000000000002', 'tow',     'included_km',       10),
+  ('b0000000-0000-0000-0000-000000000002', 'battery', 'covered',            1)
+ON CONFLICT (plan_id, COALESCE(service_type, '*'), rule_key) DO UPDATE SET rule_value = EXCLUDED.rule_value;
+
+INSERT INTO policies (id, insurer_id, plan_id, policy_number, holder_name, starts_on, ends_on) VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'POL-2026-0001', 'Usuario Uno',  '2026-01-01', '2026-12-31'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'POL-2026-0002', 'Maria Ramirez', '2026-03-01', '2027-02-28')
+ON CONFLICT (id) DO UPDATE SET holder_name = EXCLUDED.holder_name;
+
+-- El padron llega como llega de la aseguradora: sin `profile_id`.
+INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship) VALUES
+  ('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', NULL,
+   '01234567-8', 'Usuario Uno', '+503 7000-0001', 'holder')
+ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+
+-- Y el DUI de la cuenta de prueba, que es lo que dispara la vinculacion real.
+-- Si la cuenta todavia no existe (reset recien corrido), lo dice en vez de
+-- callarse.
+DO $seed$
+DECLARE
+  v_profile UUID;
+BEGIN
+  SELECT id INTO v_profile FROM profiles WHERE email = 'usuario1@gruas.sv';
+  IF v_profile IS NULL THEN
+    RAISE NOTICE 'seed: la cuenta usuario1@gruas.sv todavia no existe, asi que el afiliado del padron queda sin vincular. Crea las cuentas de prueba y volve a correr este seed (psql -f supabase/seed.sql) para que quede cubierta.';
+  ELSE
+    INSERT INTO profile_sensitive (profile_id, dui_number)
+    VALUES (v_profile, '01234567-8')
+    ON CONFLICT (profile_id) DO UPDATE SET dui_number = EXCLUDED.dui_number;
+    RAISE NOTICE 'seed: DUI sembrado para usuario1@gruas.sv; la vinculacion al padron ocurre en su primera consulta de cobertura.';
+  END IF;
+END
+$seed$;
+
+INSERT INTO members (id, policy_id, profile_id, document_number, full_name, phone, relationship) VALUES
+  ('d0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', NULL, '02345678-9', 'Ana Uno',       '+503 7000-0002', 'beneficiary'),
+  ('d0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000002', NULL, '03456789-0', 'Maria Ramirez', '+503 7000-0003', 'holder')
+ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+
+-- =====================================================
 -- Verify seed data
 -- =====================================================
 DO $$
@@ -113,5 +233,9 @@ BEGIN
   RAISE NOTICE 'Active Providers: %', v_providers;
   RAISE NOTICE 'Total Pricing Rules: %', v_pricing;
   RAISE NOTICE 'Active Pricing Rule: %', COALESCE(v_active_pricing, 'NONE');
+  RAISE NOTICE 'Insurers: %  Plans: %  Rules: %  Policies: %  Members: %',
+    (SELECT COUNT(*) FROM insurers), (SELECT COUNT(*) FROM coverage_plans),
+    (SELECT COUNT(*) FROM coverage_rules), (SELECT COUNT(*) FROM policies),
+    (SELECT COUNT(*) FROM members);
   RAISE NOTICE '==========================================';
 END $$;

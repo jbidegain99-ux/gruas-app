@@ -2,6 +2,9 @@
 // Returns real driving distance and duration between two points
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
+import { osrmRoute } from '../_shared/routing.ts';
+import { AuthError, requireUser } from '../_shared/auth.ts';
 
 const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
 
@@ -97,19 +100,47 @@ function calculateFallback(
   };
 }
 
-serve(async (req: Request) => {
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
-
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+// Intenta ruta real por carretera (OSRM, gratis) y si no, cae a haversine.
+async function calculateRoadDistance(
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): Promise<DistanceResponse> {
+  const route = await osrmRoute(originLat, originLng, destLat, destLng);
+  if (route) {
+    return {
+      success: true,
+      distance_km: route.distance_km,
+      distance_text: `${route.distance_km} km`,
+      duration_minutes: route.duration_minutes,
+      duration_text: `~${route.duration_minutes} min`,
+      is_fallback: false, // es ruta real por carretera, no aproximacion
+    };
   }
+  return calculateFallback(originLat, originLng, destLat, destLng);
+}
+
+serve(async (req: Request) => {
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
+  const cors = corsHeaders(req);
 
   try {
+    // 1. Autenticar ANTES de mirar el payload.
+    //
+    // Esta funcion no tenia ninguna verificacion: alcanzaba la publishable key
+    // —que es publica, va dentro del bundle de la app y del JS de la web— para
+    // que cualquiera la usara como proxy de ruteo gratis. Con GOOGLE_MAPS_API_KEY
+    // configurada eso es la Distance Matrix API facturandose a nuestra cuenta.
+    //
+    // `verify_jwt` del gateway NO alcanza para esto: da por buena la anon key,
+    // que es justamente la que tiene cualquiera. Por eso la comprobacion va aca
+    // adentro, igual que en get-eta.
+    await requireUser(req);
+
+    // 2. Recien ahora, el payload.
     const payload: DistanceRequest = await req.json();
     const { origin_lat, origin_lng, destination_lat, destination_lng } = payload;
 
@@ -120,7 +151,7 @@ serve(async (req: Request) => {
           success: false,
           error: 'Coordenadas de origen invalidas o fuera de El Salvador',
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -130,7 +161,7 @@ serve(async (req: Request) => {
           success: false,
           error: 'Coordenadas de destino invalidas o fuera de El Salvador',
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -142,17 +173,17 @@ serve(async (req: Request) => {
           success: false,
           error: 'El origen y destino estan muy cerca (menos de 500m)',
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
     // Check if API key is configured
     if (!GOOGLE_MAPS_API_KEY) {
       console.error('GOOGLE_MAPS_API_KEY not configured, using fallback');
-      const fallbackResult = calculateFallback(origin_lat, origin_lng, destination_lat, destination_lng);
+      const fallbackResult = await calculateRoadDistance(origin_lat, origin_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -177,10 +208,10 @@ serve(async (req: Request) => {
       clearTimeout(timeoutId);
       console.error('Google API fetch error:', fetchError);
       // Use fallback on network error
-      const fallbackResult = calculateFallback(origin_lat, origin_lng, destination_lat, destination_lng);
+      const fallbackResult = await calculateRoadDistance(origin_lat, origin_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
     clearTimeout(timeoutId);
@@ -191,10 +222,10 @@ serve(async (req: Request) => {
     if (data.status !== 'OK') {
       console.error('Google API error:', data.status, data.error_message);
       // Use fallback on API error
-      const fallbackResult = calculateFallback(origin_lat, origin_lng, destination_lat, destination_lng);
+      const fallbackResult = await calculateRoadDistance(origin_lat, origin_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -202,10 +233,10 @@ serve(async (req: Request) => {
     if (!element || element.status !== 'OK') {
       console.error('Google API element error:', element?.status);
       // Use fallback
-      const fallbackResult = calculateFallback(origin_lat, origin_lng, destination_lat, destination_lng);
+      const fallbackResult = await calculateRoadDistance(origin_lat, origin_lng, destination_lat, destination_lng);
       return new Response(
         JSON.stringify(fallbackResult),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -226,17 +257,23 @@ serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify(result),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
+    if (error instanceof AuthError) {
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        { status: error.status, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
     console.error('Error calculating distance:', error);
     return new Response(
       JSON.stringify({
         success: false,
         error: 'Error interno del servidor',
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   }
 });

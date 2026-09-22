@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Palette } from 'lucide-react-native';
-import { BudiLogo, Button } from '@/components/ui';
+import { BudiLogo, Button } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Home() {
@@ -26,16 +26,18 @@ export default function Home() {
         />
       </View>
 
-      {/* TODO: Remove - temporary Design System QA link */}
-      <View style={styles.dsLink}>
-        <Button
-          title="Ver Design System"
-          icon={<Palette size={16} color={colors.primary[500]} strokeWidth={2} />}
-          onPress={() => router.push('/design-system')}
-          variant="tertiary"
-          size="small"
-        />
-      </View>
+      {/* Link de QA al Design System: solo en desarrollo, nunca en producción. */}
+      {__DEV__ && (
+        <View style={styles.dsLink}>
+          <Button
+            title="Ver Design System"
+            icon={<Palette size={16} color={colors.primary[500]} strokeWidth={2} />}
+            onPress={() => router.push('/design-system')}
+            variant="tertiary"
+            size="small"
+          />
+        </View>
+      )}
     </View>
   );
 }

@@ -59,6 +59,11 @@ CREATE POLICY "Admins can view all ratings"
 
 -- Create/Replace rate_service function
 -- Parameters expected by frontend: p_request_id, p_stars, p_comment
+-- Drop the earlier version from 00009 which returned the ratings row type —
+-- the frontend now expects a JSON envelope, and Postgres won't change the
+-- return type via CREATE OR REPLACE.
+DROP FUNCTION IF EXISTS rate_service(UUID, INTEGER, TEXT) CASCADE;
+
 CREATE OR REPLACE FUNCTION rate_service(
   p_request_id UUID,
   p_stars INTEGER,
@@ -166,6 +171,9 @@ CREATE POLICY "Operators can send messages to assigned requests"
 
 -- Create/Replace send_message function
 -- Parameters expected by frontend: p_request_id, p_message
+-- Drop the earlier version from 00008 (returned request_messages row).
+DROP FUNCTION IF EXISTS send_message(UUID, TEXT) CASCADE;
+
 CREATE OR REPLACE FUNCTION send_message(
   p_request_id UUID,
   p_message TEXT
@@ -251,6 +259,14 @@ CREATE POLICY "Users can view operator locations"
 
 -- Create/Replace upsert_operator_location function
 -- Parameters expected by frontend: p_lat, p_lng, p_is_online
+-- Drop the earlier 5-arg version from 00004 (returned operator_locations row).
+DROP FUNCTION IF EXISTS upsert_operator_location(
+  DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION
+) CASCADE;
+DROP FUNCTION IF EXISTS upsert_operator_location(
+  DOUBLE PRECISION, DOUBLE PRECISION, BOOLEAN
+) CASCADE;
+
 CREATE OR REPLACE FUNCTION upsert_operator_location(
   p_lat DOUBLE PRECISION,
   p_lng DOUBLE PRECISION,

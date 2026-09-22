@@ -10,23 +10,33 @@ import {
   Platform,
   Dimensions,
   Modal,
+  Alert,
+  Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { supabase } from '@/lib/supabase';
-import { useOperatorRealtimeTracking } from '@/hooks/useOperatorRealtimeTracking';
-import { useETA } from '@/hooks/useETA';
-import { useGPSSimulator } from '@/hooks/useGPSSimulator';
-import { RatingModal } from '@/components/RatingModal';
-import { ChatScreen } from '@/components/ChatScreen';
-import { decodePolyline } from '@/lib/geoUtils';
+import { useOperatorRealtimeTracking } from '@/features/tracking/hooks/useOperatorRealtimeTracking';
+import { useETA } from '@/features/tracking/hooks/useETA';
+import { useGPSSimulator } from '@/features/tracking/hooks/useGPSSimulator';
+import { RatingModal } from '@/features/rating/components/RatingModal';
+import { ChatScreen } from '@/features/chat/components/ChatScreen';
 import type { LatLng } from '@/lib/geoUtils';
 import { DEMO_CONFIG } from '@/config/demo';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { MAP_CONFIG } from '@/config/map';
+import { useTrackingRoute } from '@/features/tracking/hooks/useTrackingRoute';
+import { useActiveRequest } from '@/features/tracking/hooks/useActiveRequest';
+import { MiniMap } from '@/shared/components/MiniMap';
+import { AddressText } from '@/shared/components/AddressText';
+import { cancellationPolicyMessage } from '@/lib/cancellation';
+import { getPin } from '@/features/pin/lib/pinStorage';
+import { friendlyError } from '@/lib/errorMessages';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign } from 'lucide-react-native';
+import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone, Copy, CheckCircle2 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner } from '@/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
@@ -38,10 +48,11 @@ let Marker: React.ComponentType<any> | null = null;
 let MarkerAnimated: React.ComponentType<any> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Polyline: React.ComponentType<any> | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let AnimatedRegion: (new (...args: unknown[]) => { timing: (config: Record<string, unknown>) => { start: () => void } }) | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PROVIDER_GOOGLE: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let UrlTile: any = null;
 let mapsLoadError: string | null = null;
 
 if (Platform.OS !== 'web') {
@@ -53,11 +64,14 @@ if (Platform.OS !== 'web') {
     Polyline = Maps.Polyline;
     AnimatedRegion = Maps.AnimatedRegion;
     PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+    UrlTile = Maps.UrlTile;
   } catch (e) {
     mapsLoadError = e instanceof Error ? e.message : 'Failed to load react-native-maps';
     console.error('[Maps] Failed to load react-native-maps:', e);
   }
 }
+
+const USE_OSM = MAP_CONFIG.TILE_SOURCE === 'osm';
 
 type ActiveRequest = {
   id: string;
@@ -74,6 +88,7 @@ type ActiveRequest = {
   created_at: string;
   operator_id: string | null;
   operator_name: string | null;
+  operator_phone: string | null;
   provider_name: string | null;
   service_type: string;
   route_polyline: string | null;
@@ -86,10 +101,33 @@ const EDGE_PADDING = { top: 60, right: 60, bottom: 60, left: 60 };
 export default function UserHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    activeRequest,
+    userName,
+    pendingRatings,
+    setPendingRatings,
+    currentUserId,
+    loading,
+    error: activeRequestError,
+    refetch: fetchActiveRequest,
+  } = useActiveRequest();
   const [refreshing, setRefreshing] = useState(false);
-  const [userName, setUserName] = useState('');
+
+  // Refresca al VOLVER al home desde otra pestana: el realtime del hook es el
+  // camino normal, pero los "servicios sin calificar" y el estado del servicio
+  // activo se veian viejos si un evento se perdia estando en otra pestana. Se
+  // salta el primer focus (montaje) porque ahi el hook ya hace su fetch inicial;
+  // sin esto se disparaban dos refetch identicos en el arranque.
+  const skipFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (skipFirstFocus.current) {
+        skipFirstFocus.current = false;
+        return;
+      }
+      fetchActiveRequest();
+    }, [fetchActiveRequest])
+  );
 
   // Rating modal state
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -98,16 +136,57 @@ export default function UserHome() {
     operatorName: string | null;
   } | null>(null);
   const lastStatusRef = useRef<string | null>(null);
-  // List of pending ratings to show in UI (not popup)
-  const [pendingRatings, setPendingRatings] = useState<Array<{
-    id: string;
-    operatorName: string | null;
-    completedAt: string;
-  }>>([]);
 
   // Chat state
   const [showChat, setShowChat] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // PIN de activacion: lo guardamos cifrado (SecureStore) al crear la solicitud.
+  // Lo mostramos mientras la solicitud no este activada, para que el usuario
+  // pueda dictarselo al operador cuando llegue.
+  const [activePin, setActivePin] = useState<string | null>(null);
+  const [pinCopied, setPinCopied] = useState(false);
+  const requestId = activeRequest?.id ?? null;
+  const requestStatus = activeRequest?.status ?? null;
+  const showPin = requestStatus !== null &&
+    ['initiated', 'assigned', 'en_route'].includes(requestStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPinCopied(false);
+    if (requestId && showPin) {
+      getPin(requestId)
+        .then((pin) => { if (!cancelled) setActivePin(pin); })
+        .catch(() => { if (!cancelled) setActivePin(null); });
+    } else {
+      setActivePin(null);
+    }
+    return () => { cancelled = true; };
+  }, [requestId, showPin]);
+
+  const copyPin = async (pin: string) => {
+    try {
+      await Clipboard.setStringAsync(pin);
+      setPinCopied(true);
+    } catch {
+      // Copiar es una comodidad; si falla, el PIN sigue visible en pantalla.
+    }
+  };
+
+  // Aviso "esta tardando": solicitud en 'initiated' con >10 min sin actividad
+  // (mismo umbral que el job del backend, migracion 00036). La push de ese job
+  // no llega en Expo Go, asi que lo reflejamos tambien in-app. El tick de 30s
+  // re-evalua la condicion mientras se espera.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (requestStatus !== 'initiated') return;
+    setNowTick(Date.now());
+    const id = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [requestStatus]);
+  const searchDelayed =
+    requestStatus === 'initiated' &&
+    activeRequest?.updated_at != null &&
+    nowTick - new Date(activeRequest.updated_at).getTime() > 10 * 60 * 1000;
 
   // Map state
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
@@ -124,27 +203,19 @@ export default function UserHome() {
     ['assigned', 'en_route', 'active'].includes(activeRequest.status) &&
     operatorId;
 
-  // Debug: log map rendering conditions when active request exists
-  useEffect(() => {
-    if (activeRequest) {
-      console.log('=== MAP TRACKING DEBUG ===');
-      console.log('Status:', activeRequest.status);
-      console.log('Operator ID:', operatorId);
-      console.log('showTracking:', !!showTracking);
-      console.log('MapView loaded:', !!MapView);
-      console.log('Marker loaded:', !!Marker);
-      console.log('Maps load error:', mapsLoadError);
-      console.log('Platform:', Platform.OS);
-    }
-  }, [activeRequest?.status, operatorId, showTracking]);
+  // Fase del servicio: en 'active' el operador ya recogio y va camino al
+  // DESTINO. Antes de eso (assigned/en_route) va camino a la RECOGIDA. La ruta
+  // y el ETA cambian de tramo segun esto.
+  const activePhase = activeRequest?.status === 'active';
 
   const { location: operatorLocation, lastUpdated } = useOperatorRealtimeTracking(
     showTracking ? operatorId : null
   );
 
-  // Show ETA section when operator is assigned or en_route
+  // Show ETA section while the operator is en route to pickup OR towing to
+  // the destination (active). Solo cuando hay operador siguiendose.
   const showETASection = activeRequest &&
-    ['assigned', 'en_route'].includes(activeRequest.status);
+    ['assigned', 'en_route', 'active'].includes(activeRequest.status);
 
   // Only calculate ETA when we have operator location
   const canCalculateETA = showETASection &&
@@ -156,6 +227,17 @@ export default function UserHome() {
     [activeRequest?.pickup_lat, activeRequest?.pickup_lng]
   );
 
+  const dropoffLocation = useMemo(() =>
+    activeRequest && activeRequest.dropoff_lat && activeRequest.dropoff_lng
+      ? { lat: activeRequest.dropoff_lat, lng: activeRequest.dropoff_lng }
+      : null,
+    [activeRequest?.dropoff_lat, activeRequest?.dropoff_lng]
+  );
+
+  // Destino del tramo actual: en 'active' es la entrega; antes, la recogida.
+  // Si por algun motivo no hay dropoff, cae de vuelta a pickup.
+  const etaDestination = activePhase ? (dropoffLocation ?? pickupLocation) : pickupLocation;
+
   const operatorCoords = useMemo(() =>
     operatorLocation ? { lat: operatorLocation.lat, lng: operatorLocation.lng } : null,
     [operatorLocation?.lat, operatorLocation?.lng]
@@ -163,7 +245,7 @@ export default function UserHome() {
 
   const { eta: realEta, loading: etaLoading } = useETA(
     operatorCoords,
-    pickupLocation,
+    etaDestination,
     canCalculateETA || false,
     activeRequest?.id
   );
@@ -175,50 +257,18 @@ export default function UserHome() {
     ['assigned', 'en_route'].includes(activeRequest.status) &&
     activeRequest.operator_id !== null;
 
-  // Decode stored route polyline (saved when operator accepted)
-  const storedRoutePolyline = activeRequest?.route_polyline;
-  const decodedStoredRoute = useMemo(() =>
-    storedRoutePolyline ? decodePolyline(storedRoutePolyline) : [],
-    [storedRoutePolyline]
-  );
-
-  // Use ETA polyline as fallback if no stored route
-  const etaPolyline = realEta?.overviewPolyline;
-  const decodedEtaRoute = useMemo(() =>
-    etaPolyline ? decodePolyline(etaPolyline) : [],
-    [etaPolyline]
-  );
-
-  // Straight-line fallback: generate intermediate points from a nearby offset to pickup
-  // Used when no real polyline is available (edge function down, no stored route)
-  const straightLineFallback = useMemo(() => {
-    if (!activeRequest) return [];
-    const pickup = { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng };
-    // Offset ~2km south-west as simulated operator start position
-    const simulatedStart = {
-      latitude: pickup.latitude - 0.015,
-      longitude: pickup.longitude - 0.012,
-    };
-    // Create intermediate waypoints for smoother simulation
-    const steps = 20;
-    const points: LatLng[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      points.push({
-        latitude: simulatedStart.latitude + (pickup.latitude - simulatedStart.latitude) * t,
-        longitude: simulatedStart.longitude + (pickup.longitude - simulatedStart.longitude) * t,
-      });
-    }
-    return points;
-  }, [activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
-
-  // Pick best available route for simulation: stored polyline > ETA polyline > straight line
-  const simulationRoute = useMemo(() => {
-    if (decodedStoredRoute.length >= 2) return decodedStoredRoute;
-    if (decodedEtaRoute.length >= 2) return decodedEtaRoute;
-    if (isDemoMode && straightLineFallback.length >= 2) return straightLineFallback;
-    return [];
-  }, [decodedStoredRoute, decodedEtaRoute, isDemoMode, straightLineFallback]);
+  const { simulationRoute, routeCoordinatesForMap, hasRealRoute } = useTrackingRoute({
+    // "pickup" aqui es el objetivo del tramo actual: recogida, o destino en 'active'.
+    pickup: etaDestination,
+    // El polyline guardado es operador->recogida; en 'active' ya no aplica, se
+    // usa el del ETA (operador->destino).
+    storedPolyline: activePhase ? null : (activeRequest?.route_polyline ?? null),
+    etaPolyline: realEta?.overviewPolyline ?? null,
+    operatorLocation: operatorLocation
+      ? { lat: operatorLocation.lat, lng: operatorLocation.lng, is_online: operatorLocation.is_online }
+      : null,
+    isDemoMode,
+  });
 
   const simulator = useGPSSimulator({
     route: simulationRoute,
@@ -248,40 +298,9 @@ export default function UserHome() {
         distanceKm: simulator.remainingDistanceKm,
         distanceText: `${simulator.remainingDistanceKm} km`,
         isFallback: false,
-        overviewPolyline: storedRoutePolyline ?? null,
+        overviewPolyline: activeRequest?.route_polyline ?? null,
       })
     : realEta;
-
-  // Compute route coordinates for map display (memoized, no setState needed)
-  // Priority: demo simulation > stored DB polyline > ETA polyline > straight-line fallback
-  const routeCoordinatesForMap = useMemo(() => {
-    if (isDemoMode && simulationRoute.length >= 2) {
-      console.log('[Route] Using demo simulation route:', simulationRoute.length, 'points');
-      return simulationRoute;
-    }
-    if (decodedStoredRoute.length >= 2) {
-      console.log('[Route] Using stored DB polyline:', decodedStoredRoute.length, 'points');
-      return decodedStoredRoute;
-    }
-    if (decodedEtaRoute.length >= 2) {
-      console.log('[Route] Using ETA polyline:', decodedEtaRoute.length, 'points');
-      return decodedEtaRoute;
-    }
-    if (realEta?.overviewPolyline) {
-      const decoded = decodePolyline(realEta.overviewPolyline);
-      console.log('[Route] Using raw ETA polyline (decoded on fly):', decoded.length, 'points');
-      return decoded;
-    }
-    if (operatorLocation && operatorLocation.is_online && activeRequest) {
-      console.log('[Route] FALLBACK: straight line (operator → pickup)');
-      return [
-        { latitude: operatorLocation.lat, longitude: operatorLocation.lng },
-        { latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng },
-      ];
-    }
-    console.log('[Route] No route data available');
-    return [];
-  }, [isDemoMode, simulationRoute, decodedStoredRoute, decodedEtaRoute, realEta?.overviewPolyline, operatorLocation?.lat, operatorLocation?.lng, operatorLocation?.is_online, activeRequest?.pickup_lat, activeRequest?.pickup_lng]);
 
   // Fit map to coordinates when they change
   // Use primitive values for stable deps (avoid object reference churn from simulator)
@@ -292,7 +311,13 @@ export default function UserHome() {
     const coords: LatLng[] = [];
     if (activeRequest) {
       coords.push({ latitude: activeRequest.pickup_lat, longitude: activeRequest.pickup_lng });
-      if (activeRequest.dropoff_lat && activeRequest.dropoff_lng) {
+      // Sin destino real el dropoff es una copia del pickup: meterlo aqui daria
+      // dos coordenadas identicas y fitToCoordinates haria un zoom degenerado.
+      if (
+        requiresDropoff(activeRequest.service_type) &&
+        activeRequest.dropoff_lat &&
+        activeRequest.dropoff_lng
+      ) {
         coords.push({ latitude: activeRequest.dropoff_lat, longitude: activeRequest.dropoff_lng });
       }
     }
@@ -349,177 +374,54 @@ export default function UserHome() {
     }
   }, [markerLat, markerLng, markerOnline, isDemoMode]);
 
-  const fetchActiveRequest = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    // Store user ID for chat
-    setCurrentUserId(user.id);
-
-    // Get user name
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.full_name) {
-      setUserName(profile.full_name.split(' ')[0]);
-    }
-
-    // Get active requests - try with route_polyline first, fallback without it
-    const baseSelect = `
-      id,
-      status,
-      tow_type,
-      incident_type,
-      pickup_address,
-      pickup_lat,
-      pickup_lng,
-      dropoff_address,
-      dropoff_lat,
-      dropoff_lng,
-      total_price,
-      created_at,
-      operator_id,
-      service_type,
-      operator:profiles!service_requests_operator_id_fkey (full_name),
-      providers (name)
-    `;
-
-    let { data: requests, error: fetchError } = await supabase
-      .from('service_requests')
-      .select(`${baseSelect}, route_polyline`)
-      .eq('user_id', user.id)
-      .in('status', ['initiated', 'assigned', 'en_route', 'active'])
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    // Fallback: if query failed (e.g. route_polyline column missing), retry without it
-    if (fetchError) {
-      console.warn('[UserHome] Query with route_polyline failed, retrying without:', fetchError.message);
-      const fallback = await supabase
-        .from('service_requests')
-        .select(baseSelect)
-        .eq('user_id', user.id)
-        .in('status', ['initiated', 'assigned', 'en_route', 'active'])
-        .order('created_at', { ascending: false })
-        .limit(1);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      requests = fallback.data as typeof requests;
-      fetchError = fallback.error;
-    }
-
-    if (fetchError) {
-      console.error('[UserHome] Failed to fetch active requests:', fetchError.message);
-    }
-
-    if (requests && requests.length > 0) {
-      const req = requests[0];
-      setActiveRequest({
-        id: req.id,
-        status: req.status,
-        tow_type: req.tow_type,
-        incident_type: req.incident_type,
-        pickup_address: req.pickup_address,
-        pickup_lat: req.pickup_lat,
-        pickup_lng: req.pickup_lng,
-        dropoff_address: req.dropoff_address,
-        dropoff_lat: req.dropoff_lat,
-        dropoff_lng: req.dropoff_lng,
-        total_price: req.total_price,
-        created_at: req.created_at,
-        operator_id: req.operator_id,
-        operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
-        provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
-        service_type: req.service_type || 'tow',
-        route_polyline: (req as Record<string, unknown>).route_polyline as string | null ?? null,
-      });
-    } else {
-      setActiveRequest(null);
-
-      // Check for recently completed requests that need rating (within last 7 days)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const { data: completedRequests, error: completedError } = await supabase
-        .from('service_requests')
-        .select(`
-          id,
-          operator_id,
-          completed_at,
-          operator:profiles!service_requests_operator_id_fkey (full_name)
-        `)
-        .eq('user_id', user.id)
-        .eq('status', 'completed')
-        .not('operator_id', 'is', null)
-        .gte('completed_at', sevenDaysAgo.toISOString())
-        .order('completed_at', { ascending: false })
-        .limit(5);
-
-      if (completedError) {
-        console.log('[Rating] Error checking completed requests:', completedError);
-        setPendingRatings([]);
-      } else if (completedRequests && completedRequests.length > 0) {
-        // Get IDs of already rated requests
-        const requestIds = completedRequests.map(r => r.id);
-        const { data: existingRatings } = await supabase
-          .from('ratings')
-          .select('request_id')
-          .in('request_id', requestIds);
-
-        const ratedIds = new Set(existingRatings?.map(r => r.request_id) || []);
-
-        // Filter to only unrated requests
-        const unrated = completedRequests
-          .filter(req => !ratedIds.has(req.id))
-          .map(req => ({
-            id: req.id,
-            operatorName: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
-            completedAt: req.completed_at || '',
-          }));
-
-        console.log('[Rating] Pending ratings:', unrated.length);
-        setPendingRatings(unrated);
-      } else {
-        setPendingRatings([]);
-      }
-    }
-
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchActiveRequest();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('user-requests')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'service_requests',
-        },
-        () => {
-          fetchActiveRequest();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchActiveRequest]);
-
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchActiveRequest();
     setRefreshing(false);
+  };
+
+  // Cancelar la solicitud activa desde Inicio (confirmacion simple; el flujo con
+  // motivo detallado vive en Historial). Usa el RPC cancel_service_request.
+  const [cancelling, setCancelling] = useState(false);
+  const canCancel = activeRequest &&
+    ['initiated', 'assigned', 'en_route'].includes(activeRequest.status);
+
+  // Llamada directa al operador (tel:). El teléfono viene del perfil del
+  // operador asignado. Util en carretera cuando el chat no basta.
+  const callOperator = () => {
+    if (activeRequest?.operator_phone) {
+      Linking.openURL(`tel:${activeRequest.operator_phone}`);
+    } else {
+      Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
+    }
+  };
+
+  const handleCancelActiveRequest = () => {
+    if (!activeRequest) return;
+    Alert.alert(
+      'Cancelar solicitud',
+      cancellationPolicyMessage(activeRequest.status),
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Si, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            const { data, error } = await supabase.rpc('cancel_service_request', {
+              p_request_id: activeRequest.id,
+              p_reason: 'Cancelada por el usuario',
+            });
+            setCancelling(false);
+            if (error || (data && !data.success)) {
+              Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
+              return;
+            }
+            await fetchActiveRequest();
+          },
+        },
+      ]
+    );
   };
 
   // Render map content (shared between inline and fullscreen)
@@ -531,9 +433,14 @@ export default function UserHome() {
       ? animatedCoordinate.current
       : effectiveOperatorPosition ?? null;
 
-    const hasRealRoute = decodedStoredRoute.length >= 2 || decodedEtaRoute.length >= 2 || !!realEta?.overviewPolyline;
+    // hasRealRoute comes from useTrackingRoute
     const isFallback = isDemoMode ? false : (hasRealRoute ? false : (eta?.isFallback ?? true));
-    const hasDropoff = activeRequest.dropoff_lat && activeRequest.dropoff_lng;
+    // Sin destino real (bateria, llanta, cerrajeria...) el dropoff es una copia
+    // del pickup, asi que el pin rojo caeria justo encima del verde.
+    const hasDropoff =
+      requiresDropoff(activeRequest.service_type) &&
+      activeRequest.dropoff_lat &&
+      activeRequest.dropoff_lng;
     const showOperatorMarker = isDemoMode
       ? (simulator.currentPosition !== null)
       : (operatorLocation && operatorLocation.is_online);
@@ -544,6 +451,7 @@ export default function UserHome() {
         ref={mapRef}
         style={fullscreen ? styles.mapFullscreen : { width: '100%', height: MAP_HEIGHT }}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        mapType={USE_OSM ? 'none' : 'standard'}
         initialRegion={{
           latitude: activeRequest.pickup_lat,
           longitude: activeRequest.pickup_lng,
@@ -551,6 +459,15 @@ export default function UserHome() {
           longitudeDelta: 0.05,
         }}
       >
+        {/* OSM tiles cuando TILE_SOURCE === 'osm' (gratis, sin Google) */}
+        {USE_OSM && UrlTile && (
+          <UrlTile
+            urlTemplate={MAP_CONFIG.OSM_TILE_URL}
+            maximumZ={MAP_CONFIG.OSM_MAX_ZOOM}
+            flipY={false}
+          />
+        )}
+
         {/* Pickup Marker (green) */}
         <Marker
           coordinate={{
@@ -620,6 +537,18 @@ export default function UserHome() {
     return <LoadingSpinner fullScreen />;
   }
 
+  if (activeRequestError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tu servicio"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchActiveRequest}
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -642,6 +571,59 @@ export default function UserHome() {
         <View style={styles.activeRequestContainer}>
           <StatusBadge status={activeRequest.status as ServiceRequestStatus} />
 
+          {/* Aviso: la búsqueda de operador esta tardando mas de lo normal */}
+          {searchDelayed && (
+            <View style={styles.delayCard}>
+              <Clock size={18} color={colors.warning.dark} />
+              <Text style={styles.delayText}>
+                La búsqueda esta tardando mas de lo normal. Seguimos buscando un
+                operador disponible; puedes cancelar sin costo si lo prefieres.
+              </Text>
+            </View>
+          )}
+
+          {/* PIN de activacion - visible hasta que el operador lo verifique */}
+          {showPin && activePin && (
+            <View style={styles.pinCard}>
+              <Text style={styles.pinLabel}>PIN para el operador</Text>
+              <Text style={styles.pinValue}>{activePin}</Text>
+              <Pressable
+                style={styles.pinCopyBtn}
+                onPress={() => copyPin(activePin)}
+                accessibilityRole="button"
+                accessibilityLabel="Copiar PIN"
+              >
+                {pinCopied ? (
+                  <CheckCircle2 size={15} color={colors.success.main} strokeWidth={2} />
+                ) : (
+                  <Copy size={15} color={colors.accent[600]} strokeWidth={2} />
+                )}
+                <Text style={[styles.pinCopyText, pinCopied && { color: colors.success.main }]}>
+                  {pinCopied ? '¡Copiado!' : 'Copiar'}
+                </Text>
+              </Pressable>
+              <Text style={styles.pinHint}>
+                Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+              </Text>
+            </View>
+          )}
+
+          {/* Mini-mapa de recogida/destino cuando aun no hay seguimiento en vivo
+              (ej. estado "iniciado"), para no mostrar solo coordenadas */}
+          {!showTracking && !isDemoMode && activeRequest.pickup_lat && activeRequest.pickup_lng && (
+            <MiniMap
+              pickup={{ lat: activeRequest.pickup_lat, lng: activeRequest.pickup_lng }}
+              dropoff={
+                requiresDropoff(activeRequest.service_type) &&
+                activeRequest.dropoff_lat &&
+                activeRequest.dropoff_lng
+                  ? { lat: activeRequest.dropoff_lat, lng: activeRequest.dropoff_lng }
+                  : null
+              }
+              height={170}
+            />
+          )}
+
           {/* Live Map Tracking - PROMINENT, outside Card (Native only) */}
           {(showTracking || isDemoMode) && MapView && Marker && (
             <View style={styles.mapSection}>
@@ -652,6 +634,8 @@ export default function UserHome() {
                 <Pressable
                   style={styles.mapExpandButton}
                   onPress={() => setIsMapFullscreen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ampliar mapa"
                 >
                   <Maximize2 size={18} color={colors.text.primary} />
                 </Pressable>
@@ -661,14 +645,14 @@ export default function UserHome() {
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
-                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
                     {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicacion del operador...
+                    Esperando ubicación del operador...
                   </Text>
                 </View>
               )}
@@ -678,7 +662,7 @@ export default function UserHome() {
                 <View style={styles.etaContainer}>
                   {isDemoMode && eta ? (
                     <>
-                      <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                      <Text style={styles.etaLabel}>{activePhase ? 'Tiempo estimado al destino' : 'Tiempo estimado de llegada'}</Text>
                       <Text style={styles.etaValue}>{eta.etaText}</Text>
                       <Text style={styles.etaDistance}>
                         {eta.distanceText} de distancia
@@ -687,7 +671,7 @@ export default function UserHome() {
                   ) : !operatorLocation || !operatorLocation.is_online ? (
                     <View style={styles.etaLoading}>
                       <ActivityIndicator size="small" color={colors.primary[400]} />
-                      <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                      <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
                     </View>
                   ) : etaLoading ? (
                     <View style={styles.etaLoading}>
@@ -696,7 +680,7 @@ export default function UserHome() {
                     </View>
                   ) : eta ? (
                     <>
-                      <Text style={styles.etaLabel}>Tiempo estimado de llegada</Text>
+                      <Text style={styles.etaLabel}>{activePhase ? 'Tiempo estimado al destino' : 'Tiempo estimado de llegada'}</Text>
                       <Text style={styles.etaValue}>{eta.etaText}</Text>
                       <Text style={styles.etaDistance}>
                         {eta.distanceText} de distancia
@@ -746,6 +730,8 @@ export default function UserHome() {
                 <Pressable
                   style={styles.mapCloseButton}
                   onPress={() => setIsMapFullscreen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar mapa"
                 >
                   <X size={20} color={colors.text.primary} strokeWidth={2.5} />
                 </Pressable>
@@ -756,14 +742,14 @@ export default function UserHome() {
                     <View style={styles.trackingInfo}>
                       <MapPin size={14} color={colors.success.main} />
                       <Text style={styles.trackingText}>
-                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicacion en vivo'}
+                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
                         {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                       </Text>
                     </View>
                   ) : (
                     <View style={styles.trackingInfoOffline}>
                       <Text style={styles.trackingTextOffline}>
-                        Esperando ubicacion del operador...
+                        Esperando ubicación del operador...
                       </Text>
                     </View>
                   )}
@@ -799,7 +785,7 @@ export default function UserHome() {
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicacion del operador...
+                    Esperando ubicación del operador...
                   </Text>
                 </View>
               )}
@@ -819,7 +805,7 @@ export default function UserHome() {
               {!operatorLocation || !operatorLocation.is_online ? (
                 <View style={styles.etaLoading}>
                   <ActivityIndicator size="small" color={colors.primary[400]} />
-                  <Text style={styles.etaLoadingText}>Obteniendo ubicacion del operador...</Text>
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
                 </View>
               ) : eta ? (
                 <>
@@ -858,16 +844,26 @@ export default function UserHome() {
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Recogida</Text>
-                <Text style={styles.detailValue} numberOfLines={2}>
-                  {activeRequest.pickup_address}
-                </Text>
+                <AddressText
+                  style={styles.detailValue}
+                  numberOfLines={2}
+                  address={activeRequest.pickup_address}
+                  lat={activeRequest.pickup_lat}
+                  lng={activeRequest.pickup_lng}
+                />
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Destino</Text>
-                <Text style={styles.detailValue} numberOfLines={2}>
-                  {activeRequest.dropoff_address}
-                </Text>
-              </View>
+              {requiresDropoff(activeRequest.service_type) && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Destino</Text>
+                  <AddressText
+                    style={styles.detailValue}
+                    numberOfLines={2}
+                    address={activeRequest.dropoff_address}
+                    lat={activeRequest.dropoff_lat}
+                    lng={activeRequest.dropoff_lng}
+                  />
+                </View>
+              )}
 
               {activeRequest.operator_name && (
                 <View style={styles.operatorSection}>
@@ -879,15 +875,28 @@ export default function UserHome() {
                 </View>
               )}
 
-              {/* Chat Button - show when operator is assigned */}
+              {/* Contacto con el operador (chat + llamada) cuando esta asignado */}
               {activeRequest.operator_id && ['assigned', 'en_route', 'active'].includes(activeRequest.status) && (
-                <Button
-                  title="Chat con Operador"
-                  onPress={() => setShowChat(true)}
-                  variant="secondary"
-                  size="medium"
-                  icon={<MessageCircle size={18} color={colors.primary[500]} />}
-                />
+                <View style={styles.contactRow}>
+                  <View style={styles.contactBtn}>
+                    <Button
+                      title="Chat"
+                      onPress={() => setShowChat(true)}
+                      variant="secondary"
+                      size="medium"
+                      icon={<MessageCircle size={18} color={colors.primary[500]} />}
+                    />
+                  </View>
+                  <View style={styles.contactBtn}>
+                    <Button
+                      title="Llamar"
+                      onPress={callOperator}
+                      variant="secondary"
+                      size="medium"
+                      icon={<Phone size={18} color={colors.primary[500]} />}
+                    />
+                  </View>
+                </View>
               )}
 
               {activeRequest.total_price && (
@@ -895,6 +904,18 @@ export default function UserHome() {
                   <Text style={styles.priceLabel}>Precio Estimado</Text>
                   <Text style={styles.priceValue}>${activeRequest.total_price.toFixed(2)}</Text>
                 </View>
+              )}
+
+              {canCancel && (
+                <Button
+                  title="Cancelar Solicitud"
+                  onPress={handleCancelActiveRequest}
+                  variant="tertiary"
+                  size="medium"
+                  loading={cancelling}
+                  disabled={cancelling}
+                  icon={<X size={18} color={colors.error.main} />}
+                />
               )}
             </View>
 
@@ -1036,12 +1057,81 @@ const styles = StyleSheet.create({
   activeRequestContainer: {
     gap: spacing.m,
   },
+  contactRow: {
+    flexDirection: 'row',
+    gap: spacing.s,
+  },
+  contactBtn: {
+    flex: 1,
+  },
 
   // Map section - prominent, full width
   mapSection: {
     borderRadius: radii.l,
     overflow: 'hidden',
     backgroundColor: colors.border.light,
+  },
+
+  // PIN de activacion
+  delayCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    padding: spacing.m,
+    backgroundColor: colors.warning.light,
+    borderRadius: radii.m,
+    borderWidth: 1,
+    borderColor: colors.warning.main,
+  },
+  delayText: {
+    flex: 1,
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.warning.dark,
+  },
+  pinCard: {
+    alignItems: 'center',
+    padding: spacing.l,
+    backgroundColor: colors.accent[50],
+    borderRadius: radii.l,
+    borderWidth: 1,
+    borderColor: colors.accent[500],
+  },
+  pinLabel: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
+    color: colors.accent[600],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pinValue: {
+    fontFamily: typography.fonts.heading,
+    fontSize: 44,
+    letterSpacing: 8,
+    color: colors.accent[600],
+    marginVertical: spacing.xs,
+  },
+  pinCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.accent[500],
+    marginBottom: spacing.s,
+  },
+  pinCopyText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.accent[600],
+  },
+  pinHint: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    textAlign: 'center',
   },
 
   // Request details

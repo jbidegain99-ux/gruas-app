@@ -1,21 +1,27 @@
-// Supabase Edge Function: Get ETA with Traffic
-// Returns estimated time of arrival considering real-time traffic conditions
-// Uses Google Directions API with departure_time=now
+// Edge Function: Get ETA with traffic.
+// Returns estimated time of arrival from operator coords to destination,
+// using Google Directions API with departure_time=now. Falls back to a
+// Haversine estimate when the API key is unset or Google fails.
+//
+// Authorization model (since 2026-05-25):
+//   1. The Supabase runtime verifies the JWT (config.toml has
+//      [functions.get-eta] verify_jwt = true).
+//   2. We additionally require the caller to be the USER or the assigned
+//      OPERATOR of the request_id in the payload (ADMIN also allowed).
+//      This closes the prior leak where any anon caller with a request_id
+//      could pull the operator's live coordinates.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
+import { AuthError, requireRequestParticipant, requireUser } from '../_shared/auth.ts';
+import { osrmRoute } from '../_shared/routing.ts';
 
 const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+function jsonResponse(req: Request, body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   });
 }
 
@@ -58,6 +64,24 @@ function calculateFallback(opLat: number, opLng: number, destLat: number, destLn
   };
 }
 
+// Ruta real por carretera (OSRM, gratis) -> devuelve tambien la polyline para
+// dibujar la ruta en el mapa. Si OSRM falla, cae a haversine (sin polyline).
+async function resolveEtaWithRoute(opLat: number, opLng: number, destLat: number, destLng: number) {
+  const route = await osrmRoute(opLat, opLng, destLat, destLng);
+  if (route) {
+    return {
+      success: true,
+      eta_minutes: route.duration_minutes,
+      eta_text: `~${route.duration_minutes} min`,
+      distance_km: route.distance_km,
+      distance_text: `${route.distance_km} km`,
+      is_fallback: false,
+      overview_polyline: route.polyline,
+    };
+  }
+  return calculateFallback(opLat, opLng, destLat, destLng);
+}
+
 function isValidCoordinate(lat: number, lng: number): boolean {
   return (
     typeof lat === 'number' && typeof lng === 'number' &&
@@ -75,7 +99,6 @@ function parseCoordinates(payload: Record<string, unknown>): {
   operator_lat: number; operator_lng: number;
   destination_lat: number; destination_lng: number;
 } | null {
-  // Format 1: explicit lat/lng fields
   if (typeof payload.operator_lat === 'number' && typeof payload.operator_lng === 'number' &&
       typeof payload.destination_lat === 'number' && typeof payload.destination_lng === 'number') {
     return {
@@ -86,12 +109,11 @@ function parseCoordinates(payload: Record<string, unknown>): {
     };
   }
 
-  // Format 2: "lat,lng" strings
   if (typeof payload.operator === 'string' && typeof payload.destination === 'string') {
     const opParts = payload.operator.split(',').map(Number);
     const destParts = payload.destination.split(',').map(Number);
     if (opParts.length === 2 && destParts.length === 2 &&
-        opParts.every(n => !isNaN(n)) && destParts.every(n => !isNaN(n))) {
+        opParts.every((n) => !isNaN(n)) && destParts.every((n) => !isNaN(n))) {
       return {
         operator_lat: opParts[0],
         operator_lng: opParts[1],
@@ -105,28 +127,35 @@ function parseCoordinates(payload: Record<string, unknown>): {
 }
 
 serve(async (req: Request) => {
-  // CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
 
   try {
-    // Parse request body
+    // 1. Authenticate the caller.
+    const auth = await requireUser(req);
+
+    // 2. Parse payload.
     let payload: Record<string, unknown>;
     try {
       payload = await req.json();
     } catch {
-      console.error('[get-eta] Failed to parse request body');
-      return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400);
+      return jsonResponse(req, { success: false, error: 'Invalid JSON body' }, 400);
     }
 
-    console.log('[get-eta] Request received:', JSON.stringify(payload));
+    // 3. Require request_id and authorize the caller against it.
+    const requestId = typeof payload.request_id === 'string' ? payload.request_id : null;
+    if (!requestId) {
+      return jsonResponse(req, {
+        success: false,
+        error: 'Missing request_id. Pass the service_requests row this ETA is for.',
+      }, 400);
+    }
+    await requireRequestParticipant(auth, requestId);
 
-    // Parse coordinates (supports both formats)
+    // 4. Parse coordinates.
     const coords = parseCoordinates(payload);
     if (!coords) {
-      console.error('[get-eta] Could not parse coordinates from payload');
-      return jsonResponse({
+      return jsonResponse(req, {
         success: false,
         error: 'Invalid coordinates. Send {operator_lat, operator_lng, destination_lat, destination_lng} or {operator: "lat,lng", destination: "lat,lng"}',
       }, 400);
@@ -134,27 +163,19 @@ serve(async (req: Request) => {
 
     const { operator_lat, operator_lng, destination_lat, destination_lng } = coords;
 
-    // Validate coordinate ranges
     if (!isValidCoordinate(operator_lat, operator_lng)) {
-      return jsonResponse({ success: false, error: 'Invalid operator coordinates' }, 400);
+      return jsonResponse(req, { success: false, error: 'Invalid operator coordinates' }, 400);
     }
     if (!isValidCoordinate(destination_lat, destination_lng)) {
-      return jsonResponse({ success: false, error: 'Invalid destination coordinates' }, 400);
+      return jsonResponse(req, { success: false, error: 'Invalid destination coordinates' }, 400);
     }
 
-    // Check if API key is configured
+    // 5. Resolve ETA. Fall back to Haversine on any failure path.
     if (!GOOGLE_MAPS_API_KEY) {
       console.error('[get-eta] GOOGLE_MAPS_API_KEY not configured — returning fallback (NO polyline)');
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
 
-    console.log('[get-eta] Calling Google Directions API:', {
-      origin: `${operator_lat},${operator_lng}`,
-      destination: `${destination_lat},${destination_lng}`,
-      apiKeyPrefix: GOOGLE_MAPS_API_KEY.substring(0, 12) + '...',
-    });
-
-    // Call Google Directions API
     const apiUrl = new URL('https://maps.googleapis.com/maps/api/directions/json');
     apiUrl.searchParams.set('origin', `${operator_lat},${operator_lng}`);
     apiUrl.searchParams.set('destination', `${destination_lat},${destination_lng}`);
@@ -173,13 +194,13 @@ serve(async (req: Request) => {
     } catch (fetchError) {
       clearTimeout(timeoutId);
       console.error('[get-eta] Google API fetch error:', String(fetchError));
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
     clearTimeout(timeoutId);
 
     if (!googleResponse.ok) {
       console.error('[get-eta] Google API HTTP error:', googleResponse.status, googleResponse.statusText);
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
 
     let data: GoogleDirectionsResponse;
@@ -187,21 +208,17 @@ serve(async (req: Request) => {
       data = await googleResponse.json();
     } catch {
       console.error('[get-eta] Failed to parse Google API response');
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
-
-    console.log('[get-eta] Google Directions status:', data.status,
-      data.error_message ? `(${data.error_message})` : '');
 
     if (data.status !== 'OK' || !data.routes?.length) {
       console.error('[get-eta] Google API error:', data.status, data.error_message);
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
 
     const leg = data.routes[0]?.legs[0];
     if (!leg) {
-      console.error('[get-eta] No route leg found');
-      return jsonResponse(calculateFallback(operator_lat, operator_lng, destination_lat, destination_lng));
+      return jsonResponse(req, await resolveEtaWithRoute(operator_lat, operator_lng, destination_lat, destination_lng));
     }
 
     const duration = leg.duration_in_traffic || leg.duration;
@@ -209,7 +226,7 @@ serve(async (req: Request) => {
     const distanceKm = leg.distance.value / 1000;
     const overviewPolyline = data.routes[0]?.overview_polyline?.points;
 
-    const result = {
+    return jsonResponse(req, {
       success: true,
       eta_minutes: etaMinutes,
       eta_text: duration.text,
@@ -217,19 +234,12 @@ serve(async (req: Request) => {
       distance_text: leg.distance.text,
       is_fallback: false,
       overview_polyline: overviewPolyline || null,
-    };
-
-    console.log('[get-eta] Success:', {
-      eta: result.eta_text,
-      distance: result.distance_text,
-      has_polyline: !!overviewPolyline,
-      polyline_length: overviewPolyline?.length || 0,
     });
-
-    return jsonResponse(result);
-
   } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonResponse(req, { success: false, error: error.message }, error.status);
+    }
     console.error('[get-eta] Unhandled error:', String(error), error instanceof Error ? error.stack : '');
-    return jsonResponse({ success: false, error: 'Internal server error' }, 500);
+    return jsonResponse(req, { success: false, error: 'Internal server error' }, 500);
   }
 });

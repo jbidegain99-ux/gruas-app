@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,11 @@ import {
   ScrollView,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, Award } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Card, LoadingSpinner } from '@/components/ui';
+import { BudiLogo, Card, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Rating = {
@@ -72,7 +73,9 @@ export default function OperatorRatings() {
 
     const { count: completedCount } = await supabase
       .from('service_requests')
-      .select('*', { count: 'exact', head: true })
+      // `id`, no `*`: contar no necesita proyectar columnas, y `*` incluiría
+      // `pin_hash`, que el cliente ya no puede leer (migr. 00056) → 403.
+      .select('id', { count: 'exact', head: true })
       .eq('operator_id', user.id)
       .eq('status', 'completed');
 
@@ -96,9 +99,13 @@ export default function OperatorRatings() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchRatings();
-  }, [fetchRatings]);
+  // Refresca al enfocar: el promedio y las resenas cambian cuando entra una
+  // calificacion nueva, y esta pantalla queda montada como tab.
+  useFocusEffect(
+    useCallback(() => {
+      fetchRatings();
+    }, [fetchRatings])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

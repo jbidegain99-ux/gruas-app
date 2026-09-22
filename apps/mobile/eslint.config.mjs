@@ -12,6 +12,18 @@ export default tseslint.config(
     },
   },
   {
+    // Plain JS files in this package are CommonJS (Metro/Node tooling).
+    files: ['**/*.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+      },
+    },
+  },
+  {
     ignores: [
       'dist/**',
       'node_modules/**',

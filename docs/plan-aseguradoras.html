@@ -1,0 +1,340 @@
+<title>Budi · Plan por fases — Plataforma de asistencia para aseguradoras</title>
+<style>
+  :root {
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+    --bg: #e9eef4;
+    --surface: #ffffff;
+    --surface-2: #f4f8fc;
+    --ink: #16273a;
+    --ink-soft: #46586d;
+    --muted: #7a8aa0;
+    --line: #d8e1ec;
+    --brand: #2d5f8b;
+    --brand-ink: #234c70;
+    --brand-soft: #e3edf6;
+    --accent: #f5a25b;
+    --accent-soft: #fbe8d5;
+    --good: #2e9c6a;
+    --warn: #c9822a;
+    --crit: #cf4a5c;
+    --shadow: 0 1px 2px rgba(22,39,58,.05), 0 8px 24px -12px rgba(22,39,58,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b141d;
+      --surface: #121e2b;
+      --surface-2: #172532;
+      --ink: #e9eff6;
+      --ink-soft: #aab8c8;
+      --muted: #6f8093;
+      --line: #223140;
+      --brand: #6098c6;
+      --brand-ink: #8bb6d8;
+      --brand-soft: #16293b;
+      --accent: #f5a25b;
+      --accent-soft: #3a2a1c;
+      --good: #48b784;
+      --warn: #d99a45;
+      --crit: #e06576;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #e9eef4; --surface: #ffffff; --surface-2: #f4f8fc;
+    --ink: #16273a; --ink-soft: #46586d; --muted: #7a8aa0; --line: #d8e1ec;
+    --brand: #2d5f8b; --brand-ink: #234c70; --brand-soft: #e3edf6;
+    --accent: #f5a25b; --accent-soft: #fbe8d5;
+    --good: #2e9c6a; --warn: #c9822a; --crit: #cf4a5c;
+    --shadow: 0 1px 2px rgba(22,39,58,.05), 0 8px 24px -12px rgba(22,39,58,.18);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b141d; --surface: #121e2b; --surface-2: #172532;
+    --ink: #e9eff6; --ink-soft: #aab8c8; --muted: #6f8093; --line: #223140;
+    --brand: #6098c6; --brand-ink: #8bb6d8; --brand-soft: #16293b;
+    --accent: #f5a25b; --accent-soft: #3a2a1c;
+    --good: #48b784; --warn: #d99a45; --crit: #e06576;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: clamp(1.5rem, 4vw, 4rem) clamp(1.1rem, 4vw, 2.5rem) 5rem; }
+
+  /* ---- Masthead ---- */
+  .eyebrow {
+    font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--brand); margin: 0 0 .9rem;
+    display: inline-flex; align-items: center; gap: .5rem;
+  }
+  .eyebrow::before { content: "🛡️"; font-size: .9rem; }
+  h1 {
+    font-size: clamp(1.8rem, 4.4vw, 2.9rem); line-height: 1.08; letter-spacing: -.02em;
+    margin: 0 0 .6rem; text-wrap: balance; font-weight: 800;
+  }
+  h1 .thin { color: var(--ink-soft); font-weight: 500; }
+  .lede { font-size: clamp(1rem, 2vw, 1.16rem); color: var(--ink-soft); max-width: 60ch; margin: 0; }
+
+  /* ---- Current state ---- */
+  .state {
+    margin-top: 2rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 16px; padding: 1.3rem 1.4rem; box-shadow: var(--shadow);
+  }
+  .state h2 { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 .8rem; font-weight: 700; }
+  .state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+  @media (max-width: 560px) { .state-grid { grid-template-columns: 1fr; } }
+  .state-col p { margin: 0 0 .35rem; font-weight: 700; font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; }
+  .state-col.have p { color: var(--good); }
+  .state-col.gap p { color: var(--accent); }
+  .state ul { margin: 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: .95rem; }
+  .state li { margin: .2rem 0; }
+
+  /* ---- Phase index ---- */
+  .index { margin: 2.4rem 0 .5rem; display: grid; gap: .5rem; }
+  .index a {
+    display: grid; grid-template-columns: 2.4rem 1fr auto; align-items: center; gap: .8rem;
+    text-decoration: none; color: inherit; padding: .7rem .9rem;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    transition: border-color .15s, transform .15s;
+  }
+  .index a:hover { border-color: var(--brand); transform: translateX(2px); }
+  .index a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .index .n { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--brand); font-size: 1.1rem; }
+  .index .t { font-weight: 650; }
+  .index .t small { display: block; font-weight: 500; color: var(--muted); font-size: .82rem; }
+
+  /* ---- Phases ---- */
+  .phase { margin-top: 1.4rem; scroll-margin-top: 1rem; }
+  .phase-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    box-shadow: var(--shadow); overflow: hidden;
+    display: grid; grid-template-columns: 132px 1fr;
+  }
+  @media (max-width: 640px) { .phase-card { grid-template-columns: 1fr; } }
+  .phase-rail {
+    background: linear-gradient(160deg, var(--brand-soft), var(--surface));
+    border-right: 1px solid var(--line);
+    padding: 1.5rem 1.2rem; display: flex; flex-direction: column; gap: .8rem;
+  }
+  @media (max-width: 640px) { .phase-rail { flex-direction: row; align-items: center; justify-content: space-between; border-right: 0; border-bottom: 1px solid var(--line); } }
+  .phase-rail .num {
+    font-variant-numeric: tabular-nums; font-size: 3.1rem; font-weight: 800; line-height: .9;
+    color: var(--brand); letter-spacing: -.03em;
+  }
+  .phase-rail .num small { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  .effort {
+    align-self: flex-start; font-size: .68rem; font-weight: 800; letter-spacing: .06em;
+    padding: .28rem .55rem; border-radius: 999px; text-transform: uppercase;
+    background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line);
+  }
+  .effort.m { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+  .effort.l { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+  .effort.xl { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, var(--line)); }
+
+  .phase-body { padding: 1.5rem clamp(1.2rem, 3vw, 1.9rem); }
+  .phase-body h3 { margin: 0 0 .3rem; font-size: 1.35rem; letter-spacing: -.01em; }
+  .obj { margin: 0 0 1.1rem; color: var(--ink-soft); font-size: .98rem; }
+  .obj b { color: var(--ink); font-weight: 700; }
+
+  .lbl { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 1.1rem 0 .5rem; }
+  .del { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; }
+  .del li { position: relative; padding-left: 1.4rem; font-size: .96rem; color: var(--ink); }
+  .del li::before {
+    content: ""; position: absolute; left: 0; top: .5em; width: .5rem; height: .5rem;
+    border-radius: 2px; background: var(--accent); transform: rotate(45deg);
+  }
+  .data {
+    margin-top: 1rem; font-family: var(--mono); font-size: .82rem; color: var(--brand-ink);
+    background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+    border-radius: 10px; padding: .6rem .8rem; overflow-x: auto; white-space: nowrap;
+  }
+  .data .k { color: var(--muted); }
+  .why {
+    margin-top: 1.1rem; border-left: 3px solid var(--accent);
+    background: var(--accent-soft); border-radius: 0 10px 10px 0;
+    padding: .7rem .95rem; font-size: .92rem; color: var(--ink);
+  }
+  .why b { color: var(--accent); font-weight: 800; }
+
+  /* ---- Footer ---- */
+  .foot { margin-top: 2.6rem; padding-top: 1.4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; margin-bottom: 1rem; }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--ink-soft); }
+  .dot { width: .7rem; height: .7rem; border-radius: 999px; display: inline-block; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Budi · Hoja de ruta</p>
+    <h1>De app de grúas a <span class="thin">plataforma de asistencia para aseguradoras</span></h1>
+    <p class="lede">Cinco fases para convertir el MVP operativo actual en un producto que una aseguradora pueda contratar: con pólizas, cobertura, SLA y facturación B2B.</p>
+  </header>
+
+  <section class="state" aria-label="Estado actual">
+    <h2>Punto de partida — hoy</h2>
+    <div class="state-grid">
+      <div class="state-col have">
+        <p>✓ Ya funciona</p>
+        <ul>
+          <li>Solicitar servicio (6 tipos) con mapa y precio estimado</li>
+          <li>Despacho: aceptar / asignar operador, PIN de activación</li>
+          <li>Seguimiento en vivo, chat, historial, calificaciones</li>
+          <li>Panel admin: solicitudes, proveedores, usuarios, precios</li>
+        </ul>
+      </div>
+      <div class="state-col gap">
+        <p>✕ Falta para el modelo seguros</p>
+        <ul>
+          <li>Capa de pólizas / afiliados y verificación de cobertura</li>
+          <li>Medición de SLA y folio por caso</li>
+          <li>Facturación a la aseguradora y liquidación a la red</li>
+          <li>Métricas de dueño en vivo y mapa de flota</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <nav class="index" aria-label="Fases">
+    <a href="#f0"><span class="n">0</span><span class="t">Cimientos operativos<small>Endurecer el MVP y volverlo medible</small></span><span class="effort m">M</span></a>
+    <a href="#f1"><span class="n">1</span><span class="t">Pólizas y afiliados<small>Cada servicio nace de una cobertura válida</small></span><span class="effort l">L</span></a>
+    <a href="#f2"><span class="n">2</span><span class="t">Casos, SLA y despacho<small>Operar como central de asistencia</small></span><span class="effort l">L</span></a>
+    <a href="#f3"><span class="n">3</span><span class="t">Facturación y liquidación<small>Cobrar a la aseguradora, pagar a la red</small></span><span class="effort l">L</span></a>
+    <a href="#f4"><span class="n">4</span><span class="t">Escala y multi-aseguradora<small>Producción seria y crecimiento</small></span><span class="effort xl">XL</span></a>
+  </nav>
+
+  <!-- FASE 0 -->
+  <article class="phase" id="f0">
+    <div class="phase-card">
+      <div class="phase-rail">
+        <div class="num">0<small>Fase</small></div>
+        <span class="effort m">Esfuerzo · M</span>
+      </div>
+      <div class="phase-body">
+        <h3>Cimientos operativos</h3>
+        <p class="obj"><b>Objetivo:</b> dejar la operación diaria sólida y medible antes de sumar la capa de seguros. Ninguna aseguradora contrata a quien no puede demostrar operación y tiempos.</p>
+        <p class="lbl">Entregables</p>
+        <ul class="del">
+          <li>Panel de dueño con métricas reales: servicios de <b>hoy / semana</b>, ingresos y <b>tiempo de respuesta promedio</b></li>
+          <li><b>Mapa de flota</b>: todos los operadores en vivo en un solo mapa</li>
+          <li>Tracking del operador en <b>segundo plano</b> (no depender de la app abierta)</li>
+          <li>Ganancias del operador (hoy / semana) en su app</li>
+          <li>Notificaciones push confiables + distribución a testers (EAS)</li>
+        </ul>
+        <div class="data"><span class="k">reutiliza:</span> operator_locations · request_events</div>
+        <div class="why"><b>Por qué:</b> es la base creíble. Un dueño necesita ver el pulso del negocio, y una aseguradora te va a pedir tiempos desde el día uno.</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- FASE 1 -->
+  <article class="phase" id="f1">
+    <div class="phase-card">
+      <div class="phase-rail">
+        <div class="num">1<small>Fase</small></div>
+        <span class="effort l">Esfuerzo · L</span>
+      </div>
+      <div class="phase-body">
+        <h3>Pólizas y afiliados</h3>
+        <p class="obj"><b>Objetivo:</b> que cada servicio nazca de una <b>cobertura válida</b>. Es el corazón que convierte “grúas” en “asistencia de seguro”.</p>
+        <p class="lbl">Entregables</p>
+        <ul class="del">
+          <li>Alta de <b>aseguradoras</b>, <b>pólizas</b> y <b>afiliados / beneficiarios</b></li>
+          <li>Verificación de <b>afiliado activo</b> al momento de solicitar</li>
+          <li>Reglas de cobertura: nº de servicios al año, <b>km de arrastre cubiertos</b>, tipos incluidos</li>
+          <li>Cálculo automático de <b>copago</b> cuando el servicio excede la cobertura</li>
+          <li>Carga de afiliados por la aseguradora (importación masiva / API)</li>
+        </ul>
+        <div class="data"><span class="k">tablas nuevas:</span> insurers · policies · members · coverage_plans · coverage_usage</div>
+        <div class="why"><b>Por qué:</b> sin esta capa sigues siendo una app de grúas. Con ella, vendes un beneficio de póliza.</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- FASE 2 -->
+  <article class="phase" id="f2">
+    <div class="phase-card">
+      <div class="phase-rail">
+        <div class="num">2<small>Fase</small></div>
+        <span class="effort l">Esfuerzo · L</span>
+      </div>
+      <div class="phase-body">
+        <h3>Casos, SLA y despacho</h3>
+        <p class="obj"><b>Objetivo:</b> operar como una central de asistencia, con trazabilidad y cumplimiento de tiempos que una aseguradora pueda auditar.</p>
+        <p class="lbl">Entregables</p>
+        <ul class="del">
+          <li><b>Folio / caso</b> por servicio (número de referencia exportable)</li>
+          <li>Medición de <b>SLA</b>: solicitud → asignación → llegada → cierre</li>
+          <li>Despacho al <b>operador más cercano</b> (sugerencia sobre el mapa de flota)</li>
+          <li>Trazabilidad completa del caso (línea de tiempo de eventos)</li>
+          <li><b>Portal B2B</b> para la aseguradora: sus casos, SLA y estado en vivo</li>
+        </ul>
+        <div class="data"><span class="k">nuevas / extiende:</span> cases (folio, sla_asignacion, sla_llegada) · request_events</div>
+        <div class="why"><b>Por qué:</b> el SLA es el idioma de las aseguradoras. Sin reporte de tiempos, no firman un contrato.</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- FASE 3 -->
+  <article class="phase" id="f3">
+    <div class="phase-card">
+      <div class="phase-rail">
+        <div class="num">3<small>Fase</small></div>
+        <span class="effort l">Esfuerzo · L</span>
+      </div>
+      <div class="phase-body">
+        <h3>Facturación y liquidación</h3>
+        <p class="obj"><b>Objetivo:</b> cerrar el ciclo del dinero — cobrar a la aseguradora y pagar a la red de proveedores/operadores.</p>
+        <p class="lbl">Entregables</p>
+        <ul class="del">
+          <li>Facturación a la aseguradora: por caso y <b>consolidado mensual</b></li>
+          <li><b>Copagos del usuario</b> en la app (tarjeta / efectivo)</li>
+          <li><b>Liquidación</b> a proveedores y operadores (payouts)</li>
+          <li>Reportes financieros y de SLA <b>exportables por aseguradora</b></li>
+        </ul>
+        <div class="data"><span class="k">tablas nuevas:</span> invoices · payments · settlements · payouts</div>
+        <div class="why"><b>Por qué:</b> es tu modelo de ingresos y, a la vez, lo que la aseguradora audita cada mes.</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- FASE 4 -->
+  <article class="phase" id="f4">
+    <div class="phase-card">
+      <div class="phase-rail">
+        <div class="num">4<small>Fase</small></div>
+        <span class="effort xl">Esfuerzo · XL</span>
+      </div>
+      <div class="phase-body">
+        <h3>Escala, confianza y multi-aseguradora</h3>
+        <p class="obj"><b>Objetivo:</b> producción seria y crecer a varias aseguradoras sin rehacer el sistema.</p>
+        <p class="lbl">Entregables</p>
+        <ul class="del">
+          <li>Infraestructura propia: OSRM y tiles <b>auto-hospedados</b> o proveedor pago (decidir Google)</li>
+          <li>Seguridad y compliance: auditoría, retención de datos, RLS revisado, roles finos</li>
+          <li><b>Multi-aseguradora / white-label</b> (marca y reglas por cliente)</li>
+          <li>Integraciones: API / webhooks con las aseguradoras y su call center</li>
+          <li>Observabilidad completa (Sentry + alertas de SLA) y soporte 24/7</li>
+        </ul>
+        <div class="data"><span class="k">enfoque:</span> infra · seguridad · integraciones · continuo</div>
+        <div class="why"><b>Por qué:</b> aquí pasas de “un contrato” a una plataforma con varias aseguradoras encima.</div>
+      </div>
+    </div>
+  </article>
+
+  <footer class="foot">
+    <div class="legend">
+      <span><span class="dot" style="background:var(--good)"></span>M · unas semanas</span>
+      <span><span class="dot" style="background:var(--warn)"></span>L · esfuerzo mayor, capa nueva</span>
+      <span><span class="dot" style="background:var(--crit)"></span>XL · continuo / infraestructura</span>
+    </div>
+    Las fases son secuenciales, pero la <b>Fase 0</b> puede solaparse con la <b>1</b>. Los tamaños de esfuerzo son relativos (S/M/L/XL), no fechas: sirven para priorizar, no para comprometer un calendario. Fundación técnica lista para la capa de seguros: <span style="font-family:var(--mono);font-size:.82rem">request_events</span> (auditoría) ya existe.
+  </footer>
+</div>

@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Button, Input } from '@/components/ui';
+import { friendlyError } from '@/lib/errorMessages';
+import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
+import { BudiLogo, Button, Input } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Login() {
@@ -35,7 +37,7 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', friendlyError(error, 'No se pudo iniciar sesión.'));
       return;
     }
 
@@ -47,12 +49,40 @@ export default function Login() {
         .eq('id', data.user.id)
         .single();
 
-      if (profile?.role === 'OPERATOR') {
-        router.replace('/(operator)');
+      // Antes cualquier rol que no fuera OPERATOR caia en `(user)`, asi que un
+      // admin o una aseguradora entraban a la app del cliente — donde no tienen
+      // nada que hacer y ni siquiera pueden crear una solicitud (migr. 00069).
+      // Ahora se resuelve por el mismo mapa que usa el guard de los grupos.
+      const destino = rutaDeInicio(profile?.role);
+      if (destino) {
+        router.replace(destino);
       } else {
-        router.replace('/(user)');
+        await supabase.auth.signOut();
+        Alert.alert(
+          'Esta cuenta se usa desde la web',
+          'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.'
+        );
       }
     }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert(
+        'Recuperar contraseña',
+        'Escribe tu email arriba y vuelve a tocar "¿Olvidaste tu contraseña?".'
+      );
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      Alert.alert('Error', friendlyError(error, 'No se pudo enviar el enlace de recuperación.'));
+      return;
+    }
+    Alert.alert(
+      'Revisa tu correo',
+      `Si existe una cuenta con ${email}, te enviamos un enlace para restablecer tu contraseña.`
+    );
   };
 
   return (
@@ -90,6 +120,13 @@ export default function Login() {
               onPress={handleLogin}
               loading={loading}
               disabled={loading}
+            />
+
+            <Button
+              title="¿Olvidaste tu contraseña?"
+              onPress={handleForgotPassword}
+              variant="tertiary"
+              size="small"
             />
           </View>
 

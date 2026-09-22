@@ -50,38 +50,57 @@ React Native (Expo SDK 54)
 
 ### Estructura del Proyecto:
 ```
-gruas-app/
-├── app/
-│   ├── (auth)/
-│   │   ├── index.tsx          ✅ Landing (Budi DS)
-│   │   ├── login.tsx          ✅ Login (Budi DS)
-│   │   └── register.tsx       ✅ Register (Budi DS)
-│   ├── (user)/
-│   │   ├── _layout.tsx        ✅ Bottom tabs (Lucide icons)
-│   │   ├── index.tsx          ✅ Home (Budi DS) - MAPA PROBLEMA AQUÍ
-│   │   ├── request.tsx        ✅ Wizard (Budi DS) - ICONOS PROBLEMA AQUÍ
-│   │   ├── history.tsx        ✅ History (Budi DS)
-│   │   └── profile.tsx        ✅ Profile (Budi DS)
-│   └── (operator)/
-│       ├── _layout.tsx        ✅ Bottom tabs (Lucide icons)
-│       ├── index.tsx          ✅ Requests (Budi DS)
-│       ├── active.tsx         ✅ Active service (Budi DS)
-│       ├── ratings.tsx        ✅ Ratings (Budi DS)
-│       └── profile.tsx        ✅ Profile (Budi DS)
-├── components/
-│   ├── ui/
-│   │   ├── BudiLogo.tsx       ✅ Logo SVG component
-│   │   ├── Button.tsx         ✅ Primary/Secondary/Tertiary
-│   │   ├── Input.tsx          ✅ Focus/Error/Success states
-│   │   ├── Card.tsx           ✅ Default/Elevated/Outlined
-│   │   ├── StatusBadge.tsx    ✅ 6 estados español
-│   │   └── LoadingSpinner.tsx ✅ Loading
-│   └── [otros componentes existentes]
-├── constants/
-│   ├── theme.ts               ✅ Tokens: colors, typography, spacing
-│   └── [otros archivos]
+gruas-app/ (monorepo pnpm)
+├── apps/
+│   ├── mobile/                  App Expo (React Native)
+│   │   ├── app/                 Rutas (expo-router) — SOLO routing/screens
+│   │   │   ├── (auth)/          index · login · register
+│   │   │   ├── (user)/          _layout · index · request · history · profile
+│   │   │   └── (operator)/      _layout · index · active · ratings · profile
+│   │   ├── features/            Código por dominio (components/hooks/lib)
+│   │   │   ├── chat/            components/ChatScreen
+│   │   │   ├── notifications/   hooks/usePushNotifications
+│   │   │   ├── pin/             lib/pinStorage
+│   │   │   ├── rating/          components/RatingModal
+│   │   │   └── tracking/        components/LocationPicker
+│   │   │                        hooks/ useActiveRequest · useETA
+│   │   │                              useFallbackRoute · useGPSSimulator
+│   │   │                              useOperatorLocationTracking
+│   │   │                              useOperatorRealtimeTracking · useTrackingRoute
+│   │   ├── shared/              Transversal (no atado a un dominio)
+│   │   │   ├── components/ui/   Button · Input · Card · StatusBadge
+│   │   │   │                    LoadingSpinner · BudiLogo · PINInput
+│   │   │   └── hooks/           useBudiFonts · useDistanceCalculation
+│   │   └── constants/           theme.ts (tokens del Design System)
+│   │
+│   └── web/                     App Next.js (App Router)
+│       └── src/
+│           ├── app/             Rutas — page.tsx hace re-export del feature
+│           │   ├── admin/       page + pricing/providers/ratings/...
+│           │   ├── mop/         page + requests
+│           │   └── login/  register/
+│           ├── features/        Páginas reales por dominio
+│           │   ├── admin/       AdminDashboardPage · AdminPricingPage · ...
+│           │   ├── auth/        LoginPage · RegisterPage
+│           │   └── mop/         MopDashboardPage · MopRequestsPage
+│           ├── shared/          Transversal (no atado a un dominio)
+│           │   ├── components/  BudiLogo · LogoutButton · StatusBadge · ServiceTypeBadge
+│           │   └── lib/         supabase/ (client · server · middleware)
+│           ├── middleware.ts    Next.js middleware (debe vivir en src/ raíz)
+│           └── test/            setup.ts (config de vitest)
+│
+├── packages/shared/            Tipos y utils compartidos (mobile + web)
+│   └── src/                     types/ (domain·enums·geo·api) · utils/ · constants/
+├── supabase/                   migrations/ · functions/ (Edge) · config.toml
 └── package.json
 ```
+
+**Convención de estructura (post-reestructuración 2026-06):**
+- `app/` (móvil y web) = **solo routing**. En web, cada `page.tsx` es un shim:
+  `export { default } from '@/features/<dominio>/<Page>'`.
+- `features/<dominio>/` = lógica de un dominio, en `components/`, `hooks/`, `lib/`.
+- `shared/` = transversal (design system, hooks globales). No depende de ningún feature.
+- Alias `@/*` → raíz de cada app (ej. `@/shared/components/ui`, `@/features/tracking/...`).
 
 ### Design System Budi:
 ```typescript
@@ -409,7 +428,7 @@ Al finalizar, actualiza:
 - Tested: ✅ Selección visual funciona
 ```
 
-### `tasks/lessons.md`
+### `docs/lessons.md`
 ```markdown
 ## Lección: Importancia de Testing Temprano
 

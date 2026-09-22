@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,12 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogOut, Pencil, AlertCircle } from 'lucide-react-native';
+import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ChevronRight } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { openSupportMenu } from '@/lib/support';
+import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
@@ -25,6 +26,7 @@ type Profile = {
   role: string;
   created_at: string;
   provider_name: string | null;
+  verification_status: string;
 };
 
 type Stats = {
@@ -58,7 +60,7 @@ export default function OperatorProfile() {
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        setError('No se pudo obtener la informacion del usuario');
+        setError('No se pudo obtener la información del usuario');
         setLoading(false);
         return;
       }
@@ -67,7 +69,7 @@ export default function OperatorProfile() {
       const { data, error: profileError } = await supabase
         .from('profiles')
         .select(`
-          id, full_name, phone, role, created_at,
+          id, full_name, phone, role, created_at, verification_status,
           providers (name)
         `)
         .eq('id', user.id)
@@ -88,6 +90,7 @@ export default function OperatorProfile() {
         role: data.role,
         created_at: data.created_at,
         provider_name: (data.providers as unknown as { name: string } | null)?.name || null,
+        verification_status: data.verification_status || 'pending',
       });
 
       // Fetch operator stats
@@ -111,15 +114,20 @@ export default function OperatorProfile() {
       }
     } catch (err) {
       console.error('Error:', err);
-      setError('Error de conexion');
+      setError('Error de conexión');
     }
 
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // Al enfocar la pestana, no solo al montar: los stats (total/activos/
+  // completados) cambian mientras la app esta abierta y esta pantalla queda
+  // montada como tab, asi que sin esto mostraba numeros viejos hasta reiniciar.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -160,7 +168,13 @@ export default function OperatorProfile() {
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Error', 'El telefono es requerido');
+      Alert.alert('Error', 'El teléfono es requerido');
+      return;
+    }
+
+    // Teléfono de El Salvador: 8 dígitos, opcionalmente con código +503.
+    if (!/^(\+?503)?\d{8}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
+      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido de 8 dígitos.');
       return;
     }
 
@@ -196,7 +210,7 @@ export default function OperatorProfile() {
       Alert.alert('Exito', 'Perfil actualizado correctamente');
     } catch (err) {
       console.error('Error:', err);
-      Alert.alert('Error', 'Error de conexion');
+      Alert.alert('Error', 'Error de conexión');
     }
 
     setSaving(false);
@@ -283,9 +297,40 @@ export default function OperatorProfile() {
         </View>
       </View>
 
+      {/* Estado de verificación */}
+      {(() => {
+        const vs = profile.verification_status;
+        const config = vs === 'approved'
+          ? { Icon: ShieldCheck, color: colors.success.main, bg: colors.success.light, title: 'Cuenta verificada', text: 'Tu cuenta está aprobada. Puedes recibir solicitudes cuando estés en línea.' }
+          : vs === 'rejected'
+          ? { Icon: ShieldX, color: colors.error.main, bg: colors.error.light, title: 'Verificación rechazada', text: 'Tu cuenta no fue aprobada. Contacta a soporte para más información.' }
+          : { Icon: Clock, color: colors.warning.dark, bg: colors.warning.light, title: 'Cuenta en revisión', text: 'Un administrador debe aprobar tu cuenta antes de que puedas recibir solicitudes. Te avisaremos cuando esté lista.' };
+        const cta = vs === 'approved'
+          ? 'Ver documentos'
+          : vs === 'rejected'
+          ? 'Corregir documentos'
+          : 'Subir documentos';
+        return (
+          <Pressable
+            style={[styles.verifCard, { backgroundColor: config.bg, borderColor: config.color }]}
+            onPress={() => router.push('/(operator)/verification' as Href)}
+            accessibilityRole="button"
+            accessibilityLabel={`Verificación: ${config.title}. ${cta}`}
+          >
+            <config.Icon size={22} color={config.color} strokeWidth={2} />
+            <View style={styles.verifTextWrap}>
+              <Text style={[styles.verifTitle, { color: config.color }]}>{config.title}</Text>
+              <Text style={styles.verifText}>{config.text}</Text>
+              <Text style={[styles.verifCta, { color: config.color }]}>{cta}</Text>
+            </View>
+            <ChevronRight size={20} color={config.color} strokeWidth={2} />
+          </Pressable>
+        );
+      })()}
+
       {/* Info Card */}
       <Card variant="default" padding="l">
-        <Text style={styles.cardTitle}>Informacion Personal</Text>
+        <Text style={styles.cardTitle}>Información Personal</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Nombre Completo</Text>
@@ -298,7 +343,7 @@ export default function OperatorProfile() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Telefono</Text>
+          <Text style={styles.infoLabel}>Teléfono</Text>
           <Text style={styles.infoValue}>{profile.phone}</Text>
         </View>
 
@@ -327,6 +372,11 @@ export default function OperatorProfile() {
       <View style={styles.actionsCard}>
         <Card variant="default" padding="l">
           <Text style={styles.cardTitle}>Cuenta</Text>
+          <Pressable style={styles.actionRow} onPress={openSupportMenu}>
+            <HelpCircle size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Ayuda y Soporte</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={handleLogout}>
             <LogOut size={18} color={colors.error.main} />
             <Text style={styles.logoutText}>Cerrar Sesion</Text>
@@ -353,7 +403,13 @@ export default function OperatorProfile() {
               <Text style={styles.modalCancel}>Cancelar</Text>
             </Pressable>
             <Text style={styles.modalTitle}>Editar Perfil</Text>
-            <Pressable onPress={handleSaveProfile} disabled={saving}>
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar"
+              accessibilityState={{ disabled: saving, busy: saving }}
+            >
               {saving ? (
                 <ActivityIndicator size="small" color={colors.primary[500]} />
               ) : (
@@ -374,8 +430,8 @@ export default function OperatorProfile() {
             <View style={styles.modalInputSpacer} />
 
             <Input
-              label="Telefono"
-              placeholder="Tu numero de telefono"
+              label="Teléfono"
+              placeholder="Tu numero de teléfono"
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
@@ -510,6 +566,34 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.m,
   },
+  verifCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    padding: spacing.m,
+    borderRadius: radii.l,
+    borderWidth: 1,
+    marginBottom: spacing.m,
+  },
+  verifTextWrap: {
+    flex: 1,
+  },
+  verifTitle: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    marginBottom: spacing.micro,
+  },
+  verifText: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  verifCta: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    marginTop: spacing.xs,
+  },
   infoRow: {
     marginBottom: spacing.m,
   },
@@ -539,6 +623,16 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.bodyMedium,
     fontSize: typography.sizes.body,
     color: colors.error.main,
+  },
+  helpText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing.xs,
   },
   appInfo: {
     alignItems: 'center',

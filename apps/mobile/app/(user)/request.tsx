@@ -8,22 +8,43 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Clipboard from 'expo-clipboard';
 import { decode } from 'base64-arraybuffer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
-import { useDistanceCalculation } from '@/hooks/useDistanceCalculation';
-import { LocationPicker } from '@/components/LocationPicker';
-import type { ServiceType, ServiceTypePricing, FuelType } from '@gruas-app/shared';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { logger } from '@/lib/logger';
+import { friendlyError } from '@/lib/errorMessages';
+import { reverseGeocode } from '@/lib/geocoding';
+import { useDistanceCalculation } from '@/shared/hooks/useDistanceCalculation';
+import { LocationPicker } from '@/features/tracking/components/LocationPicker';
+import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
+import { isWithinCoverage, COVERAGE } from '@/config/coverage';
+import { savePin } from '@/features/pin/lib/pinStorage';
+import type { ServiceType, ServiceTypePricing, FuelType, CoverageResult } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed } from 'lucide-react-native';
-import { BudiLogo, Button, Card, Input } from '@/components/ui';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2, X, Check } from 'lucide-react-native';
+import { Button, Card, Input } from '@/shared/components/ui';
+import { MiniMap } from '@/shared/components/MiniMap';
 import { colors, typography, spacing, radii } from '@/theme';
+import { useCoverage } from '@/features/coverage/hooks/useCoverage';
+import { CoverageBanner } from '@/features/coverage/components/CoverageBanner';
+import { useCoveragePreview } from '@/features/coverage/hooks/useCoveragePreview';
+import { CopayBreakdown } from '@/features/coverage/components/CopayBreakdown';
+
+// Pasos del wizard, con etiqueta para el indicador de progreso.
+const STEP_META = [
+  { n: 1, label: 'Servicio' },
+  { n: 2, label: 'Ubicación' },
+  { n: 3, label: 'Detalles' },
+  { n: 4, label: 'Vehículo' },
+  { n: 5, label: 'Resumen' },
+] as const;
 
 type LucideIconComponent = React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 
@@ -74,6 +95,20 @@ export default function RequestService() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
+  // Modal de éxito con el PIN (reemplaza el Alert efímero no copiable).
+  const [successPin, setSuccessPin] = useState<string | null>(null);
+  const [pinCopied, setPinCopied] = useState(false);
+
+  // B-11. Dos cosas distintas a proposito:
+  //  - `coverage` es la consulta previa, para que la persona sepa como va a
+  //    quedar el servicio ANTES de confirmarlo.
+  //  - `finalCoverage` es lo que dictamino el servidor al crear la solicitud, y
+  //    es lo que manda. Pueden diferir (la poliza vencio entre un paso y otro, o
+  //    la verificacion fallo justo al crear), y en ese caso se muestra la segunda.
+  const { coverage, loading: loadingCoverage } = useCoverage();
+
+  const [finalCoverage, setFinalCoverage] = useState<CoverageResult | null>(null);
+
   // Service type
   const [serviceType, setServiceType] = useState<ServiceType>('tow');
   const [serviceTypePricing, setServiceTypePricing] = useState<ServiceTypePricing[]>([]);
@@ -94,6 +129,7 @@ export default function RequestService() {
   const [towType, setTowType] = useState<TowType>('light');
   const [incidentType, setIncidentType] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
+  const [savedVehicles, setSavedVehicles] = useState<Vehicle[]>([]);
   const [notes, setNotes] = useState('');
 
   // Tire-specific
@@ -110,8 +146,15 @@ export default function RequestService() {
   const [pricing, setPricing] = useState<PricingRule | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
-  const requiresDestination = serviceType === 'tow';
+  const requiresDestination = requiresDropoff(serviceType);
   const currentPricingType = serviceTypePricing.find(p => p.service_type === serviceType);
+
+  // Datos visuales del servicio, tomados de la DB con fallback seguro. Asi un
+  // service_type nuevo (agregado en `services`) fluye por todo el
+  // wizard sin romperse aunque no exista en SERVICE_TYPE_CONFIGS (7 fijos).
+  const currentConfig = SERVICE_TYPE_CONFIGS[serviceType];
+  const serviceName = currentPricingType?.display_name || currentConfig?.name || 'Servicio';
+  const serviceColor = currentConfig?.color || colors.primary[500];
 
   // Distance calculation (only for tow)
   const {
@@ -128,20 +171,44 @@ export default function RequestService() {
     requiresDestination ? dropoffCoords : null
   );
 
-  // Fetch service type pricing
+  // Catalogo de servicios. Lee de `services`, el catalogo unico desde la
+  // migracion 00049 — antes habia dos tablas con los mismos campos y datos
+  // distintos, y esta pantalla leia de la que nadie podia editar.
+  // De paso alimenta el catalogo de destinos, asi no hacen falta dos consultas.
   useEffect(() => {
     const fetchServicePricing = async () => {
       setLoadingPricingTypes(true);
       const { data, error } = await supabase
-        .from('service_type_pricing')
-        .select('*')
+        .from('services')
+        .select('id, slug, name_es, description_es, icon, base_price, extra_fee, extra_fee_label, requires_destination, sort_order, is_active, currency')
         .eq('is_active', true)
         .order('sort_order');
 
       if (error) {
-        console.error('Error fetching service type pricing:', error);
+        console.error('Error fetching service catalog:', error);
       } else if (data) {
-        setServiceTypePricing(data as ServiceTypePricing[]);
+        setServiceTypePricing(
+          data.map((s) => ({
+            id: s.id,
+            service_type: s.slug as ServiceType,
+            display_name: s.name_es,
+            description: s.description_es ?? '',
+            icon: s.icon ?? '',
+            base_price: Number(s.base_price ?? 0),
+            extra_fee: Number(s.extra_fee ?? 0),
+            extra_fee_label: s.extra_fee_label,
+            requires_destination: !!s.requires_destination,
+            sort_order: s.sort_order ?? 0,
+            is_active: !!s.is_active,
+            currency: s.currency ?? 'USD',
+          }))
+        );
+        setDropoffCatalog(
+          data.map((s) => ({
+            service_type: s.slug,
+            requires_destination: !!s.requires_destination,
+          }))
+        );
       }
       setLoadingPricingTypes(false);
     };
@@ -164,12 +231,27 @@ export default function RequestService() {
     fetchPricing();
   }, []);
 
+  // Cargar vehículos guardados para ofrecerlos como acceso rápido.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('vehicles')
+        .select('id, make, model, plate, color, is_default')
+        .order('is_default', { ascending: false });
+      if (data && data.length > 0) {
+        setSavedVehicles(data);
+        const def = data.find((v) => v.is_default) || data[0];
+        setVehicleDescription((prev) => prev || vehicleLabel(def));
+      }
+    })();
+  }, []);
+
   const getCurrentLocation = async () => {
     setGettingLocation(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permisos', 'Se requiere acceso a la ubicacion para continuar');
+        Alert.alert('Permisos', 'Se requiere acceso a la ubicación para continuar');
         setGettingLocation(false);
         return;
       }
@@ -181,23 +263,14 @@ export default function RequestService() {
       };
       setPickupCoords(coords);
 
-      const [addressResult] = await Location.reverseGeocodeAsync({
-        latitude: coords.lat,
-        longitude: coords.lng,
-      });
-
-      if (addressResult) {
-        const address = [
-          addressResult.street,
-          addressResult.city,
-          addressResult.region,
-        ]
-          .filter(Boolean)
-          .join(', ');
-        setPickupAddress(address || `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`);
-      }
+      // reverseGeocode nunca lanza y trae direccion legible via Expo -> Nominatim
+      // (OSM, gratis) -> coords como ultimo recurso. Asi pickupAddress nunca
+      // queda vacio (un valor vacio mantiene "Siguiente" deshabilitado aunque
+      // haya coords GPS validas).
+      const address = await reverseGeocode(coords.lat, coords.lng);
+      setPickupAddress(address);
     } catch {
-      Alert.alert('Error', 'No se pudo obtener la ubicacion');
+      Alert.alert('Error', 'No se pudo obtener la ubicación');
     }
     setGettingLocation(false);
   };
@@ -210,7 +283,7 @@ export default function RequestService() {
         return { lat: results[0].latitude, lng: results[0].longitude };
       }
     } catch (err) {
-      console.log('Geocoding error:', err);
+      logger.log('Geocoding error:', err);
     }
     return null;
   };
@@ -287,6 +360,19 @@ export default function RequestService() {
     return Math.round((currentPricingType.base_price + extra) * 100) / 100;
   };
 
+  // B-13: copago estimado. Solo cuando el usuario esta cubierto y ya en el
+  // resumen (step 5), sobre el precio estimado. La logica vive en la base
+  // (preview_my_coverage); si falla, el hook deja el preview en null y el
+  // resumen muestra el precio a secas.
+  const previewTotal = requiresDestination ? estimatedPrice : calculateFlatPrice();
+  const { preview: copayPreview } = useCoveragePreview({
+    enabled: step === 5 && coverage?.status === 'covered',
+    serviceType,
+    total: previewTotal,
+    km: requiresDestination ? calculatedDistance : null,
+    towType,
+  });
+
   useEffect(() => {
     if (serviceType === 'tow' && calculatedDistance && pricing) {
       calculatePrice();
@@ -312,6 +398,33 @@ export default function RequestService() {
     }
     if (requiresDestination && !dropoffAddress) {
       Alert.alert('Error', 'Por favor selecciona el destino');
+      return;
+    }
+
+    // Coordenadas obligatorias: sin ellas NO se envía (antes se caía en silencio
+    // a DEFAULT_LOCATION y se podía despachar la grúa al lugar equivocado). Si la
+    // geocodificación falló, pedimos re-seleccionar el punto en el mapa.
+    if (!pickupCoords) {
+      Alert.alert(
+        'No pudimos ubicar la recogida',
+        'Vuelve al paso de Ubicación y selecciona el punto de recogida en el mapa para continuar.'
+      );
+      return;
+    }
+    if (requiresDestination && !dropoffCoords) {
+      Alert.alert(
+        'No pudimos ubicar el destino',
+        'Vuelve al paso de Ubicación y selecciona el destino en el mapa para continuar.'
+      );
+      return;
+    }
+
+    // Zona de cobertura: el punto de recogida debe estar dentro del área servida.
+    if (!isWithinCoverage(pickupCoords.lat, pickupCoords.lng)) {
+      Alert.alert(
+        'Fuera de cobertura',
+        `Por ahora solo damos servicio en ${COVERAGE.areaName}. El punto de recogida está fuera de la zona de cobertura.`
+      );
       return;
     }
 
@@ -369,13 +482,16 @@ export default function RequestService() {
         notes || '',
       ].filter(Boolean).join('\n') || null;
 
-      // For non-tow: dropoff = pickup
-      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat || 13.6929) : (pickupCoords?.lat || 13.6929);
-      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng || -89.2182) : (pickupCoords?.lng || -89.2182);
+      // For non-tow: dropoff = pickup. Coords ya validadas arriba (no null).
+      const effectiveDropoffLat = requiresDestination ? (dropoffCoords?.lat ?? pickupCoords.lat) : pickupCoords.lat;
+      const effectiveDropoffLng = requiresDestination ? (dropoffCoords?.lng ?? pickupCoords.lng) : pickupCoords.lng;
       const effectiveDropoffAddress = requiresDestination ? dropoffAddress : pickupAddress;
 
-      // Auto-assign incident for non-tow
-      const effectiveIncident = serviceType === 'tow' ? incidentType : SERVICE_INCIDENT_MAP[serviceType];
+      // Auto-assign incident for non-tow. Fallback al nombre del servicio (DB)
+      // para tipos que no esten en SERVICE_INCIDENT_MAP.
+      const effectiveIncident = serviceType === 'tow'
+        ? incidentType
+        : (SERVICE_INCIDENT_MAP[serviceType] || currentPricingType?.display_name || serviceName);
 
       const { data, error } = await supabase.rpc('create_service_request', {
         p_dropoff_address: effectiveDropoffAddress,
@@ -384,8 +500,8 @@ export default function RequestService() {
         p_incident_type: effectiveIncident,
         p_notes: combinedNotes,
         p_pickup_address: pickupAddress,
-        p_pickup_lat: pickupCoords?.lat || 13.6929,
-        p_pickup_lng: pickupCoords?.lng || -89.2182,
+        p_pickup_lat: pickupCoords.lat,
+        p_pickup_lng: pickupCoords.lng,
         p_service_details: buildServiceDetails(),
         p_service_type: serviceType,
         p_tow_type: towType,
@@ -394,7 +510,7 @@ export default function RequestService() {
 
       if (error) {
         console.error('Error creating request:', JSON.stringify(error));
-        Alert.alert('Error al crear solicitud', error.message || 'Ocurrio un error inesperado.');
+        Alert.alert('Error al crear solicitud', friendlyError(error, 'No se pudo crear la solicitud. Intenta de nuevo.'));
         setSubmitting(false);
         return;
       }
@@ -405,47 +521,82 @@ export default function RequestService() {
         return;
       }
 
-      // Save PIN
+      // Save PIN to SecureStore (encrypted) — see features/pin/lib/pinStorage.ts
       try {
-        const requestPins = await AsyncStorage.getItem('request_pins');
-        const pins = requestPins ? JSON.parse(requestPins) : {};
-        pins[data.request_id] = data.pin;
-        await AsyncStorage.setItem('request_pins', JSON.stringify(pins));
+        await savePin(data.request_id, data.pin);
       } catch (storageError) {
         console.error('Error saving PIN:', storageError);
       }
 
-      const svcName = SERVICE_TYPE_CONFIGS[serviceType].name;
-      Alert.alert(
-        'Solicitud Enviada',
-        `Tu solicitud de ${svcName} ha sido registrada.\n\nPIN de verificacion: ${data.pin}\n\nGuarda este PIN. Lo necesitaras cuando llegue el operador.`,
-        [{
-          text: 'Ver Estado',
-          onPress: () => {
-            setStep(1);
-            setServiceType('tow');
-            setPickupCoords(null);
-            setPickupAddress('');
-            setDropoffCoords(null);
-            setDropoffAddress('');
-            setTowType('light');
-            setIncidentType('');
-            setVehicleDescription('');
-            setNotes('');
-            setPhoto(null);
-            setEstimatedPrice(null);
-            setHasSpare(null);
-            setFuelType('regular');
-            setFuelGallons(1);
-            setSubmitting(false);
-            router.replace('/(user)');
-          },
-        }]
-      );
+      // Éxito: mostramos el PIN en un modal in-app (copiable y persistente),
+      // no en un Alert efímero. El reset del wizard ocurre al cerrar el modal.
+      setSubmitting(false);
+      setPinCopied(false);
+      // B-11: lo que dictamino el servidor manda sobre la consulta previa.
+      setFinalCoverage((data.coverage as CoverageResult) ?? null);
+      setSuccessPin(data.pin);
     } catch {
-      Alert.alert('Error de conexion', 'No se pudo conectar con el servidor.');
+      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor.');
       setSubmitting(false);
     }
+  };
+
+  // Limpia el wizard para una próxima solicitud.
+  const resetForm = () => {
+    setStep(1);
+    setServiceType('tow');
+    setPickupCoords(null);
+    setPickupAddress('');
+    setDropoffCoords(null);
+    setDropoffAddress('');
+    setTowType('light');
+    setIncidentType('');
+    setVehicleDescription('');
+    setNotes('');
+    setPhoto(null);
+    setEstimatedPrice(null);
+    setHasSpare(null);
+    setFuelType('regular');
+    setFuelGallons(1);
+  };
+
+  const copyPin = async (pin: string) => {
+    try {
+      await Clipboard.setStringAsync(pin);
+      setPinCopied(true);
+    } catch {
+      // Copiar es una comodidad; si falla, el PIN sigue visible en pantalla.
+    }
+  };
+
+  const handleSuccessClose = () => {
+    resetForm();
+    setSuccessPin(null);
+    setFinalCoverage(null);
+    setPinCopied(false);
+    router.replace('/(user)');
+  };
+
+  // Salir del wizard: si hay datos ingresados, confirma para no perderlos.
+  const handleClose = () => {
+    const hasData = !!(pickupAddress || dropoffAddress || incidentType || vehicleDescription || notes || photo) || step > 1;
+    if (!hasData) {
+      router.replace('/(user)');
+      return;
+    }
+    Alert.alert(
+      '¿Salir de la solicitud?',
+      'Se perderá la información que ingresaste.',
+      [
+        { text: 'Seguir aquí', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: () => { resetForm(); router.replace('/(user)'); } },
+      ]
+    );
+  };
+
+  // Ir a un paso ya visitado (retroceder para editar desde el indicador o el resumen).
+  const goToStep = (n: number) => {
+    if (n >= 1 && n <= step) setStep(n);
   };
 
   // ─── STEP 1: Service Type Selection ───
@@ -469,7 +620,15 @@ export default function RequestService() {
                   styles.serviceCard,
                   isSelected && { borderColor: colors.accent[500], backgroundColor: colors.accent[50] },
                 ]}
-                onPress={() => setServiceType(stp.service_type as ServiceType)}
+                onPress={() => {
+                  // Seleccionar el servicio y avanzar directo al paso 2
+                  // (el usuario no tiene que buscar el boton "Siguiente").
+                  setServiceType(stp.service_type as ServiceType);
+                  setStep(2);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Servicio: ${stp.display_name}. Desde $${stp.base_price.toFixed(2)}`}
+                accessibilityState={{ selected: isSelected }}
               >
                 <View style={[
                   styles.serviceIconContainer,
@@ -492,31 +651,27 @@ export default function RequestService() {
           })}
         </View>
       )}
-
-      <Button
-        title="Siguiente"
-        onPress={() => setStep(2)}
-        disabled={!serviceType}
-      />
     </View>
   );
 
   // ─── STEP 2: Location ───
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Ubicacion</Text>
+      <Text style={styles.stepTitle}>Ubicación</Text>
 
       <Text style={styles.label}>Punto de Recogida</Text>
       <Pressable
         style={styles.locationSelector}
         onPress={() => setShowPickupPicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel={pickupAddress ? `Punto de recogida: ${pickupAddress}. Toca para cambiar` : 'Seleccionar punto de recogida'}
       >
         <View style={styles.locationSelectorIconWrap}>
           <MapPin size={20} color={colors.primary[500]} strokeWidth={2} />
         </View>
         <View style={styles.locationSelectorContent}>
           <Text style={[styles.locationSelectorText, !pickupAddress && styles.locationSelectorPlaceholder]}>
-            {pickupAddress || 'Toca para seleccionar ubicacion'}
+            {pickupAddress || 'Toca para seleccionar ubicación'}
           </Text>
         </View>
         <Text style={styles.locationSelectorArrow}>›</Text>
@@ -526,13 +681,15 @@ export default function RequestService() {
         style={styles.quickGpsButton}
         onPress={getCurrentLocation}
         disabled={gettingLocation}
+        accessibilityRole="button"
+        accessibilityLabel="Usar mi ubicación actual"
       >
         {gettingLocation ? (
           <ActivityIndicator color={colors.primary[500]} size="small" />
         ) : (
           <View style={styles.quickGpsContent}>
             <LocateFixed size={16} color={colors.primary[500]} strokeWidth={2} />
-            <Text style={styles.quickGpsText}>Usar mi ubicacion actual</Text>
+            <Text style={styles.quickGpsText}>Usar mi ubicación actual</Text>
           </View>
         )}
       </Pressable>
@@ -543,6 +700,8 @@ export default function RequestService() {
           <Pressable
             style={styles.locationSelector}
             onPress={() => setShowDestinationPicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel={dropoffAddress ? `Destino: ${dropoffAddress}. Toca para cambiar` : 'Seleccionar destino'}
           >
             <View style={styles.locationSelectorIconWrap}>
               <Flag size={20} color={colors.error.main} strokeWidth={2} />
@@ -567,14 +726,14 @@ export default function RequestService() {
 
       <View style={styles.navButtons}>
         <View style={styles.navBack}>
-          <Button title="Atras" onPress={() => setStep(1)} variant="secondary" size="medium" />
+          <Button title="Atrás" onPress={() => setStep(1)} variant="secondary" size="medium" />
         </View>
         <View style={styles.navNext}>
           <Button
             title="Siguiente"
             onPress={() => setStep(3)}
             size="medium"
-            disabled={!pickupAddress || (requiresDestination && !dropoffAddress)}
+            disabled={!pickupCoords || (requiresDestination && !dropoffCoords)}
           />
         </View>
       </View>
@@ -595,7 +754,11 @@ export default function RequestService() {
         <LocationPicker
           visible={showDestinationPicker}
           title="Destino"
-          initialLocation={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
+          // Centra el mapa donde esta el vehiculo, pero SIN dejarlo
+          // preseleccionado: si no, el destino salia confirmable igual al
+          // punto de recogida (viaje de 0 km) con solo tocar "Confirmar".
+          initialLocation={dropoffCoords ? { latitude: dropoffCoords.lat, longitude: dropoffCoords.lng } : undefined}
+          initialRegion={pickupCoords ? { latitude: pickupCoords.lat, longitude: pickupCoords.lng } : undefined}
           onLocationSelected={(loc) => {
             setDropoffCoords({ lat: loc.latitude, lng: loc.longitude });
             setDropoffAddress(loc.address);
@@ -611,11 +774,14 @@ export default function RequestService() {
   const renderStep3 = () => {
     const renderTowDetails = () => (
       <>
-        <Text style={styles.label}>Tipo de Grua</Text>
+        <Text style={styles.label}>Tipo de Grúa</Text>
         <View style={styles.toggleContainer}>
           <Pressable
             style={[styles.toggleButton, towType === 'light' && styles.toggleActive]}
             onPress={() => setTowType('light')}
+            accessibilityRole="button"
+            accessibilityLabel="Grúa liviana, para autos y camionetas"
+            accessibilityState={{ selected: towType === 'light' }}
           >
             <Text style={[styles.toggleText, towType === 'light' && styles.toggleTextActive]}>Liviana</Text>
             <Text style={styles.toggleSubtext}>Autos, camionetas</Text>
@@ -623,6 +789,9 @@ export default function RequestService() {
           <Pressable
             style={[styles.toggleButton, towType === 'heavy' && styles.toggleActive]}
             onPress={() => setTowType('heavy')}
+            accessibilityRole="button"
+            accessibilityLabel="Grúa pesada, para camiones y buses"
+            accessibilityState={{ selected: towType === 'heavy' }}
           >
             <Text style={[styles.toggleText, towType === 'heavy' && styles.toggleTextActive]}>Pesada</Text>
             <Text style={styles.toggleSubtext}>Camiones, buses</Text>
@@ -636,6 +805,9 @@ export default function RequestService() {
               key={type}
               style={[styles.incidentButton, incidentType === type && styles.incidentActive]}
               onPress={() => setIncidentType(type)}
+              accessibilityRole="button"
+              accessibilityLabel={type}
+              accessibilityState={{ selected: incidentType === type }}
             >
               <Text style={[styles.incidentText, incidentType === type && styles.incidentTextActive]}>
                 {type}
@@ -648,18 +820,24 @@ export default function RequestService() {
 
     const renderTireDetails = () => (
       <>
-        <Text style={styles.label}>Tienes llanta de repuesto?</Text>
+        <Text style={styles.label}>¿Tienes llanta de repuesto?</Text>
         <View style={styles.toggleContainer}>
           <Pressable
             style={[styles.toggleButton, hasSpare === true && styles.toggleActive]}
             onPress={() => setHasSpare(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Sí tengo llanta de repuesto"
+            accessibilityState={{ selected: hasSpare === true }}
           >
-            <Text style={[styles.toggleText, hasSpare === true && styles.toggleTextActive]}>Si tengo</Text>
+            <Text style={[styles.toggleText, hasSpare === true && styles.toggleTextActive]}>Sí tengo</Text>
             <Text style={styles.toggleSubtext}>Solo cambio</Text>
           </Pressable>
           <Pressable
             style={[styles.toggleButton, hasSpare === false && styles.toggleActive]}
             onPress={() => setHasSpare(false)}
+            accessibilityRole="button"
+            accessibilityLabel="No tengo llanta de repuesto"
+            accessibilityState={{ selected: hasSpare === false }}
           >
             <Text style={[styles.toggleText, hasSpare === false && styles.toggleTextActive]}>No tengo</Text>
             <Text style={styles.toggleSubtext}>+${currentPricingType?.extra_fee?.toFixed(2) || '15.00'}</Text>
@@ -672,17 +850,23 @@ export default function RequestService() {
       <>
         <Text style={styles.label}>Tipo de Combustible</Text>
         <View style={styles.toggleContainer}>
-          {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => (
-            <Pressable
-              key={ft}
-              style={[styles.toggleButton, fuelType === ft && styles.toggleActive]}
-              onPress={() => setFuelType(ft)}
-            >
-              <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
-                {ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel'}
-              </Text>
-            </Pressable>
-          ))}
+          {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => {
+            const ftLabel = ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel';
+            return (
+              <Pressable
+                key={ft}
+                style={[styles.toggleButton, fuelType === ft && styles.toggleActive]}
+                onPress={() => setFuelType(ft)}
+                accessibilityRole="button"
+                accessibilityLabel={`Combustible ${ftLabel}`}
+                accessibilityState={{ selected: fuelType === ft }}
+              >
+                <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
+                  {ftLabel}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Text style={styles.label}>Cantidad (galones)</Text>
@@ -690,6 +874,8 @@ export default function RequestService() {
           <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.max(1, fuelGallons - 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Quitar un galón"
           >
             <Text style={styles.gallonBtnText}>-</Text>
           </Pressable>
@@ -697,6 +883,8 @@ export default function RequestService() {
           <Pressable
             style={styles.gallonBtn}
             onPress={() => setFuelGallons(Math.min(10, fuelGallons + 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar un galón"
           >
             <Text style={styles.gallonBtnText}>+</Text>
           </Pressable>
@@ -709,12 +897,15 @@ export default function RequestService() {
       </>
     );
 
+    // Detalle generico para servicios sin campos propios (bateria, cerrajeria,
+    // mecanico, winche, o cualquier servicio nuevo de la DB). Usa la descripcion
+    // del catalogo (`services`) para no quedar vacio.
     const renderSimpleDetails = () => (
       <View style={styles.infoBox}>
         <Text style={styles.infoBoxText}>
-          {serviceType === 'battery'
-            ? 'Un operador llegara a diagnosticar y cargar o reemplazar tu bateria.'
-            : 'Un cerrajero llegara para abrir tu vehiculo de forma segura.'}
+          {currentPricingType?.description
+            ? `${currentPricingType.description}. Un operador llegara para atender tu solicitud en el lugar.`
+            : 'Un operador llegara para atender tu solicitud en el lugar.'}
         </Text>
       </View>
     );
@@ -735,11 +926,11 @@ export default function RequestService() {
         {serviceType === 'tow' && renderTowDetails()}
         {serviceType === 'tire' && renderTireDetails()}
         {serviceType === 'fuel' && renderFuelDetails()}
-        {(serviceType === 'battery' || serviceType === 'locksmith') && renderSimpleDetails()}
+        {!(['tow', 'tire', 'fuel'] as ServiceType[]).includes(serviceType) && renderSimpleDetails()}
 
         <Input
           label="Notas Adicionales (opcional)"
-          placeholder="Informacion adicional para el operador..."
+          placeholder="Información adicional para el operador..."
           value={notes}
           onChangeText={setNotes}
           multiline
@@ -748,7 +939,7 @@ export default function RequestService() {
 
         <View style={styles.navButtons}>
           <View style={styles.navBack}>
-            <Button title="Atras" onPress={() => setStep(2)} variant="secondary" size="medium" />
+            <Button title="Atrás" onPress={() => setStep(2)} variant="secondary" size="medium" />
           </View>
           <View style={styles.navNext}>
             <Button title="Siguiente" onPress={() => setStep(4)} size="medium" disabled={!canProceed} />
@@ -761,22 +952,46 @@ export default function RequestService() {
   // ─── STEP 4: Vehicle + Photo ───
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Detalles del Vehiculo</Text>
+      <Text style={styles.stepTitle}>Detalles del Vehículo</Text>
+
+      {savedVehicles.length > 0 && (
+        <View style={styles.vehicleChips}>
+          <Text style={styles.label}>Tus vehiculos</Text>
+          <View style={styles.chipsRow}>
+            {savedVehicles.map((v) => {
+              const label = vehicleLabel(v);
+              const selected = vehicleDescription === label;
+              return (
+                <Pressable
+                  key={v.id}
+                  onPress={() => setVehicleDescription(label)}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Vehículo ${label}`}
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <Input
-        label="Descripcion del Vehiculo (opcional)"
+        label="Descripción del Vehículo (opcional)"
         placeholder="Ej: Toyota Corolla 2020, color blanco"
         value={vehicleDescription}
         onChangeText={setVehicleDescription}
       />
 
-      <Text style={styles.label}>Foto del Vehiculo (opcional)</Text>
+      <Text style={styles.label}>Foto del Vehículo (opcional)</Text>
       <View style={styles.photoButtons}>
         <View style={{ flex: 1 }}>
           <Button title="Tomar Foto" onPress={takePhoto} variant="secondary" size="medium" />
         </View>
         <View style={{ flex: 1 }}>
-          <Button title="Galeria" onPress={pickImage} variant="secondary" size="medium" />
+          <Button title="Galería" onPress={pickImage} variant="secondary" size="medium" />
         </View>
       </View>
 
@@ -786,7 +1001,7 @@ export default function RequestService() {
 
       <View style={styles.navButtons}>
         <View style={styles.navBack}>
-          <Button title="Atras" onPress={() => setStep(3)} variant="secondary" size="medium" />
+          <Button title="Atrás" onPress={() => setStep(3)} variant="secondary" size="medium" />
         </View>
         <View style={styles.navNext}>
           <Button title="Ver Resumen" onPress={() => setStep(5)} size="medium" />
@@ -799,11 +1014,30 @@ export default function RequestService() {
   const renderStep5 = () => {
     const flatPrice = !requiresDestination ? calculateFlatPrice() : null;
     const displayPrice = requiresDestination ? estimatedPrice : flatPrice;
-    const config = SERVICE_TYPE_CONFIGS[serviceType];
 
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Resumen de Solicitud</Text>
+
+        {/* B-11: como queda el servicio respecto del seguro, ANTES de confirmar.
+            `serviceCovered` viene de B-13: sin eso el banner anunciaba "Cubierto
+            por tu seguro" aunque el plan excluyera justo este servicio, y se
+            contradecia con el desglose de copago de mas abajo. */}
+        <CoverageBanner
+          coverage={coverage}
+          loading={loadingCoverage}
+          serviceCovered={copayPreview ? copayPreview.covered : null}
+        />
+
+        {pickupCoords && (
+          <View style={styles.summaryMap}>
+            <MiniMap
+              pickup={pickupCoords}
+              dropoff={requiresDestination ? dropoffCoords : null}
+              height={160}
+            />
+          </View>
+        )}
 
         <Card variant="outlined" padding="m">
           <View style={styles.summaryContent}>
@@ -812,9 +1046,9 @@ export default function RequestService() {
               <View style={styles.summaryServiceRow}>
                 {(() => {
                   const SvcIcon = SERVICE_ICONS[serviceType] || Truck;
-                  return <SvcIcon size={16} color={config.color || colors.primary[500]} strokeWidth={2} />;
+                  return <SvcIcon size={16} color={serviceColor} strokeWidth={2} />;
                 })()}
-                <Text style={styles.summaryValue}>{config.name}</Text>
+                <Text style={styles.summaryValue}>{serviceName}</Text>
               </View>
             </View>
             <View style={styles.summaryRow}>
@@ -829,7 +1063,7 @@ export default function RequestService() {
             )}
             {serviceType === 'tow' && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tipo de Grua:</Text>
+                <Text style={styles.summaryLabel}>Tipo de Grúa:</Text>
                 <Text style={styles.summaryValue}>{towType === 'light' ? 'Liviana' : 'Pesada'}</Text>
               </View>
             )}
@@ -842,7 +1076,7 @@ export default function RequestService() {
             {serviceType === 'tire' && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Repuesto:</Text>
-                <Text style={styles.summaryValue}>{hasSpare ? 'Si' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
+                <Text style={styles.summaryValue}>{hasSpare ? 'Sí' : 'No (+$' + (currentPricingType?.extra_fee?.toFixed(2) || '15.00') + ')'}</Text>
               </View>
             )}
             {serviceType === 'fuel' && (
@@ -857,14 +1091,20 @@ export default function RequestService() {
                 </View>
               </>
             )}
-            {vehicleDescription && (
+            {/* `!!`: con && a secas, un string vacio se renderiza como nodo de texto
+                suelto dentro del View y react-native-web tira un error de consola. */}
+            {!!vehicleDescription && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Vehiculo:</Text>
+                <Text style={styles.summaryLabel}>Vehículo:</Text>
                 <Text style={styles.summaryValue}>{vehicleDescription}</Text>
               </View>
             )}
           </View>
         </Card>
+
+        <Text style={styles.editHint}>
+          ¿Necesitas cambiar algo? Toca un paso arriba para editarlo.
+        </Text>
 
         <View style={styles.priceCard}>
           <Text style={styles.priceLabelText}>Precio Estimado</Text>
@@ -886,12 +1126,15 @@ export default function RequestService() {
                 <Text style={styles.priceValue}>
                   {displayPrice ? `$${displayPrice.toFixed(2)}` : '--'}
                 </Text>
-                {calculatedDistance && (
+                {/* Comparar contra null y no con &&: una distancia de 0 pintaria
+                    un "0" suelto en vez de la fila, y ocultarla con !! perderia
+                    un valor legitimo. */}
+                {calculatedDistance != null && (
                   <>
                     <Text style={styles.priceNote}>
                       Distancia: {distanceText || `${calculatedDistance.toFixed(1)} km`}
                     </Text>
-                    {calculatedDuration && (
+                    {calculatedDuration != null && (
                       <Text style={styles.priceNote}>
                         Tiempo estimado: {durationText || `${calculatedDuration} min`}
                       </Text>
@@ -900,7 +1143,7 @@ export default function RequestService() {
                 )}
                 {isDistanceFallback && (
                   <Text style={styles.fallbackNote}>
-                    * Distancia aproximada (sin conexion a Google Maps)
+                    * Distancia aproximada (sin conexión a Google Maps)
                   </Text>
                 )}
               </>
@@ -919,9 +1162,17 @@ export default function RequestService() {
           </Text>
         </View>
 
+        {/* B-13: cuanto cubre el seguro y cuanto queda de copago, antes de confirmar.
+            Se muestra tambien cuando el afiliado esta cubierto pero ESTE servicio
+            esta excluido del plan (copayPreview.covered === false): ahi el desglose
+            aclara que paga todo, en vez de dejar solo el banner "cubierto". */}
+        {coverage?.status === 'covered' && copayPreview && (
+          <CopayBreakdown preview={copayPreview} isEstimate={requiresDestination} />
+        )}
+
         <View style={styles.navButtons}>
           <View style={styles.navBack}>
-            <Button title="Atras" onPress={() => setStep(4)} variant="secondary" size="medium" />
+            <Button title="Atrás" onPress={() => setStep(4)} variant="secondary" size="medium" />
           </View>
           <View style={styles.navNext}>
             <Button
@@ -938,30 +1189,126 @@ export default function RequestService() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.l }]}>
-      <View style={styles.wizardHeader}>
-        <BudiLogo variant="icon" height={28} />
-      </View>
-      <View style={styles.progressContainer}>
-        {[1, 2, 3, 4, 5].map((s) => (
-          <View
-            key={s}
-            style={[styles.progressDot, s <= step && styles.progressDotActive]}
-          />
-        ))}
+    <View style={styles.screen}>
+      {/* Barra superior: cerrar + título */}
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.s }]}>
+        <Pressable
+          onPress={handleClose}
+          hitSlop={10}
+          style={styles.topBarBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar solicitud"
+        >
+          <X size={22} color={colors.text.primary} strokeWidth={2} />
+        </Pressable>
+        <Text style={styles.topBarTitle}>Solicitar servicio</Text>
+        <View style={styles.topBarBtn} />
       </View>
 
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
-      {step === 5 && renderStep5()}
-    </ScrollView>
+      {/* Indicador de progreso con etiquetas (tocable para volver a un paso) */}
+      <View style={styles.stepper}>
+        {STEP_META.map((s) => {
+          const active = s.n === step;
+          const done = s.n < step;
+          return (
+            <Pressable
+              key={s.n}
+              style={styles.stepItem}
+              onPress={() => goToStep(s.n)}
+              disabled={s.n > step}
+              accessibilityRole="button"
+              accessibilityLabel={`Paso ${s.n} de 5: ${s.label}`}
+              accessibilityState={{ selected: active, disabled: s.n > step }}
+            >
+              <View style={[styles.stepCircle, active && styles.stepCircleActive, done && styles.stepCircleDone]}>
+                {done ? (
+                  <Check size={14} color={colors.white} strokeWidth={3} />
+                ) : (
+                  <Text style={[styles.stepNum, active && styles.stepNumActive]}>{s.n}</Text>
+                )}
+              </View>
+              <Text style={[styles.stepLabel, (active || done) && styles.stepLabelActive]} numberOfLines={1}>
+                {s.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {step === 1 && renderStep1()}
+        {step === 2 && renderStep2()}
+        {step === 3 && renderStep3()}
+        {step === 4 && renderStep4()}
+        {step === 5 && renderStep5()}
+      </ScrollView>
+
+      {/* Modal de éxito: PIN grande, copiable y con recordatorio de dónde verlo */}
+      <Modal visible={!!successPin} transparent animationType="fade" onRequestClose={handleSuccessClose}>
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconWrap}>
+              <CheckCircle2 size={40} color={colors.success.main} strokeWidth={2} />
+            </View>
+            <Text style={styles.successTitle}>¡Solicitud enviada!</Text>
+            <Text style={styles.successSubtitle}>Tu PIN de verificación es:</Text>
+            <Text style={styles.successPin}>{successPin}</Text>
+
+            <Pressable
+              style={styles.copyBtn}
+              onPress={() => successPin && copyPin(successPin)}
+              accessibilityRole="button"
+              accessibilityLabel="Copiar PIN"
+            >
+              {pinCopied ? (
+                <CheckCircle2 size={16} color={colors.success.main} strokeWidth={2} />
+              ) : (
+                <Copy size={16} color={colors.primary[600]} strokeWidth={2} />
+              )}
+              <Text style={[styles.copyBtnText, pinCopied && { color: colors.success.main }]}>
+                {pinCopied ? '¡Copiado!' : 'Copiar PIN'}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.successHint}>
+              Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+              Siempre estará disponible en tu pantalla de inicio.
+            </Text>
+
+            {/* B-11: el veredicto del servidor. Se muestra SIEMPRE, tambien cuando
+                la verificacion fallo — que la solicitud se haya creado no puede
+                dejar a la persona creyendo que su seguro la cubre. */}
+            {finalCoverage && (
+              <View style={styles.successCoverage}>
+                <CoverageBanner
+                  coverage={finalCoverage}
+                  serviceCovered={copayPreview ? copayPreview.covered : null}
+                />
+              </View>
+            )}
+
+            <View style={styles.successButton}>
+              <Button title="Ver estado del servicio" onPress={handleSuccessClose} size="medium" />
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  successCoverage: {
+    alignSelf: 'stretch',
+    marginTop: spacing.m,
+    marginBottom: -spacing.s,
+  },
+
   // Layout
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
@@ -971,26 +1318,73 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxxl,
   },
 
-  // Wizard header
-  wizardHeader: {
-    marginBottom: spacing.s,
+  // Barra superior
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.l,
+    paddingBottom: spacing.s,
+  },
+  topBarBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h3,
+    color: colors.text.primary,
   },
 
-  // Progress
-  progressContainer: {
+  // Stepper con etiquetas
+  stepper: {
     flexDirection: 'row',
+    paddingHorizontal: spacing.m,
+    paddingBottom: spacing.m,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
+  },
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.micro,
+  },
+  stepCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xl,
+    backgroundColor: colors.background.tertiary,
+    borderWidth: 1,
+    borderColor: colors.border.light,
   },
-  progressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.border.light,
+  stepCircleActive: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[500],
   },
-  progressDotActive: {
+  stepCircleDone: {
     backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  stepNum: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.tertiary,
+  },
+  stepNumActive: {
+    color: colors.primary[600],
+  },
+  stepLabel: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.micro,
+    color: colors.text.tertiary,
+  },
+  stepLabelActive: {
+    color: colors.text.primary,
+    fontFamily: typography.fonts.bodyMedium,
   },
 
   // Step
@@ -1019,6 +1413,37 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.bodySmall,
     color: colors.text.primary,
     marginTop: spacing.xs,
+  },
+
+  // Vehicle quick-pick chips
+  vehicleChips: {
+    marginBottom: spacing.s,
+    gap: spacing.xs,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  chip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.primary,
+  },
+  chipSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
+  },
+  chipText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+  },
+  chipTextSelected: {
+    color: colors.primary[600],
   },
 
   // Service Type Grid
@@ -1240,8 +1665,20 @@ const styles = StyleSheet.create({
   },
 
   // Summary
+  summaryMap: {
+    borderRadius: radii.l,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
   summaryContent: {
     gap: spacing.s,
+  },
+  editHint: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.text.tertiary,
+    textAlign: 'center',
   },
   summaryRow: {
     gap: spacing.micro,
@@ -1322,5 +1759,72 @@ const styles = StyleSheet.create({
     color: colors.warning.main,
     fontStyle: 'italic',
     marginTop: spacing.micro,
+  },
+
+  // Success modal (PIN)
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.l,
+  },
+  successCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.l,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  successIconWrap: {
+    marginBottom: spacing.s,
+  },
+  successTitle: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.h2,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  successSubtitle: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    marginTop: spacing.s,
+  },
+  successPin: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.hero,
+    color: colors.accent[600],
+    letterSpacing: 8,
+    marginTop: spacing.xs,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.m,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    marginTop: spacing.m,
+  },
+  copyBtnText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.primary[600],
+  },
+  successHint: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: spacing.m,
+    lineHeight: 20,
+  },
+  successButton: {
+    width: '100%',
+    marginTop: spacing.l,
   },
 });

@@ -1,0 +1,61 @@
+# Production stack for scope A: web Next.js + Caddy reverse proxy.
+# Supabase lives in the managed account (Budi_app) — not in this file.
+#
+# This file is meant to live at /srv/budi/docker-compose.prod.yml on the
+# VPS, together with .env.production and deploy/Caddyfile (copied from
+# this repo).
+#
+# Usage on the VPS:
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs -f
+#
+# See docs/DEPLOY_VPS.md for the full first-deploy walkthrough.
+
+services:
+  web:
+    # The CI workflow .github/workflows/build-web-image.yml publishes
+    # this image on every push to main. Override BUDI_WEB_IMAGE in
+    # /srv/budi/.env (or pin to a specific :<sha> tag) when you want
+    # to deploy a particular build instead of the latest.
+    image: ${BUDI_WEB_IMAGE:-ghcr.io/REPLACE_ME/budi-web:latest}
+    container_name: budi-web
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    # No direct port publish to the host — only Caddy reaches it via the
+    # internal network. Keeps :3000 off the public internet.
+    expose:
+      - "3000"
+    networks:
+      - budi
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: budi-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks:
+      - budi
+
+networks:
+  budi:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

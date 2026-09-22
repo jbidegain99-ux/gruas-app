@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '@/lib/logger';
 
 interface CachedDistance {
   distance_km: number;
@@ -60,7 +61,7 @@ export async function getCachedDistance(
       return null;
     }
 
-    console.log('[DistanceCache] Cache hit for:', key);
+    logger.log('[DistanceCache] Cache hit for:', key);
     return data;
   } catch (error) {
     console.warn('[DistanceCache] Error reading cache:', error);
@@ -94,7 +95,7 @@ export async function setCachedDistance(
     };
 
     await AsyncStorage.setItem(key, JSON.stringify(data));
-    console.log('[DistanceCache] Cached distance for:', key);
+    logger.log('[DistanceCache] Cached distance for:', key);
   } catch (error) {
     console.warn('[DistanceCache] Error writing cache:', error);
   }
@@ -111,7 +112,7 @@ export async function clearDistanceCache(): Promise<void> {
 
     if (cacheKeys.length > 0) {
       await AsyncStorage.multiRemove(cacheKeys);
-      console.log(`[DistanceCache] Cleared ${cacheKeys.length} cache entries`);
+      logger.log(`[DistanceCache] Cleared ${cacheKeys.length} cache entries`);
     }
   } catch (error) {
     console.warn('[DistanceCache] Error clearing cache:', error);

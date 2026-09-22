@@ -1,5 +1,10 @@
 # Gruas App - Product Requirements Document (El Salvador)
 
+> **Nota (2026-08-26):** el rol **MOP** descrito en este documento se retiró del
+> producto y del esquema (migración `00045_remove_mop_role.sql`). Las secciones
+> que lo mencionan quedan como referencia histórica del alcance original.
+
+
 ## 1. Vision
 
 Create a mixed platform (State + private providers) to request tow truck services via app, assign operators by zone using real-time GPS, enable map tracking, user-operator communication, PIN-controlled status changes, dynamic pricing calculation, and complete audit trail.

@@ -9,17 +9,23 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck } from 'lucide-react-native';
+import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck, Phone } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
-import { ChatScreen } from '@/components/ChatScreen';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { ChatScreen } from '@/features/chat/components/ChatScreen';
+import { MiniMap } from '@/shared/components/MiniMap';
+import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
+import { AddressText } from '@/shared/components/AddressText';
+import { isLateCancellation } from '@/lib/cancellation';
+import { friendlyError } from '@/lib/errorMessages';
+import { getAllPins } from '@/features/pin/lib/pinStorage';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput } from '@/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -28,18 +34,56 @@ type ServiceRequest = {
   tow_type: string;
   incident_type: string;
   pickup_address: string;
+  pickup_lat: number;
+  pickup_lng: number;
   dropoff_address: string;
+  dropoff_lat: number;
+  dropoff_lng: number;
   total_price: number | null;
   created_at: string;
   completed_at: string | null;
   cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   notes: string | null;
   operator_id: string | null;
   operator_name: string | null;
+  operator_phone: string | null;
   provider_name: string | null;
   pin: string | null;
   service_type: string;
+  // Cobertura: `total_price` es el precio bruto del servicio (lo que se le
+  // factura al seguro), no lo que pago la persona. Sin esto el historial
+  // contradecia el desglose que se le mostro antes de confirmar: un servicio
+  // con copago $0 aparecia como "$60.00".
+  coverage_status: string | null;
+  amount_covered: number | null;
+  amount_copay: number | null;
 };
+
+const money = (n: number) => `$${n.toFixed(2)}`;
+
+/**
+ * Lo que realmente paga la persona por este servicio, o null si todavia no hay
+ * un monto que mostrar.
+ *
+ * El estado va PRIMERO y no es opcional. La fila de `coverage_usage` nace al
+ * crear la solicitud con 0/0 —la llena `complete_service_request` recien al
+ * cerrar (00047)—, asi que `amount_copay` no nulo significa "esta persona tiene
+ * poliza", no "esto costo cero". Sin este guard, toda solicitud de un afiliado
+ * que no llegara a completarse (cancelada, asignada, en curso) se mostraba como
+ * "Sin costo", como si el servicio se hubiera prestado gratis.
+ *
+ * Cubierto solo cuando existe el consumo: `coverage_status = 'covered'` se
+ * decidio al crear la solicitud y pudo no terminar en consumo (servicio
+ * excluido del plan).
+ */
+function precioAPagar(req: ServiceRequest): { valor: number; cubierto: boolean } | null {
+  if (req.status !== 'completed') return null;
+  if (req.amount_copay != null) return { valor: req.amount_copay, cubierto: true };
+  if (req.total_price != null) return { valor: req.total_price, cubierto: false };
+  return null;
+}
 
 type FilterType = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -55,10 +99,13 @@ export default function History() {
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  // Recorrido real del servicio seleccionado (se carga al abrir el detalle).
+  const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
@@ -66,6 +113,7 @@ export default function History() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async () => {
+    setLoadError(false);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -77,13 +125,11 @@ export default function History() {
 
     setCurrentUserId(user.id);
 
-    // Load saved PINs from local storage
+    // Load saved PINs from SecureStore (migrates from legacy AsyncStorage
+    // on first call — see features/pin/lib/pinStorage.ts).
     let savedPins: Record<string, string> = {};
     try {
-      const pinsData = await AsyncStorage.getItem('request_pins');
-      if (pinsData) {
-        savedPins = JSON.parse(pinsData);
-      }
+      savedPins = await getAllPins();
     } catch (e) {
       console.error('Error loading PINs:', e);
     }
@@ -96,15 +142,22 @@ export default function History() {
         tow_type,
         incident_type,
         pickup_address,
+        pickup_lat,
+        pickup_lng,
         dropoff_address,
+        dropoff_lat,
+        dropoff_lng,
         total_price,
+        coverage_status,
         created_at,
         completed_at,
         cancelled_at,
+        cancelled_by,
+        cancellation_reason,
         notes,
         operator_id,
         service_type,
-        operator:profiles!service_requests_operator_id_fkey (full_name),
+        operator:profiles!service_requests_operator_id_fkey (full_name, phone),
         providers (name)
       `)
       .eq('user_id', user.id)
@@ -114,28 +167,63 @@ export default function History() {
 
     if (error) {
       console.error('Error fetching requests:', error);
+      setLoadError(true);
       setLoading(false);
       return;
     }
 
     if (data) {
+      // El reparto seguro/copago vive en `coverage_usage`, no en
+      // `service_requests`. La politica "Afiliado ve su consumo" deja al titular
+      // leer sus propias filas, asi que va en una consulta aparte acotada a las
+      // solicitudes que ya trajimos. Si falla, se cae al precio bruto — es peor
+      // no mostrar nada que mostrar el bruto.
+      const consumo = new Map<string, { covered: number; copay: number }>();
+      const ids = data.map((r) => r.id);
+      if (ids.length > 0) {
+        const { data: usos, error: errUso } = await supabase
+          .from('coverage_usage')
+          .select('request_id, amount_covered, amount_copay')
+          .in('request_id', ids);
+        if (errUso) {
+          console.error('Error loading coverage usage:', errUso.message);
+        } else {
+          for (const u of usos ?? []) {
+            consumo.set(u.request_id, {
+              covered: Number(u.amount_covered),
+              copay: Number(u.amount_copay),
+            });
+          }
+        }
+      }
+
       const formattedRequests: ServiceRequest[] = data.map((req) => ({
         id: req.id,
         status: req.status,
         tow_type: req.tow_type,
         incident_type: req.incident_type,
         pickup_address: req.pickup_address,
+        pickup_lat: req.pickup_lat,
+        pickup_lng: req.pickup_lng,
         dropoff_address: req.dropoff_address,
+        dropoff_lat: req.dropoff_lat,
+        dropoff_lng: req.dropoff_lng,
         total_price: req.total_price,
         created_at: req.created_at,
         completed_at: req.completed_at,
         cancelled_at: req.cancelled_at,
+        cancelled_by: (req as Record<string, unknown>).cancelled_by as string | null ?? null,
+        cancellation_reason: (req as Record<string, unknown>).cancellation_reason as string | null ?? null,
         notes: req.notes,
         operator_id: req.operator_id,
-        operator_name: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
+        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || null,
+        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         pin: savedPins[req.id] || null,
         service_type: req.service_type || 'tow',
+        coverage_status: (req as Record<string, unknown>).coverage_status as string | null ?? null,
+        amount_covered: consumo.get(req.id)?.covered ?? null,
+        amount_copay: consumo.get(req.id)?.copay ?? null,
       }));
       setRequests(formattedRequests);
     }
@@ -185,6 +273,17 @@ export default function History() {
     setDetailModalVisible(true);
   };
 
+  // Quien cancelo la solicitud, deducido comparando cancelled_by con el propio
+  // usuario / el operador asignado. Si no coincide con ninguno, fue el equipo
+  // (admin). currentUserId es el usuario que ve su historial.
+  const cancelledByLabel = (req: ServiceRequest): string => {
+    if (req.cancelled_by && req.cancelled_by === currentUserId) return 'Cancelada por ti';
+    if (req.cancelled_by && req.cancelled_by === req.operator_id) {
+      return req.operator_name ? `Cancelada por el operador (${req.operator_name})` : 'Cancelada por el operador';
+    }
+    return 'Cancelada por el equipo Budi';
+  };
+
   const openCancelModal = () => {
     setCancelReason('');
     setCancelModalVisible(true);
@@ -210,7 +309,7 @@ export default function History() {
       });
 
       if (error) {
-        Alert.alert('Error', error.message || 'No se pudo cancelar la solicitud');
+        Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
         return;
       }
 
@@ -225,8 +324,7 @@ export default function History() {
       setSelectedRequest(null);
       await fetchRequests();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'No se pudo cancelar la solicitud. Intenta de nuevo.';
-      Alert.alert('Error', message);
+      Alert.alert('Error', friendlyError(err as { message?: string }, 'No se pudo cancelar la solicitud. Intenta de nuevo.'));
     } finally {
       setCancelling(false);
     }
@@ -247,16 +345,26 @@ export default function History() {
 
         <View style={styles.addressRow}>
           <MapPin size={14} color={colors.success.main} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {item.pickup_address}
-          </Text>
+          <AddressText
+            style={styles.addressText}
+            numberOfLines={1}
+            address={item.pickup_address}
+            lat={item.pickup_lat}
+            lng={item.pickup_lng}
+          />
         </View>
-        <View style={styles.addressRow}>
-          <MapPin size={14} color={colors.error.main} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {item.dropoff_address}
-          </Text>
-        </View>
+        {requiresDropoff(item.service_type) && (
+          <View style={styles.addressRow}>
+            <MapPin size={14} color={colors.error.main} />
+            <AddressText
+              style={styles.addressText}
+              numberOfLines={1}
+              address={item.dropoff_address}
+              lat={item.dropoff_lat}
+              lng={item.dropoff_lng}
+            />
+          </View>
+        )}
 
         <View style={styles.cardFooter}>
           <View style={styles.serviceTypeRow}>
@@ -268,9 +376,14 @@ export default function History() {
               {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
             </Text>
           </View>
-          {item.total_price && (
-            <Text style={styles.price}>${item.total_price.toFixed(2)}</Text>
-          )}
+          {(() => {
+            const pago = precioAPagar(item);
+            if (!pago) return null;
+            if (pago.cubierto && pago.valor <= 0) {
+              return <Text style={styles.priceFree}>Sin costo</Text>;
+            }
+            return <Text style={styles.price}>{money(pago.valor)}</Text>;
+          })()}
         </View>
       </Card>
     );
@@ -323,6 +436,21 @@ export default function History() {
               <StatusBadge status={selectedRequest.status as ServiceRequestStatus} />
             </View>
 
+            {/* Motivo de cancelacion (solo canceladas) */}
+            {selectedRequest.status === 'cancelled' && (
+              <View style={styles.cancelInfoSection}>
+                <View style={styles.cancelInfoHeader}>
+                  <XCircle size={16} color={colors.error.main} />
+                  <Text style={styles.cancelInfoTitle}>{cancelledByLabel(selectedRequest)}</Text>
+                </View>
+                <Text style={styles.cancelInfoReason}>
+                  {selectedRequest.cancellation_reason?.trim()
+                    ? selectedRequest.cancellation_reason
+                    : 'No se indico un motivo.'}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Tipo de Incidente</Text>
               <Text style={styles.detailValue}>{selectedRequest.incident_type}</Text>
@@ -348,15 +476,44 @@ export default function History() {
               </View>
             </View>
 
-            <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Ubicacion de Recogida</Text>
-              <Text style={styles.detailValue}>{selectedRequest.pickup_address}</Text>
-            </View>
+            {!!selectedRequest.pickup_lat && !!selectedRequest.pickup_lng && (
+              <View style={styles.detailSection}>
+                <MiniMap
+                  pickup={{ lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng }}
+                  dropoff={
+                    requiresDropoff(selectedRequest.service_type) &&
+                    selectedRequest.dropoff_lat &&
+                    selectedRequest.dropoff_lng
+                      ? { lat: selectedRequest.dropoff_lat, lng: selectedRequest.dropoff_lng }
+                      : null
+                  }
+                  route={trail}
+                  height={160}
+                />
+              </View>
+            )}
 
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Destino</Text>
-              <Text style={styles.detailValue}>{selectedRequest.dropoff_address}</Text>
+              <Text style={styles.detailLabel}>Ubicación de Recogida</Text>
+              <AddressText
+                style={styles.detailValue}
+                address={selectedRequest.pickup_address}
+                lat={selectedRequest.pickup_lat}
+                lng={selectedRequest.pickup_lng}
+              />
             </View>
+
+            {requiresDropoff(selectedRequest.service_type) && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Destino</Text>
+                <AddressText
+                  style={styles.detailValue}
+                  address={selectedRequest.dropoff_address}
+                  lat={selectedRequest.dropoff_lat}
+                  lng={selectedRequest.dropoff_lng}
+                />
+              </View>
+            )}
 
             {selectedRequest.notes && (
               <View style={styles.detailSection}>
@@ -380,26 +537,54 @@ export default function History() {
             {/* Show PIN for active requests */}
             {selectedRequest.pin && ['initiated', 'assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
               <View style={styles.pinSection}>
-                <Text style={styles.pinLabel}>PIN de Verificacion</Text>
+                <Text style={styles.pinLabel}>PIN para el operador</Text>
                 <PINInput
                   value={selectedRequest.pin}
                   onChangeText={() => {}}
                   displayOnly
                 />
                 <Text style={styles.pinNote}>
-                  Muestra este PIN al operador cuando llegue la grua
+                  Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
                 </Text>
               </View>
             )}
 
-            {selectedRequest.total_price && (
-              <View style={styles.priceSection}>
-                <Text style={styles.priceSectionLabel}>Precio Final</Text>
-                <Text style={styles.priceSectionValue}>
-                  ${selectedRequest.total_price.toFixed(2)}
-                </Text>
-              </View>
-            )}
+            {(() => {
+              const pago = precioAPagar(selectedRequest);
+              if (!pago) return null;
+              const sinCosto = pago.cubierto && pago.valor <= 0;
+              return (
+                <View style={styles.priceSection}>
+                  <Text style={styles.priceSectionLabel}>
+                    {pago.cubierto ? 'Lo que pagaste' : 'Precio Final'}
+                  </Text>
+                  <Text style={styles.priceSectionValue}>
+                    {sinCosto ? 'Sin costo' : money(pago.valor)}
+                  </Text>
+                  {/* El desglose solo cuando el seguro puso algo: repite el mismo
+                      reparto que se le mostro antes de confirmar (B-13). Si el
+                      servicio estaba excluido del plan, `amount_covered` es 0 y
+                      las dos lineas dirian "$35.00" y "−$0.00" — ruido: ahi el
+                      monto de arriba ya es toda la historia. */}
+                  {pago.cubierto && (selectedRequest.amount_covered ?? 0) > 0 && (
+                    <View style={styles.coverageBreakdown}>
+                      <View style={styles.coverageRow}>
+                        <Text style={styles.coverageLabel}>Precio del servicio</Text>
+                        <Text style={styles.coverageValue}>
+                          {money(selectedRequest.total_price ?? 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.coverageRow}>
+                        <Text style={styles.coverageLabel}>Cubrió tu seguro</Text>
+                        <Text style={styles.coverageValue}>
+                          −{money(selectedRequest.amount_covered ?? 0)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
 
             <View style={styles.timelineSection}>
               <Text style={styles.timelineTitle}>Fechas</Text>
@@ -432,15 +617,34 @@ export default function History() {
               <Text style={styles.idValue}>{selectedRequest.id}</Text>
             </View>
 
-            {/* Chat Button for active requests with operator */}
+            {/* Contacto con el operador (chat + llamada) en servicios activos */}
             {selectedRequest.operator_id && ['assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
-              <Button
-                title="Chat con Operador"
-                onPress={() => setChatModalVisible(true)}
-                variant="secondary"
-                size="medium"
-                icon={<MessageCircle size={18} color={colors.primary[500]} />}
-              />
+              <View style={styles.contactRow}>
+                <View style={styles.contactBtn}>
+                  <Button
+                    title="Chat"
+                    onPress={() => setChatModalVisible(true)}
+                    variant="secondary"
+                    size="medium"
+                    icon={<MessageCircle size={18} color={colors.primary[500]} />}
+                  />
+                </View>
+                <View style={styles.contactBtn}>
+                  <Button
+                    title="Llamar"
+                    onPress={() => {
+                      if (selectedRequest.operator_phone) {
+                        Linking.openURL(`tel:${selectedRequest.operator_phone}`);
+                      } else {
+                        Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
+                      }
+                    }}
+                    variant="secondary"
+                    size="medium"
+                    icon={<Phone size={18} color={colors.primary[500]} />}
+                  />
+                </View>
+              </View>
             )}
 
             {/* Cancel Button for active requests */}
@@ -473,6 +677,11 @@ export default function History() {
       <View style={styles.cancelModalOverlay}>
         <View style={styles.cancelModalContent}>
           <Text style={styles.cancelModalTitle}>Cancelar Solicitud</Text>
+          {selectedRequest && isLateCancellation(selectedRequest.status) && (
+            <Text style={styles.cancelModalWarning}>
+              El operador ya fue despachado. Cancelar ahora puede generar un cargo por el desplazamiento.
+            </Text>
+          )}
           <Text style={styles.cancelModalSubtitle}>
             Por favor indica el motivo de la cancelacion
           </Text>
@@ -513,6 +722,18 @@ export default function History() {
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        fullScreen
+        offline
+        title="No pudimos cargar tu historial"
+        message="Revisa tu conexión a internet e intenta de nuevo."
+        onRetry={fetchRequests}
+      />
+    );
   }
 
   return (
@@ -705,6 +926,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     color: colors.accent[600],
   },
+  priceFree: {
+    fontFamily: typography.fonts.heading,
+    fontSize: typography.sizes.body,
+    color: colors.success.dark,
+  },
   // Empty state
   emptyContainer: {
     flex: 1,
@@ -765,6 +991,32 @@ const styles = StyleSheet.create({
   detailStatusContainer: {
     marginBottom: spacing.xl,
   },
+  cancelInfoSection: {
+    backgroundColor: colors.error.light,
+    borderRadius: radii.m,
+    padding: spacing.m,
+    marginBottom: spacing.l,
+    borderWidth: 1,
+    borderColor: colors.error.main,
+  },
+  cancelInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  cancelInfoTitle: {
+    flex: 1,
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.error.dark,
+  },
+  cancelInfoReason: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.body,
+    color: colors.text.primary,
+    lineHeight: typography.lineHeights.body,
+  },
   detailSection: {
     marginBottom: spacing.l,
   },
@@ -804,6 +1056,29 @@ const styles = StyleSheet.create({
   priceSectionValue: {
     fontFamily: typography.fonts.heading,
     fontSize: typography.sizes.h1,
+    color: colors.success.dark,
+  },
+  coverageBreakdown: {
+    alignSelf: 'stretch',
+    marginTop: spacing.s,
+    paddingTop: spacing.s,
+    borderTopWidth: 1,
+    borderTopColor: colors.success.dark,
+    opacity: 0.85,
+  },
+  coverageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  coverageLabel: {
+    fontFamily: typography.fonts.body,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
+  },
+  coverageValue: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.caption,
     color: colors.success.dark,
   },
   timelineSection: {
@@ -873,6 +1148,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
   },
+  contactRow: {
+    flexDirection: 'row',
+    gap: spacing.s,
+  },
+  contactBtn: {
+    flex: 1,
+  },
   cancelButtonContainer: {
     marginTop: spacing.s,
   },
@@ -905,6 +1187,15 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.bodySmall,
     color: colors.text.secondary,
     marginBottom: spacing.m,
+  },
+  cancelModalWarning: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.warning.dark,
+    backgroundColor: colors.warning.light,
+    padding: spacing.s,
+    borderRadius: radii.m,
+    marginBottom: spacing.s,
   },
   cancelModalButtons: {
     flexDirection: 'row',

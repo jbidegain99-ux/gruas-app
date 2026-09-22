@@ -50,21 +50,9 @@ CREATE POLICY "Admins can update all profiles"
     )
   );
 
--- Operators can view user profiles for their assigned requests
-CREATE POLICY "Operators can view assigned user profiles"
-  ON profiles FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles p
-      WHERE p.id = auth.uid() AND p.role = 'OPERATOR'
-    )
-    AND
-    EXISTS (
-      SELECT 1 FROM service_requests sr
-      WHERE sr.user_id = profiles.id
-        AND sr.operator_id = auth.uid()
-    )
-  );
+-- "Operators can view assigned user profiles" lives in the later
+-- fix_recursive_rls migration — it forward-references service_requests
+-- which doesn't exist yet at this point.
 
 -- MOP can view basic profile info (not documents)
 CREATE POLICY "MOP can view profiles"

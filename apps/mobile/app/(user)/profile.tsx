@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,12 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogOut, Pencil, AlertCircle } from 'lucide-react-native';
+import { LogOut, Pencil, AlertCircle, HelpCircle, Car } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/components/ui';
+import { openSupportMenu } from '@/lib/support';
+import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
@@ -50,7 +51,7 @@ export default function Profile() {
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        setError('No se pudo obtener la informacion del usuario');
+        setError('No se pudo obtener la información del usuario');
         setLoading(false);
         return;
       }
@@ -78,15 +79,20 @@ export default function Profile() {
       });
     } catch (err) {
       console.error('Error:', err);
-      setError('Error de conexion');
+      setError('Error de conexión');
     }
 
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // Al enfocar la pestana, no solo al montar: si el perfil cambia (p. ej. se
+  // edita el nombre o el telefono) esta pantalla queda montada como tab y sin
+  // esto mostraria los datos viejos hasta reiniciar la app.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -127,7 +133,13 @@ export default function Profile() {
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Error', 'El telefono es requerido');
+      Alert.alert('Error', 'El teléfono es requerido');
+      return;
+    }
+
+    // Teléfono de El Salvador: 8 dígitos, opcionalmente con código +503.
+    if (!/^(\+?503)?\d{8}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
+      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido de 8 dígitos.');
       return;
     }
 
@@ -164,7 +176,7 @@ export default function Profile() {
       Alert.alert('Exito', 'Perfil actualizado correctamente');
     } catch (err) {
       console.error('Error:', err);
-      Alert.alert('Error', 'Error de conexion');
+      Alert.alert('Error', 'Error de conexión');
     }
 
     setSaving(false);
@@ -184,7 +196,6 @@ export default function Profile() {
       USER: 'Usuario',
       OPERATOR: 'Operador',
       ADMIN: 'Administrador',
-      MOP: 'MOP',
     };
     return roleLabels[role] || role;
   };
@@ -244,7 +255,7 @@ export default function Profile() {
 
       {/* Info Card */}
       <Card variant="default" padding="l">
-        <Text style={styles.cardTitle}>Informacion Personal</Text>
+        <Text style={styles.cardTitle}>Información Personal</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Nombre Completo</Text>
@@ -257,7 +268,7 @@ export default function Profile() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Telefono</Text>
+          <Text style={styles.infoLabel}>Teléfono</Text>
           <Text style={styles.infoValue}>{profile.phone}</Text>
         </View>
 
@@ -279,6 +290,16 @@ export default function Profile() {
       <View style={styles.actionsCard}>
         <Card variant="default" padding="l">
           <Text style={styles.cardTitle}>Cuenta</Text>
+          <Pressable style={styles.actionRow} onPress={() => router.push('/(user)/vehicles')}>
+            <Car size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Mis Vehículos</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
+          <Pressable style={styles.actionRow} onPress={openSupportMenu}>
+            <HelpCircle size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Ayuda y Soporte</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={handleLogout}>
             <LogOut size={18} color={colors.error.main} />
             <Text style={styles.logoutText}>Cerrar Sesion</Text>
@@ -305,7 +326,13 @@ export default function Profile() {
               <Text style={styles.modalCancel}>Cancelar</Text>
             </Pressable>
             <Text style={styles.modalTitle}>Editar Perfil</Text>
-            <Pressable onPress={handleSaveProfile} disabled={saving}>
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar"
+              accessibilityState={{ disabled: saving, busy: saving }}
+            >
               {saving ? (
                 <ActivityIndicator size="small" color={colors.primary[500]} />
               ) : (
@@ -326,8 +353,8 @@ export default function Profile() {
             <View style={styles.modalInputSpacer} />
 
             <Input
-              label="Telefono"
-              placeholder="Tu numero de telefono"
+              label="Teléfono"
+              placeholder="Tu numero de teléfono"
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
@@ -451,6 +478,16 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.bodyMedium,
     fontSize: typography.sizes.body,
     color: colors.error.main,
+  },
+  helpText: {
+    fontFamily: typography.fonts.bodyMedium,
+    fontSize: typography.sizes.body,
+    color: colors.primary[500],
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing.xs,
   },
   appInfo: {
     alignItems: 'center',

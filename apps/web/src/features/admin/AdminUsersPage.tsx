@@ -1,0 +1,493 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { Users, Truck, ShieldCheck, Search } from 'lucide-react';
+import { createClient } from '@/shared/lib/supabase/client';
+import { useToast } from '@/shared/components/FeedbackProvider';
+import { Pagination } from '@/shared/components/Pagination';
+
+const PAGE_SIZE = 15;
+
+type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
+
+type Profile = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  role: UserRole;
+  provider_id: string | null;
+  provider_name?: string | null;
+  verification_status: string;
+  /** Comisión propia del operador independiente. NULL = default de plataforma. */
+  commission_rate: number | null;
+  created_at: string;
+};
+
+type Provider = {
+  id: string;
+  name: string;
+};
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  USER: 'Usuario',
+  OPERATOR: 'Operador',
+  ADMIN: 'Administrador',
+};
+
+const ROLE_COLORS: Record<UserRole, string> = {
+  USER: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200',
+  OPERATOR: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  ADMIN: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+};
+
+export default function AdminUsersPage() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<Profile | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient();
+
+      // Fetch profiles with provider names
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          email,
+          full_name,
+          phone,
+          role,
+          provider_id,
+          verification_status,
+          commission_rate,
+          created_at,
+          providers:provider_id (name)
+        `)
+        .order('created_at', { ascending: false });
+
+      // Fetch providers for the dropdown
+      const { data: providersData } = await supabase
+        .from('providers')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+      const mappedProfiles = (profilesData || []).map((p) => ({
+        ...p,
+        provider_name: (p.providers as unknown as { name: string } | null)?.name || null,
+        providers: undefined,
+      })) as Profile[];
+
+      setProfiles(mappedProfiles);
+      setProviders(providersData || []);
+      setLoading(false);
+    };
+    fetchData();
+  }, [refreshKey]);
+
+  const refetch = () => setRefreshKey((k) => k + 1);
+
+  const VERIF_BADGE: Record<string, string> = {
+    approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  };
+  const VERIF_LABEL: Record<string, string> = {
+    approved: 'Aprobado',
+    pending: 'En revisión',
+    rejected: 'Rechazado',
+  };
+
+  const getRoleStats = () => {
+    const stats = { USER: 0, OPERATOR: 0, ADMIN: 0 };
+    profiles.forEach((p) => {
+      stats[p.role]++;
+    });
+    return stats;
+  };
+
+  const stats = getRoleStats();
+
+  // Búsqueda (nombre/email/teléfono) + filtro por rol, sobre la lista cargada.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return profiles.filter((p) => {
+      if (roleFilter !== 'all' && p.role !== roleFilter) return false;
+      if (!q) return true;
+      return (
+        (p.full_name || '').toLowerCase().includes(q) ||
+        (p.email || '').toLowerCase().includes(q) ||
+        (p.phone || '').toLowerCase().includes(q)
+      );
+    });
+  }, [profiles, search, roleFilter]);
+
+  // Vuelve a la primera página si el filtro cambia y la página actual queda fuera.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+            Usuarios
+          </h1>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Gestiona los usuarios y sus roles
+          </p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Total de usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
+          { label: 'Operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
+          { label: 'Administradores', value: stats.ADMIN, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
+        ].map(({ label, value, Icon, tint }) => (
+          <div
+            key={label}
+            className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{value}</p>
+              </div>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${tint}`}>
+                <Icon className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          providers={providers}
+          onClose={() => setEditingUser(null)}
+          onSave={() => {
+            setEditingUser(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Users Table */}
+      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        {/* Buscador + filtro por rol */}
+        <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Buscar por nombre, email o teléfono..."
+              className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value as 'all' | UserRole);
+              setPage(0);
+            }}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+          >
+            <option value="all">Todos los roles</option>
+            <option value="USER">Usuarios</option>
+            <option value="OPERATOR">Operadores</option>
+            <option value="ADMIN">Administradores</option>
+          </select>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-zinc-50 dark:bg-zinc-800">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Usuario
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Teléfono
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Rol
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Proveedor
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
+                    Cargando...
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
+                    {profiles.length === 0
+                      ? 'No hay usuarios registrados'
+                      : 'No se encontraron usuarios con esos criterios'}
+                  </td>
+                </tr>
+              ) : (
+                paged.map((profile) => (
+                  <tr key={profile.id}>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-sm font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+                          {profile.full_name?.charAt(0).toUpperCase() || profile.email.charAt(0).toUpperCase()}
+                        </div>
+                        <p className="text-sm font-medium text-zinc-900 dark:text-white">
+                          {profile.full_name || 'Sin nombre'}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                      {profile.email}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                      {profile.phone || '-'}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${ROLE_COLORS[profile.role]}`}>
+                        {ROLE_LABELS[profile.role]}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                      {profile.provider_name || '-'}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
+                      <div className="flex items-center justify-end gap-2">
+                        {profile.role === 'OPERATOR' && (
+                          <>
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${VERIF_BADGE[profile.verification_status] || VERIF_BADGE.pending}`}>
+                              {VERIF_LABEL[profile.verification_status] || profile.verification_status}
+                            </span>
+                            {/* La aprobación/rechazo ahora vive en Verificaciones (con visor de documentos) */}
+                            <Link
+                              href="/admin/verifications"
+                              className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
+                            >
+                              Ver verificación
+                            </Link>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setEditingUser(profile)}
+                          className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
+                        >
+                          Editar Rol
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={filtered.length}
+          onPageChange={setPage}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({
+  user,
+  providers,
+  onClose,
+  onSave,
+}: {
+  user: Profile;
+  providers: Provider[];
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const [role, setRole] = useState<UserRole>(user.role);
+  const [providerId, setProviderId] = useState<string>(user.provider_id || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Solo aplica al independiente: si pertenece a una empresa manda la de la
+  // empresa, y la RPC rechaza guardarla (00080).
+  const [commission, setCommission] = useState<string>(
+    user.commission_rate == null ? '' : String(user.commission_rate)
+  );
+  const toast = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+
+    // Use RPC to update user role (handles validation and provider assignment)
+    const { error: rpcError } = await supabase.rpc('admin_update_user_role', {
+      p_user_id: user.id,
+      p_new_role: role,
+      // `undefined`, no `null`: al retirarse la sobrecarga de dos argumentos en
+      // la migración 00045, el argumento quedó tipado como opcional por su
+      // DEFAULT y ya no acepta null. La función limpia el provider por su cuenta
+      // cuando el rol no es OPERATOR.
+      p_provider_id: role === 'OPERATOR' && providerId ? providerId : undefined,
+    });
+
+    // La comisión propia va aparte y SOLO para el independiente: el cambio de
+    // rol ya la limpia si entró a una empresa.
+    if (!rpcError && role === 'OPERATOR' && !providerId) {
+      // Omitir `p_rate` es como se expresa "sin comisión propia": la función lo
+      // tiene con DEFAULT NULL y eso limpia la columna.
+      const { error: comError } = await supabase.rpc('admin_set_operator_commission', {
+        p_operator_id: user.id,
+        ...(commission.trim() === '' ? {} : { p_rate: Number(commission) }),
+      });
+      if (comError) {
+        setLoading(false);
+        setError(comError.message);
+        toast.error('No se pudo guardar la comisión.');
+        return;
+      }
+    }
+
+    if (rpcError) {
+      console.error('Error updating user:', rpcError);
+      setError(rpcError.message);
+      toast.error('No se pudo actualizar el rol.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    toast.success('Rol actualizado.');
+    onSave();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white shadow-sm p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">
+          Editar Usuario
+        </h2>
+
+        <div className="mb-4">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="font-medium">{user.full_name || 'Sin nombre'}</span>
+          </p>
+          <p className="text-sm text-zinc-500">{user.email}</p>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Rol
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRole)}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+            >
+              <option value="USER">Usuario</option>
+              <option value="OPERATOR">Operador</option>
+              <option value="ADMIN">Administrador</option>
+            </select>
+          </div>
+
+          {role === 'OPERATOR' && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Proveedor Asignado
+              </label>
+              <select
+                value={providerId}
+                onChange={(e) => setProviderId(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              >
+                <option value="">Independiente (sin empresa)</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">
+                Si pertenece a una empresa, se le liquida a la empresa con la comisión de ella.
+              </p>
+            </div>
+          )}
+
+          {/* Un independiente cobra él, así que su comisión se configura acá. */}
+          {role === 'OPERATOR' && !providerId && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Comisión de Budi (%)
+              </label>
+              <input
+                type="number" min={0} max={100} step="0.01"
+                value={commission}
+                onChange={(e) => setCommission(e.target.value)}
+                placeholder="Por defecto de la plataforma"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              />
+              <p className="mt-1 text-xs text-zinc-500">
+                Vacío = se usa el porcentaje por defecto de la plataforma.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
+            >
+              {loading ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
