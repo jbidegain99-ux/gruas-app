@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Users, Truck, ShieldCheck, Search } from 'lucide-react';
+import { Users, Truck, ShieldCheck, Building2, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
 
 const PAGE_SIZE = 15;
 
-type UserRole = 'USER' | 'OPERATOR' | 'ADMIN';
+type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
 
 type Profile = {
   id: string;
@@ -19,6 +19,7 @@ type Profile = {
   role: UserRole;
   provider_id: string | null;
   provider_name?: string | null;
+  insurer_name?: string | null;
   verification_status: string;
   /** Comisión propia del operador independiente. NULL = default de plataforma. */
   commission_rate: number | null;
@@ -34,18 +35,21 @@ const ROLE_LABELS: Record<UserRole, string> = {
   USER: 'Usuario',
   OPERATOR: 'Operador',
   ADMIN: 'Administrador',
+  INSURER: 'Aseguradora',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
   USER: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200',
   OPERATOR: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   ADMIN: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  INSURER: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
 };
 
 export default function AdminUsersPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
@@ -57,7 +61,7 @@ export default function AdminUsersPage() {
       const supabase = createClient();
 
       // Fetch profiles with provider names
-      const { data: profilesData } = await supabase
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select(`
           id,
@@ -69,7 +73,8 @@ export default function AdminUsersPage() {
           verification_status,
           commission_rate,
           created_at,
-          providers:provider_id (name)
+          providers:provider_id (name),
+          insurers:insurer_id (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -83,9 +88,15 @@ export default function AdminUsersPage() {
       const mappedProfiles = (profilesData || []).map((p) => ({
         ...p,
         provider_name: (p.providers as unknown as { name: string } | null)?.name || null,
+        insurer_name: (p.insurers as unknown as { name: string } | null)?.name || null,
         providers: undefined,
+        insurers: undefined,
       })) as Profile[];
 
+      // Sin esto un fallo de la consulta (p. ej. una columna que no existe en esa
+      // base por una migración sin aplicar) se veía como "No hay usuarios".
+      if (profilesError) console.error('Error cargando usuarios:', profilesError);
+      setLoadError(profilesError?.message ?? null);
       setProfiles(mappedProfiles);
       setProviders(providersData || []);
       setLoading(false);
@@ -107,7 +118,7 @@ export default function AdminUsersPage() {
   };
 
   const getRoleStats = () => {
-    const stats = { USER: 0, OPERATOR: 0, ADMIN: 0 };
+    const stats = { USER: 0, OPERATOR: 0, ADMIN: 0, INSURER: 0 };
     profiles.forEach((p) => {
       stats[p.role]++;
     });
@@ -154,6 +165,7 @@ export default function AdminUsersPage() {
           { label: 'Total de usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
           { label: 'Operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
           { label: 'Administradores', value: stats.ADMIN, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
+          { label: 'Aseguradoras', value: stats.INSURER, Icon: Building2, tint: 'bg-violet-50 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300' },
         ].map(({ label, value, Icon, tint }) => (
           <div
             key={label}
@@ -213,6 +225,7 @@ export default function AdminUsersPage() {
             <option value="USER">Usuarios</option>
             <option value="OPERATOR">Operadores</option>
             <option value="ADMIN">Administradores</option>
+            <option value="INSURER">Aseguradoras</option>
           </select>
         </div>
         <div className="overflow-x-auto">
@@ -232,7 +245,7 @@ export default function AdminUsersPage() {
                   Rol
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Proveedor
+                  Empresa
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Acciones
@@ -244,6 +257,12 @@ export default function AdminUsersPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
                     Cargando...
+                  </td>
+                </tr>
+              ) : loadError ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-red-600 dark:text-red-400">
+                    No se pudieron cargar los usuarios: {loadError}
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
@@ -279,7 +298,7 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {profile.provider_name || '-'}
+                      {profile.provider_name || profile.insurer_name || '-'}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-2">
@@ -425,7 +444,17 @@ function EditUserModal({
               <option value="USER">Usuario</option>
               <option value="OPERATOR">Operador</option>
               <option value="ADMIN">Administrador</option>
+              {/* Solo como estado actual: convertir en aseguradora pide elegir
+                  cuál, y eso va por admin_link_insurer_user (00093). */}
+              {user.role === 'INSURER' && (
+                <option value="INSURER">Aseguradora{user.insurer_name ? ` (${user.insurer_name})` : ''}</option>
+              )}
             </select>
+            {user.role === 'INSURER' && (
+              <p className="mt-1 text-xs text-zinc-500">
+                Al cambiarle el rol, la cuenta pierde el acceso al portal de su aseguradora.
+              </p>
+            )}
           </div>
 
           {role === 'OPERATOR' && (
@@ -480,7 +509,8 @@ function EditUserModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              // La RPC rechaza INSURER como destino: sin cambio no hay nada que guardar.
+              disabled={loading || role === 'INSURER'}
               className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
             >
               {loading ? 'Guardando...' : 'Guardar Cambios'}
