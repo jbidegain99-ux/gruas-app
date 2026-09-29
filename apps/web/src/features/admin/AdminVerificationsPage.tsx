@@ -5,6 +5,7 @@ import { X, ShieldCheck, Inbox, CheckCircle2, XCircle, AlertTriangle, Clock } fr
 import { createClient } from '@/shared/lib/supabase/client';
 import { useConfirm, useToast } from '@/shared/components/FeedbackProvider';
 import { PartnerTermsEvidence } from './PartnerTermsEvidence';
+import { PartnerTrainingStatus } from './PartnerTrainingStatus';
 import { Pagination } from '@/shared/components/Pagination';
 import { formatDate } from '@/shared/lib/format';
 import { DOC_LABEL, DOCS, type DocType, type ReviewStatus } from '@/features/partners/partner-application';
@@ -321,6 +322,7 @@ export default function AdminVerificationsPage() {
 
               {/* 00126 (AGT-04): qué contrato aceptó, cuándo y desde dónde. */}
               <PartnerTermsEvidence operatorId={selected.id} />
+              <PartnerTrainingStatus operatorId={selected.id} />
 
               {!app ? (
                 <p className="text-sm text-zinc-500">Cargando registro…</p>

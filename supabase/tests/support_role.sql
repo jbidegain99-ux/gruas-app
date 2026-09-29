@@ -42,7 +42,10 @@ DECLARE
     'staff_reset_pin_lockout',
     'staff_add_request_note',
     'staff_request_notes',
-    'admin_partner_terms'              -- 00126: qué contrato aceptó el socio (revisión)
+    'admin_partner_terms',             -- 00126: qué contrato aceptó el socio (revisión)
+    -- 00137 (AGT-05): insignia de verificado y avance de capacitación (sin dinero).
+    'request_operator_badge',
+    'admin_partner_training'
   ];
   v_policies_ok TEXT[] := ARRAY[
     'service_requests/support: lee solicitudes',

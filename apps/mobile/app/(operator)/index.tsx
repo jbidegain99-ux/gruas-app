@@ -24,6 +24,7 @@ import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperat
 import { haversineKm, estimateMinutes, formatKm } from '@/lib/distance';
 import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } from '@/lib/earnings';
 import { OperatorCashCard } from '@/features/payments/components/OperatorCashCard';
+import { PartnerTrainingCard } from '@/features/partners/components/PartnerTrainingCard';
 import { osrmLegs } from '@/lib/osrm';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
@@ -537,6 +538,9 @@ export default function OperatorRequests() {
                 ? `${requests.length} solicitud${requests.length !== 1 ? 'es' : ''} disponible${requests.length !== 1 ? 's' : ''}`
                 : 'No hay solicitudes disponibles'}
         </Text>
+
+        {/* AGT-05 (00137): guía y servicio de práctica para el socio nuevo. */}
+        <PartnerTrainingCard />
 
         {/* LAN-07 (00133): efectivo recibido que falta confirmar. */}
         <OperatorCashCard />

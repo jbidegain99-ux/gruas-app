@@ -92,6 +92,8 @@ export default function OperatorLayout() {
       <Tabs.Screen name="verification" options={{ href: null }} />
       {/* LAN-08 (00125): pagos recibidos, desde el historial. */}
       <Tabs.Screen name="payments" options={{ href: null }} />
+      {/* AGT-05 (00137): servicio de práctica, fuera del tab bar. */}
+      <Tabs.Screen name="practice" options={{ href: null }} />
     </Tabs>
   );
 }

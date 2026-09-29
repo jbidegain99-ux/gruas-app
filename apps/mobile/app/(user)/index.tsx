@@ -37,9 +37,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone, Copy, CheckCircle2 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
-import { formatDate as formatAppDate } from '@/lib/dates';
+import { formatDate as formatAppDate, timeAgo } from '@/lib/dates';
 import { UserPaymentCard } from '@/features/payments/components/UserPaymentCard';
 import { InsurerBrandCard } from '@/features/coverage/components/InsurerBrandCard';
+import { OperatorBadge } from '@/features/partners/components/OperatorBadge';
 import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
@@ -826,12 +827,19 @@ export default function UserHome() {
                   Mapa no disponible: {mapsLoadError}
                 </Text>
               )}
-              {operatorLocation && operatorLocation.is_online ? (
+              {/* Ubicación de más de 5 min: no se promete "en línea" (se veía "hace 1825965s"). */}
+              {operatorLocation && operatorLocation.is_online && (!lastUpdated || Date.now() - lastUpdated.getTime() < 5 * 60_000) ? (
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
                     Socio en línea
-                    {lastUpdated && ` • Actualizado hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
+                    {lastUpdated && ` • Actualizado ${timeAgo((Date.now() - lastUpdated.getTime()) / 1000)}`}
+                  </Text>
+                </View>
+              ) : operatorLocation && lastUpdated ? (
+                <View style={styles.trackingInfoOffline}>
+                  <Text style={styles.trackingTextOffline}>
+                    Última ubicación del socio {timeAgo((Date.now() - lastUpdated.getTime()) / 1000)}
                   </Text>
                 </View>
               ) : (
@@ -921,6 +929,8 @@ export default function UserHome() {
                 <View style={styles.operatorSection}>
                   <Text style={styles.operatorLabel}>Socio operador asignado</Text>
                   <Text style={styles.operatorName}>{activeRequest.operator_name}</Text>
+                  {/* AGT-05 (00137) */}
+                  <OperatorBadge requestId={activeRequest.id} />
                   {activeRequest.provider_name && (
                     <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
                   )}
