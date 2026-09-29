@@ -64,12 +64,13 @@ sin llamar a Expo.
 
 ## Lo que todavía falta para que llegue un push real al teléfono
 
-1. **`projectId` de EAS** — `apps/mobile/app.json` tiene el placeholder
-   `"projectId": "your-project-id"`. Con eso, `usePushNotifications` aborta el
-   registro y `device_tokens` queda vacío.
-2. **`eas.json`** — no existe; hacen falta los perfiles de build.
+1. **`projectId` de EAS** — `apps/mobile/app.config.ts` lo lee de la variable
+   `EAS_PROJECT_ID`, que existe recién después de `eas init`. Sin eso,
+   `usePushNotifications` aborta el registro y `device_tokens` queda vacío.
+2. **Credenciales de push** — FCM (Android) y APNs (iOS), cargadas en EAS. Ver
+   `docs/PUBLICAR_APP_MOVIL.md`.
 3. **Dev build** — Expo Go no recibe push desde SDK 53; se necesita una build de
-   desarrollo o de `preview`.
+   desarrollo o de `preview` (perfiles ya definidos en `eas.json`).
 
 Mientras 1–3 no estén, la cola se drena correctamente pero no hay tokens a los
 que enviar.

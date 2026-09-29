@@ -15,7 +15,7 @@ Con la app en primer plano, `useOperatorLocationTracking` transmite con
 | `features/tracking/lib/backgroundLocationTask.ts` | Define la tarea (`budi-operator-location`) y expone `startBackgroundTracking` / `stopBackgroundTracking`. |
 | `features/tracking/hooks/useOperatorLocationTracking.ts` | Arranca la tarea junto al watcher de primer plano y la detiene al parar. |
 | `app/_layout.tsx` | Importa el módulo al arrancar para que `defineTask` quede registrada. |
-| `app.json` | Permisos de background y foreground service (Android) + `UIBackgroundModes` (iOS). |
+| `app.config.ts` | Permisos de background y foreground service (Android) + `UIBackgroundModes` (iOS). |
 
 Ambos tracks escriben en el mismo RPC `upsert_operator_location`, así que
 `operator_locations` y el mapa de flota (`/admin/fleet`) no cambian.

@@ -5,6 +5,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { osrmRoute } from '../_shared/routing.ts';
 import { AuthError, requireUser } from '../_shared/auth.ts';
+import { tooManyRequests, withinRateLimit } from '../_shared/rateLimit.ts';
 
 const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
 
@@ -138,7 +139,10 @@ serve(async (req: Request) => {
     // `verify_jwt` del gateway NO alcanza para esto: da por buena la anon key,
     // que es justamente la que tiene cualquiera. Por eso la comprobacion va aca
     // adentro, igual que en get-eta.
-    await requireUser(req);
+    const auth = await requireUser(req);
+    if (!(await withinRateLimit(auth.client, 'calculate-distance', 30, 60))) {
+      return tooManyRequests(cors, 60);
+    }
 
     // 2. Recien ahora, el payload.
     const payload: DistanceRequest = await req.json();

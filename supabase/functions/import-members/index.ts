@@ -17,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
+import { clientIp, tooManyRequests, withinRateLimit } from '../_shared/rateLimit.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -57,6 +58,11 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // Antes de validar la clave, tope por IP: que probar claves no salga gratis.
+    if (!(await withinRateLimit(supabase, 'import-members-ip', 60, 60, clientIp(req)))) {
+      return tooManyRequests(cors, 60);
+    }
+
     const { data: insurerId, error: keyError } = await supabase.rpc('verify_insurer_api_key', {
       p_key: apiKey,
     });
@@ -69,6 +75,9 @@ Deno.serve(async (req: Request) => {
     // distinguirlos le diria a quien prueba claves cuales existen.
     if (!insurerId) {
       return json({ error: 'Credencial invalida o revocada' }, 401, cors);
+    }
+    if (!(await withinRateLimit(supabase, 'import-members', 30, 60, String(insurerId)))) {
+      return tooManyRequests(cors, 60);
     }
 
     let payload: Payload;

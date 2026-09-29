@@ -190,6 +190,11 @@ Independiente del provisioning del VPS, hay items del [CHECKLIST.md](./CHECKLIST
   2. **Web**: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` en `.env.production` y en GitHub Actions secrets (para upload de sourcemaps en build).
   3. **Mobile**: `EXPO_PUBLIC_SENTRY_DSN` como EAS Secret (Expo dashboard → Secrets). Native build requerido (no funciona en Expo Go).
   4. Edge Functions Supabase: postergado — el `console.error` actual + Supabase Logs Explorer alcanza para MVP.
+  5. Opcional: `NEXT_PUBLIC_SENTRY_ENV=production` (o `staging`) para separar entornos. Desde 2026-09-28 la web tapa en cada evento los tokens que viajan en la URL (invitación, sesión, `code` PKCE) y cabeceras de credenciales (`src/shared/lib/sentry-scrub.ts`), y `app/error.tsx` + `app/global-error.tsx` reportan los errores de render.
+- [ ] **Alertas operativas al canal del equipo** (migr. 00117, LAN-03). El panel ya muestra el aviso fijo a ADMIN y SUPPORT sin configurar nada. Para que además llegue a Slack/Google Chat/Discord, crear un webhook entrante y guardarlo en Vault:
+  `select vault.create_secret('https://hooks.slack.com/services/…', 'ops_alert_webhook_url');`
+  Sin el secreto `notify_ops()` no hace nada. Solo manda folio y tipo de servicio (sin datos personales).
+- [x] ~~**Límite de frecuencia en Edge Functions** (migr. 00116, LAN-02)~~ — get-eta 60/min y calculate-distance 30/min por persona; import-members 60/min por IP antes de validar la clave y 30/min por aseguradora. Responde 429 con `Retry-After`. Requiere redeploy de las 3 funciones.
 - [ ] Decidir dominio (`app.budi.sv` o el que sea) y comprar/configurar DNS.
 - [ ] Proveedor VPS elegido y aprovisionado.
 

@@ -33,11 +33,22 @@ file_size_limit = "50MiB"
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
+# 00113 (POR-02): las invitaciones al equipo vuelven a /invitacion?token=...
+additional_redirect_urls = ["https://localhost:3000", "http://localhost:3000/**"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
+
+# 00113 (POR-02): 2FA con app autenticadora (TOTP), obligatorio para el dueño
+# y los administradores de un portal cliente. En el proyecto managed hay que
+# habilitarlo igual (Authentication -> Multi-Factor).
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [auth.email]
 enable_signup = true
@@ -55,6 +66,11 @@ enabled = false
 # Solo la llama la app movil desde el flujo de solicitud, siempre con sesion.
 # El gateway no alcanza como defensa —da por buena la anon key, que es publica—
 # asi que la funcion tambien llama requireUser(). Esto es la otra mitad.
+verify_jwt = true
+
+[functions.delete-account]
+# La persona borra SU cuenta (migr. 00101). La identidad sale del JWT
+# (requireUser), nunca de un parametro: si no, cualquiera borraria a otro.
 verify_jwt = true
 
 [functions.get-eta]

@@ -17,10 +17,13 @@
     "demo:reset": "node scripts/demo.mjs reset",
     "demo:status": "node scripts/demo.mjs status",
     "demo:ping": "node scripts/demo.mjs ping",
+    "demo:drive": "node scripts/demo.mjs drive",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
+    "db:test": "node scripts/db-test.mjs",
+    "qa:cycle": "node scripts/qa-cycle.mjs",
     "db:seed": "supabase db seed",
-    "db:types": "supabase gen types typescript --linked > packages/shared/src/database.types.ts",
-    "db:types:local": "supabase gen types typescript --local > packages/shared/src/database.types.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > packages/shared/src/database.types.ts",
+    "db:types:local": "supabase gen types typescript --local --schema public | npx -y prettier@3 --no-semi --parser typescript > packages/shared/src/database.types.ts"
   }
 }

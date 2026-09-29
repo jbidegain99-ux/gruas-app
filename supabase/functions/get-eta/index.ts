@@ -15,6 +15,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { AuthError, requireRequestParticipant, requireUser } from '../_shared/auth.ts';
 import { osrmRoute } from '../_shared/routing.ts';
+import { tooManyRequests, withinRateLimit } from '../_shared/rateLimit.ts';
 
 const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
 
@@ -133,6 +134,12 @@ serve(async (req: Request) => {
   try {
     // 1. Authenticate the caller.
     const auth = await requireUser(req);
+
+    // La app la llama 1 vez por minuto por servicio; 60/min por persona deja
+    // holgura para reintentos y corta el abuso de la API de Google.
+    if (!(await withinRateLimit(auth.client, 'get-eta', 60, 60))) {
+      return tooManyRequests(corsHeaders(req), 60);
+    }
 
     // 2. Parse payload.
     let payload: Record<string, unknown>;

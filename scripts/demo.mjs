@@ -5,6 +5,9 @@
 //   node scripts/demo.mjs seed     arma el escenario
 //   node scripts/demo.mjs reset    lo borra entero
 //   node scripts/demo.mjs status   dice que hay puesto
+//   node scripts/demo.mjs ping     le pone la hora a la flota de la demo
+//   node scripts/demo.mjs drive    simula EN VIVO un servicio completo (VEN-01)
+//                                  [--speed=rapido|normal] [--mopt]
 //
 // Por que existe: los cuatro entregables de la Fase 2 estaban codeados pero
 // nunca se habian visto FUNCIONANDO, porque a la base le faltaban los datos que
@@ -92,7 +95,9 @@ async function rpc(token, fn, args = {}) {
 async function setStatus(token, id, status) {
   const r = await fetch(`${URL}/rest/v1/service_requests?id=eq.${id}`, {
     method: 'PATCH',
-    headers: { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    // return=minimal: el socio no puede leer la fila entera (pin_hash), asi que
+    // no se le pide de vuelta.
+    headers: { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ status }),
   });
   if (r.status >= 400) throw new Error(`status ${status} -> ${r.status} ${(await r.text()).slice(0, 200)}`);
@@ -369,11 +374,211 @@ async function seed() {
   console.log(`  Entrar como cliente u operador: <nombre>${DOMINIO} / ${PASS}\n`);
 }
 
+// ---------- drive (VEN-01) ----------
+// Una grua que se mueve de verdad, para mostrar en una reunion: una clienta de la
+// demo pide el servicio, un socio de la demo lo toma y publica su ubicacion paso a
+// paso con la misma RPC que usa la app (upsert_operator_location, que ademas graba
+// service_location_trail mientras el servicio esta en_route o active), verifica
+// el PIN, remolca hasta el destino, completa y la clienta califica. Nada se
+// fabrica por SQL: es el ciclo real con el JWT de cada persona, y todo queda en
+// las cuentas @demo.budi.sv (lo borra `reset`).
+const ACTIVOS = ['initiated', 'assigned', 'en_route', 'active'];
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+const kmEntre = (a, b) => {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+// Ruta interpolada con un arco suave, para que en el mapa no parezca trazada con regla.
+const ruta = (a, b, pasos) => Array.from({ length: pasos }, (_, i) => {
+  const t = (i + 1) / pasos;
+  const arco = Math.sin(t * Math.PI) * 0.12;
+  return {
+    lat: a.lat + (b.lat - a.lat) * t - (b.lng - a.lng) * arco,
+    lng: a.lng + (b.lng - a.lng) * t + (b.lat - a.lat) * arco,
+  };
+});
+const barra = (pct) => '█'.repeat(Math.round(pct / 5)).padEnd(20, '·');
+
+async function drive() {
+  const args = process.argv.slice(3);
+  const rapido = args.some((a) => /^--speed=r[aá]pido$/i.test(a));
+  const tic = rapido ? 1000 : 2000;
+
+  const perfiles = await sel('profiles', `email=like.*${encodeURIComponent(DOMINIO)}&select=id,email,full_name,role,verification_status,provider_id`);
+  if (!perfiles.length) { console.log('\n  La demo no está puesta.  ->  corre pnpm demo:seed\n'); return; }
+  const lista = `(${perfiles.map((p) => p.id).join(',')})`;
+  const ocupados = await sel('service_requests', `status=in.(${ACTIVOS.join(',')})&or=(user_id.in.${lista},operator_id.in.${lista})&select=user_id,operator_id`);
+  const ocupado = (id) => ocupados.some((r) => r.user_id === id || r.operator_id === id);
+
+  // --- escenario: San Salvador, o la zona MOPT si la demo tuviera flota MOPT ---
+  let origen = { ...P.heroes }, destino = { ...P.bosch };
+  let sociosMopt = null;
+  if (args.includes('--mopt')) {
+    // Solo hay zona MOPT "de la demo" si alguno de sus socios es de un programa
+    // MOPT con zona activa: la flota del MOPT es cerrada (operator_fits_program),
+    // asi que un socio comun no podria tomar el servicio. El seed de hoy no crea
+    // ninguno.
+    const provs = [...new Set(perfiles.filter((p) => p.role === 'OPERATOR' && p.provider_id).map((p) => p.provider_id))];
+    const mopt = provs.length ? await sel('providers', `id=in.(${provs.join(',')})&is_mopt=eq.true&select=id`) : [];
+    const zonas = mopt.length ? await sel('mopt_zones', `provider_id=in.(${mopt.map((m) => m.id).join(',')})&is_active=eq.true&select=name,polygon,provider_id`) : [];
+    if (!zonas.length) {
+      console.log('\n  ⚠ El escenario de la demo no tiene zona MOPT con socios propios: sigo en San Salvador (--mopt ignorado).');
+    } else {
+      const pts = zonas[0].polygon; // [[lat, lng], ...]
+      const c = pts.reduce((a, [la, ln]) => ({ lat: a.lat + la / pts.length, lng: a.lng + ln / pts.length }), { lat: 0, lng: 0 });
+      origen = { lat: c.lat, lng: c.lng, dir: `${zonas[0].name} (zona MOPT)` };
+      destino = { lat: c.lat + 0.025, lng: c.lng + 0.01, dir: `${zonas[0].name}, tramo norte` };
+      sociosMopt = zonas[0].provider_id;
+    }
+  }
+
+  // --- elenco libre: la primera clienta sin servicio en curso y el socio libre mas cercano ---
+  const cliente = ['carla', 'rodrigo', 'silvia']
+    .map((k) => perfiles.find((p) => p.email === k + DOMINIO))
+    .find((p) => p && !ocupado(p.id));
+  if (!cliente) { console.log('\n  Los tres clientes de la demo tienen un servicio en curso. Ciérralos o corre pnpm demo:seed.\n'); return; }
+  const locs = await sel('operator_locations', `operator_id=in.${lista}&select=operator_id,lat,lng`);
+  const socios = perfiles
+    .filter((p) => p.role === 'OPERATOR' && p.verification_status === 'approved' && !ocupado(p.id))
+    .filter((p) => !sociosMopt || p.provider_id === sociosMopt)
+    .map((p) => ({ ...p, loc: locs.find((l) => l.operator_id === p.id) }))
+    .sort((a, b) => (a.loc ? kmEntre(a.loc, origen) : 99) - (b.loc ? kmEntre(b.loc, origen) : 99));
+  if (!socios.length) { console.log('\n  No hay socios de la demo libres (todos con un servicio en curso). Corre pnpm demo:seed.\n'); return; }
+
+  const tCliente = await login(cliente.email);
+  const nombre = (p) => p.full_name.split(' ')[0];
+
+  console.log(`\n  ▶ Demo en vivo · ${rapido ? 'rápida (1 s por paso)' : 'normal (2 s por paso)'} · Ctrl+C cancela la solicitud`);
+  console.log('    Míralo mientras corre:  http://localhost:3000/admin/fleet  ·  http://localhost:3000/admin/requests\n');
+
+  // --- 1. la solicitud ---
+  const r = await rpc(tCliente, 'create_service_request', {
+    p_pickup_lat: origen.lat, p_pickup_lng: origen.lng, p_pickup_address: origen.dir,
+    p_dropoff_lat: destino.lat, p_dropoff_lng: destino.lng, p_dropoff_address: destino.dir,
+    p_incident_type: 'Vehículo no enciende', p_notes: 'Servicio de demostración (demo:drive)',
+    p_service_type: 'tow', p_tow_type: 'light', p_service_details: {}, p_vehicle_photo_url: null,
+  });
+  if (!r?.success) throw new Error(`no se pudo crear la solicitud: ${JSON.stringify(r).slice(0, 200)}`);
+  const id = r.request_id || r.id;
+  const pin = String(r.pin);
+  const t0 = Date.now();
+  const [caso] = await sel('cases', `request_id=eq.${id}&select=folio`);
+  const folio = caso?.folio || id.slice(0, 8);
+
+  // Ctrl+C a mitad: la clienta cancela (misma RPC que la app), para no dejar un
+  // servicio colgado que despues bloquee el siguiente `drive`.
+  let terminado = false, cortando = false;
+  const cancelar = (motivo) => rpc(tCliente, 'cancel_service_request', { p_request_id: id, p_reason: motivo });
+  const alCortar = async () => {
+    if (cortando) return;
+    cortando = true;
+    if (terminado) process.exit(130);
+    console.log('\n\n  ■ Cortaste la demo: cancelando la solicitud…');
+    try {
+      const c = await cancelar('Demo interrumpida (demo:drive)');
+      console.log(c?.success ? `  Solicitud ${folio} cancelada. No quedó nada colgado.\n` : `  No se pudo cancelar: ${c?.error}\n`);
+    } catch (e) { console.log(`  No se pudo cancelar: ${e.message}\n`); }
+    process.exit(130);
+  };
+  process.on('SIGINT', alCortar);
+  process.on('SIGTERM', alCortar);
+
+  try {
+    console.log(`  1. ${cliente.full_name} pidió una grúa en ${origen.dir}.`);
+    console.log(`     Folio ${folio} · PIN de confirmación ${pin} · destino: ${destino.dir}`);
+    await esperar(tic * 2);
+
+    // --- 2. un socio la toma ---
+    let socio = null, tSocio = null;
+    for (const s of socios) {
+      const tok = await login(s.email);
+      try { await rpc(tok, 'accept_service_request', { p_request_id: id }); socio = s; tSocio = tok; break; }
+      catch (e) { if (!/no presta|otro programa/i.test(e.message)) throw e; }
+    }
+    if (!socio) throw new Error('ningún socio libre de la demo presta este servicio');
+    const tAsign = Date.now();
+    console.log(`  2. El socio ${socio.full_name} aceptó el servicio.`);
+    await esperar(tic);
+
+    await setStatus(tSocio, id, 'en_route');
+    let aqui = socio.loc ? { lat: socio.loc.lat, lng: socio.loc.lng } : null;
+    const dIni = aqui ? kmEntre(aqui, origen) : 0;
+    // Si estaba casi encima (o lejisimos), arranca a ~3 km para que se le vea venir.
+    if (!aqui || dIni < 1.5 || dIni > 12) aqui = { lat: origen.lat + 0.02, lng: origen.lng - 0.015 };
+    console.log(`  3. ${nombre(socio)} sale hacia la recogida (a ${kmEntre(aqui, origen).toFixed(1)} km).`);
+
+    const mover = async (tramo, rotulo) => {
+      let ultimo = -100;
+      for (let i = 0; i < tramo.length; i++) {
+        await rpc(tSocio, 'upsert_operator_location', { p_lat: tramo[i].lat, p_lng: tramo[i].lng, p_is_online: true });
+        const pct = Math.round(((i + 1) / tramo.length) * 100);
+        // En terminal, una barra que se redibuja; redirigido a un archivo, una
+        // linea cada 25 % para no llenarlo de retornos de carro.
+        const tty = process.stdout.isTTY;
+        if (pct - ultimo >= (tty ? 5 : 25) || i === tramo.length - 1) {
+          process.stdout.write(`${tty ? '\r' : ''}     ${rotulo} ${barra(pct)} ${String(pct).padStart(3)} %${tty ? '   ' : '\n'}`);
+          ultimo = pct;
+        }
+        if (i < tramo.length - 1) await esperar(tic);
+      }
+      if (process.stdout.isTTY) process.stdout.write('\n');
+    };
+    await mover(ruta(aqui, origen, 30), `El socio va en camino`);
+    const tLleg = Date.now();
+
+    // --- 3. llegada, PIN y remolque ---
+    console.log(`  4. ${nombre(socio)} llegó. ${nombre(cliente)} le dicta el PIN ${pin}…`);
+    await esperar(tic);
+    await rpc(tSocio, 'verify_request_pin', { p_request_id: id, p_pin: pin });
+    console.log('     PIN correcto: el servicio arrancó.');
+    await esperar(tic);
+
+    const kmTramo = Math.round(kmEntre(origen, destino) * 1.3 * 10) / 10; // recta -> carretera, aprox.
+    await mover(ruta(origen, destino, 20), `Remolcando al destino `);
+    await rpc(tSocio, 'complete_service_request', { p_request_id: id, p_distance_pickup_to_dropoff: kmTramo });
+    const tFin = Date.now();
+    console.log(`  5. Servicio completado en ${destino.dir} (${kmTramo} km de remolque).`);
+
+    // --- 4. calificacion ---
+    await esperar(tic);
+    await rpc(tCliente, 'rate_service', { p_request_id: id, p_stars: 5, p_comment: 'Llegó rapidísimo, excelente servicio.' });
+    terminado = true;
+    console.log(`  6. ${nombre(cliente)} calificó al socio con ★★★★★.`);
+
+    // --- resumen ---
+    const [sr] = await sel('service_requests', `id=eq.${id}&select=status,total_price`);
+    const [uso] = await sel('coverage_usage', `request_id=eq.${id}&select=amount_covered,amount_copay`);
+    const puntos = await sel('service_location_trail', `request_id=eq.${id}&select=id`);
+    const dur = (a, b) => { const s = Math.round((b - a) / 1000); return s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`; };
+    const dinero = (n) => (n == null ? '—' : `$${Number(n).toFixed(2)}`);
+    console.log('\n  ─────────────────────────────────────────────');
+    console.log(`  Folio             ${folio}   (estado: ${sr?.status})`);
+    console.log(`  Clienta / socio   ${cliente.full_name} · ${socio.full_name}`);
+    console.log(`  A la asignación   ${dur(t0, tAsign)}`);
+    console.log(`  A la llegada      ${dur(tAsign, tLleg)}`);
+    console.log(`  Servicio          ${dur(tLleg, tFin)}   ·   total ${dur(t0, tFin)}`);
+    console.log(`  Precio            ${dinero(sr?.total_price)}${uso ? `   (el seguro cubre ${dinero(uso.amount_covered)}, copago ${dinero(uso.amount_copay)})` : ''}`);
+    console.log(`  Recorrido         ${puntos.length} puntos GPS grabados`);
+    console.log('  ─────────────────────────────────────────────');
+    console.log('  Para mirarlo:');
+    console.log('    http://localhost:3000/admin/requests');
+    console.log('    http://localhost:3000/admin/fleet');
+    if (uso) console.log('    http://localhost:3000/portal   (aseguradora@segurosdemo.sv / Insurer123!)');
+    console.log('');
+  } catch (e) {
+    // Si algo revienta a mitad, tampoco se deja el servicio colgado.
+    if (!terminado) await cancelar('Demo fallida (demo:drive)').catch(() => {});
+    throw e;
+  }
+}
+
 // ---------- main ----------
 const cmd = process.argv[2] || 'status';
-const acciones = { seed, reset, status, ping };
+const acciones = { seed, reset, status, ping, drive };
 if (!acciones[cmd]) {
-  console.error('\n  uso: node scripts/demo.mjs seed | reset | status\n');
+  console.error('\n  uso: node scripts/demo.mjs seed | reset | status | ping | drive [--speed=rapido|normal] [--mopt]\n');
   process.exit(1);
 }
 acciones[cmd]().catch((e) => { console.error('\n  ✗', e.message, '\n'); process.exit(1); });
