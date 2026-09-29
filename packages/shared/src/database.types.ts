@@ -1949,6 +1949,8 @@ export type Database = {
           id: string
           insurer_id: string | null
           marketing_opt_in: boolean
+          partner_guide_seen_at: string | null
+          partner_practice_done_at: string | null
           phone: string
           privacy_accepted_at: string | null
           provider_id: string | null
@@ -1967,6 +1969,8 @@ export type Database = {
           id: string
           insurer_id?: string | null
           marketing_opt_in?: boolean
+          partner_guide_seen_at?: string | null
+          partner_practice_done_at?: string | null
           phone: string
           privacy_accepted_at?: string | null
           provider_id?: string | null
@@ -1985,6 +1989,8 @@ export type Database = {
           id?: string
           insurer_id?: string | null
           marketing_opt_in?: boolean
+          partner_guide_seen_at?: string | null
+          partner_practice_done_at?: string | null
           phone?: string
           privacy_accepted_at?: string | null
           provider_id?: string | null
@@ -3402,6 +3408,7 @@ export type Database = {
           service_type: string
         }[]
       }
+      _require_operator: { Args: never; Returns: string }
       _save_insurer_branding: {
         Args: {
           p_color: string
@@ -3842,6 +3849,7 @@ export type Database = {
         Returns: Json
       }
       admin_partner_terms: { Args: { p_operator: string }; Returns: Json }
+      admin_partner_training: { Args: { p_operator: string }; Returns: Json }
       admin_payout_batch: { Args: { p_id: string }; Returns: Json }
       admin_preview_eligibility: {
         Args: {
@@ -4199,6 +4207,7 @@ export type Database = {
         Args: { p_at: string; p_operator: string; p_provider: string }
         Returns: number
       }
+      complete_partner_practice: { Args: never; Returns: undefined }
       complete_service_request: {
         Args: { p_distance_pickup_to_dropoff: number; p_request_id: string }
         Returns: {
@@ -4329,6 +4338,7 @@ export type Database = {
         }
         Returns: Json
       }
+      export_my_data: { Args: never; Returns: Json }
       generate_secure_pin: { Args: never; Returns: string }
       get_active_pricing_rule: {
         Args: never
@@ -4461,6 +4471,7 @@ export type Database = {
           totals: Json
         }[]
       }
+      mark_partner_guide_seen: { Args: never; Returns: undefined }
       member_document_key: { Args: { p_doc: string }; Returns: string }
       member_relationship: { Args: { p_texto: string }; Returns: string }
       mopt_compliance: { Args: { p_from: string; p_to: string }; Returns: Json }
@@ -4637,6 +4648,7 @@ export type Database = {
       }
       my_organization: { Args: never; Returns: Json }
       my_partner_application: { Args: never; Returns: Json }
+      my_partner_training: { Args: never; Returns: Json }
       my_payouts: { Args: never; Returns: Json }
       my_pending_payments: {
         Args: never
@@ -4646,6 +4658,14 @@ export type Database = {
           folio: string
           request_id: string
           service_type: string
+        }[]
+      }
+      my_request_operators: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          operator_name: string
+          operator_phone: string
+          request_id: string
         }[]
       }
       next_case_folio: { Args: never; Returns: string }
@@ -4953,6 +4973,7 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: boolean
       }
+      request_operator_badge: { Args: { p_request: string }; Returns: Json }
       request_sla: {
         Args: { p_request_id: string }
         Returns: {

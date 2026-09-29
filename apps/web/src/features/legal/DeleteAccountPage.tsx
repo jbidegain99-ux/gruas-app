@@ -24,6 +24,21 @@ export default function DeleteAccountPage() {
   const [typed, setTyped] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
+
+  // Decreto 144, derecho de acceso (migr. 00139): una copia antes de borrar.
+  const descargarDatos = async () => {
+    setExportando(true);
+    const { data, error: e } = await createClient().rpc('export_my_data');
+    setExportando(false);
+    if (e || !data) return setError('No se pudo preparar tu copia de datos. Intenta de nuevo.');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mis-datos-budi-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   useEffect(() => {
     (async () => {
@@ -114,6 +129,22 @@ export default function DeleteAccountPage() {
               Esta cuenta es de gestión (administración, aseguradora o programa MOPT). Su baja la hace Budi: pídela a
               tu contacto de soporte.
             </p>
+          )}
+
+          {estado.tipo === 'lista' && (
+            <div className="mb-6 border-b border-zinc-200 pb-6 dark:border-zinc-800">
+              <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                Antes de eliminarla (o cuando quieras) puedes descargar una copia de todo lo que Budi guarda de ti.
+              </p>
+              <button
+                type="button"
+                onClick={descargarDatos}
+                disabled={exportando}
+                className="mt-3 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                {exportando ? 'Preparando…' : 'Descargar mis datos'}
+              </button>
+            </div>
           )}
 
           {estado.tipo === 'lista' && (

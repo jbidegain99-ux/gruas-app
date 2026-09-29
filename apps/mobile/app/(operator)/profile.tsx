@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ShieldAlert, ClipboardList, ChevronRight } from 'lucide-react-native';
+import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ShieldAlert, ClipboardList, ChevronRight, GraduationCap } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { DeleteAccountRow } from '@/features/account/components/DeleteAccountRow';
+import { ExportDataRow } from '@/features/account/components/ExportDataRow';
+import { PartnerGuide } from '@/features/partners/components/PartnerGuide';
 import { supabase } from '@/lib/supabase';
 import { openSupportMenu } from '@/lib/support';
 import { partnerStateFromProfile } from '@/lib/partnerApplication';
@@ -53,6 +55,7 @@ export default function OperatorProfile() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [saving, setSaving] = useState(false);
+  const [guide, setGuide] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     setError(null);
@@ -377,6 +380,12 @@ export default function OperatorProfile() {
       <View style={styles.actionsCard}>
         <Card variant="default" padding="l">
           <Text style={styles.cardTitle}>Cuenta</Text>
+          {/* AGT-05 (00137): repasar la guía o repetir la práctica. */}
+          <Pressable style={styles.actionRow} onPress={() => setGuide(true)}>
+            <GraduationCap size={18} color={colors.primary[500]} />
+            <Text style={styles.helpText}>Guía del socio y práctica</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={openSupportMenu}>
             <HelpCircle size={18} color={colors.primary[500]} />
             <Text style={styles.helpText}>Ayuda y Soporte</Text>
@@ -388,9 +397,18 @@ export default function OperatorProfile() {
           </Pressable>
           <View style={styles.actionDivider} />
           {/* Apple y Google exigen poder borrar la cuenta desde la app (migr. 00101). */}
+          {/* Decreto 144: copia de los datos (migr. 00139). */}
+          <ExportDataRow />
+          <View style={styles.actionDivider} />
           <DeleteAccountRow />
         </Card>
       </View>
+
+      <PartnerGuide
+        visible={guide}
+        onClose={() => setGuide(false)}
+        onPractice={() => router.push('/(operator)/practice' as Href)}
+      />
 
       {/* App Info */}
       <View style={styles.appInfo}>

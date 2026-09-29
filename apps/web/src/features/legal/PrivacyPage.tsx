@@ -173,8 +173,9 @@ export default function PrivacyPage() {
             entornos digitales o <strong>limitar</strong> temporalmente su uso.
           </p>
           <p>
-            Puedes <strong>eliminar tu cuenta</strong> tú mismo desde la app (Perfil → Eliminar mi
-            cuenta) o desde <Link href="/eliminar-cuenta" className="text-budi-primary-600 underline">esta
+            Puedes <strong>descargar una copia de tus datos</strong> (acceso y portabilidad) y{' '}
+            <strong>eliminar tu cuenta</strong> tú mismo desde la app (Perfil → Descargar mis datos /
+            Eliminar mi cuenta) o desde <Link href="/eliminar-cuenta" className="text-budi-primary-600 underline">esta
             página</Link>.
           </p>
           <p>

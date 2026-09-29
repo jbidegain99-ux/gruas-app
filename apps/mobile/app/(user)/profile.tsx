@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogOut, Pencil, AlertCircle, HelpCircle, Car } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { DeleteAccountRow } from '@/features/account/components/DeleteAccountRow';
+import { ExportDataRow } from '@/features/account/components/ExportDataRow';
 import { supabase } from '@/lib/supabase';
 import { openSupportMenu } from '@/lib/support';
 import { BudiLogo, Button, Card, Input, LoadingSpinner, ToastHost, toast } from '@/shared/components/ui';
@@ -303,6 +304,9 @@ export default function Profile() {
           </Pressable>
           <View style={styles.actionDivider} />
           {/* Apple y Google exigen poder borrar la cuenta desde la app (migr. 00101). */}
+          {/* Decreto 144: copia de los datos (migr. 00139). */}
+          <ExportDataRow />
+          <View style={styles.actionDivider} />
           <DeleteAccountRow />
         </Card>
       </View>
