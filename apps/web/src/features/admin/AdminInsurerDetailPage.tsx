@@ -8,6 +8,9 @@ import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
 import { formatDate } from '@/shared/lib/format';
 import { Campo } from './AdminInsurersPage';
 import { InsurerApiKeys } from './InsurerApiKeys';
+import { accountUrl } from './account-360';
+import { OrgMembersPanel } from './OrgMembersPanel';
+import { ContractEditor } from '@/features/contracts/ContractEditor';
 import {
   RULE_KEYS,
   SERVICE_TYPES,
@@ -70,12 +73,23 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  // 00106 (POR-01): quién entra a /portal lo da la membresía a esta organización.
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [planForm, setPlanForm] = useState<{ open: boolean; plan: Plan | null }>({ open: false, plan: null });
   const [policyForm, setPolicyForm] = useState<{ open: boolean; policy: Policy | null }>({ open: false, policy: null });
   const toast = useToast();
   const confirm = useConfirm();
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  useEffect(() => {
+    createClient()
+      .from('organizations')
+      .select('id')
+      .eq('insurer_id', insurerId)
+      .maybeSingle()
+      .then(({ data }) => setOrgId(data?.id ?? null));
+  }, [insurerId]);
 
   useEffect(() => {
     const load = async () => {
@@ -171,7 +185,25 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
       </Link>
 
       <div className="mb-8">
-        <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">{insurer.name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">{insurer.name}</h1>
+          <div className="flex flex-wrap gap-2">
+          {orgId && (
+            <Link
+              href={`/admin/altas/${orgId}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              Checklist de alta <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+          <Link
+            href={accountUrl('insurer', insurerId)}
+            className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Ver ficha 360 <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+          </div>
+        </div>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           {[insurer.tax_id && `NIT ${insurer.tax_id}`, insurer.contact_name, insurer.contact_email, insurer.contact_phone]
             .filter(Boolean)
@@ -181,6 +213,16 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
 
       {/* ── Objetivos de SLA (B-15) ─────────────────────────────────────── */}
       <SlaTargets insurer={insurer} onSaved={() => setRefreshKey((k) => k + 1)} />
+
+      {/* VEN-03: el contrato (00124) también aplica a aseguradoras (informativo). */}
+      {orgId && (
+        <section className="mb-10">
+          <h2 className="mb-3 font-heading text-lg font-bold text-zinc-900 dark:text-white">Contrato</h2>
+          <ContractEditor organizationId={orgId} />
+        </section>
+      )}
+
+      {orgId && <OrgMembersPanel organizationId={orgId} title="Equipo del portal de la aseguradora" />}
 
       {/* ── Planes de cobertura ─────────────────────────────────────────── */}
       <section className="mb-10">
@@ -222,7 +264,7 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
           <button
             onClick={() => setPolicyForm({ open: true, policy: null })}
             disabled={plans.length === 0}
-            title={plans.length === 0 ? 'Creá primero un plan de cobertura' : undefined}
+            title={plans.length === 0 ? 'Crea primero un plan de cobertura' : undefined}
             className="flex items-center gap-2 rounded-lg bg-budi-primary-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
@@ -234,7 +276,7 @@ export default function AdminInsurerDetailPage({ insurerId }: { insurerId: strin
           {policies.length === 0 ? (
             <p className="p-8 text-center text-sm text-zinc-500">
               {plans.length === 0
-                ? 'Creá primero un plan de cobertura para poder emitir pólizas.'
+                ? 'Crea primero un plan de cobertura para poder emitir pólizas.'
                 : 'Sin pólizas todavía.'}
             </p>
           ) : (
@@ -470,7 +512,7 @@ function RulesEditor({
     <div className="border-t border-zinc-200 p-5 dark:border-zinc-800">
       {rules.length === 0 ? (
         <p className="mb-4 text-sm text-zinc-500">
-          Sin reglas. Empezá por una regla general de «Cubierto» y luego afiná por tipo de servicio.
+          Sin reglas. Empieza por una regla general de «Cubierto» y luego afina por tipo de servicio.
         </p>
       ) : (
         <ul className="mb-4 space-y-2">
@@ -868,7 +910,7 @@ function SlaTargets({ insurer, onSaved }: { insurer: Insurer; onSaved: () => voi
       {editing ? (
         <div className="flex flex-wrap items-end gap-4">
           <label className="text-sm">
-            <span className="mb-1 block text-zinc-600 dark:text-zinc-400">Asignar operador (min)</span>
+            <span className="mb-1 block text-zinc-600 dark:text-zinc-400">Asignar socio operador (min)</span>
             <input
               type="number"
               min={1}
@@ -904,7 +946,7 @@ function SlaTargets({ insurer, onSaved }: { insurer: Insurer; onSaved: () => voi
       ) : (
         <div className="flex gap-10">
           <div>
-            <p className="text-xs text-zinc-500">Asignar operador</p>
+            <p className="text-xs text-zinc-500">Asignar socio operador</p>
             <p className="text-xl font-semibold tabular-nums text-zinc-900 dark:text-white">
               {insurer.sla_assignment_minutes} <span className="text-sm font-normal text-zinc-500">min</span>
             </p>

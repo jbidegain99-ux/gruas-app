@@ -9,24 +9,337 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      cases: {
+      account_deletions: {
         Row: {
-          created_at: string
-          folio: string
-          id: string
-          request_id: string
+          deleted_at: string
+          files_removed_at: string | null
+          role: string
+          user_id: string
         }
         Insert: {
-          created_at?: string
-          folio: string
-          id?: string
-          request_id: string
+          deleted_at?: string
+          files_removed_at?: string | null
+          role: string
+          user_id: string
         }
         Update: {
+          deleted_at?: string
+          files_removed_at?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      account_statement_lines: {
+        Row: {
+          amount: number
+          completed_at: string
+          copay: number | null
+          fee: number
+          folio: string | null
+          provider_id: string | null
+          provider_kind: string | null
+          provider_name: string | null
+          request_id: string
+          service_type: string
+          statement_id: string
+          total_km: number | null
+          tow_km: number | null
+        }
+        Insert: {
+          amount: number
+          completed_at: string
+          copay?: number | null
+          fee?: number
+          folio?: string | null
+          provider_id?: string | null
+          provider_kind?: string | null
+          provider_name?: string | null
+          request_id: string
+          service_type: string
+          statement_id: string
+          total_km?: number | null
+          tow_km?: number | null
+        }
+        Update: {
+          amount?: number
+          completed_at?: string
+          copay?: number | null
+          fee?: number
+          folio?: string | null
+          provider_id?: string | null
+          provider_kind?: string | null
+          provider_name?: string | null
+          request_id?: string
+          service_type?: string
+          statement_id?: string
+          total_km?: number | null
+          tow_km?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_statement_lines_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_statement_lines_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "account_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      account_statements: {
+        Row: {
+          approved_amount: number | null
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          number: string | null
+          organization_id: string
+          paid_at: string | null
+          paid_by: string | null
+          paid_reference: string | null
+          period_from: string
+          period_to: string
+          status: string
+          void_reason: string | null
+        }
+        Insert: {
+          approved_amount?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          number?: string | null
+          organization_id: string
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_reference?: string | null
+          period_from: string
+          period_to: string
+          status?: string
+          void_reason?: string | null
+        }
+        Update: {
+          approved_amount?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          number?: string | null
+          organization_id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_reference?: string | null
+          period_from?: string
+          period_to?: string
+          status?: string
+          void_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_statements_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "account_statements_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_statements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "account_statements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_statements_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "account_statements_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_statements_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "account_statements_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_release_policy: {
+        Row: {
+          latest_version: string
+          min_version: string
+          platform: string
+          store_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          latest_version?: string
+          min_version?: string
+          platform: string
+          store_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          latest_version?: string
+          min_version?: string
+          platform?: string
+          store_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_release_policy_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "app_release_policy_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string
+          actor_name: string | null
+          actor_role: string | null
+          changes: Json
+          id: number
+          occurred_at: string
+          record_id: string | null
+          record_label: string | null
+          table_name: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id: string
+          actor_name?: string | null
+          actor_role?: string | null
+          changes: Json
+          id?: never
+          occurred_at?: string
+          record_id?: string | null
+          record_label?: string | null
+          table_name: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string
+          actor_name?: string | null
+          actor_role?: string | null
+          changes?: Json
+          id?: never
+          occurred_at?: string
+          record_id?: string | null
+          record_label?: string | null
+          table_name?: string
+        }
+        Relationships: []
+      }
+      cases: {
+        Row: {
+          approach_km: number | null
+          created_at: string
+          declared_km: number | null
+          folio: string
+          id: string
+          km_computed_at: string | null
+          request_id: string
+          tow_km: number | null
+          trail_points: number | null
+          vehicle_id: string | null
+          vehicle_plate: string | null
+        }
+        Insert: {
+          approach_km?: number | null
+          created_at?: string
+          declared_km?: number | null
+          folio: string
+          id?: string
+          km_computed_at?: string | null
+          request_id: string
+          tow_km?: number | null
+          trail_points?: number | null
+          vehicle_id?: string | null
+          vehicle_plate?: string | null
+        }
+        Update: {
+          approach_km?: number | null
+          created_at?: string
+          declared_km?: number | null
           folio?: string
           id?: string
+          km_computed_at?: string | null
           request_id?: string
+          tow_km?: number | null
+          trail_points?: number | null
+          vehicle_id?: string | null
+          vehicle_plate?: string | null
         }
         Relationships: [
           {
@@ -34,6 +347,13 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: true
             referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "operator_vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -217,6 +537,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          expires_at: string | null
           id: string
           insurer_id: string
           key_hash: string
@@ -228,6 +549,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          expires_at?: string | null
           id?: string
           insurer_id: string
           key_hash: string
@@ -239,6 +561,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          expires_at?: string | null
           id?: string
           insurer_id?: string
           key_hash?: string
@@ -264,6 +587,67 @@ export type Database = {
           },
           {
             foreignKeyName: "insurer_api_keys_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurer_webhooks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          events: string[]
+          id: string
+          insurer_id: string
+          is_active: boolean
+          secret: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          events: string[]
+          id?: string
+          insurer_id: string
+          is_active?: boolean
+          secret: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          events?: string[]
+          id?: string
+          insurer_id?: string
+          is_active?: boolean
+          secret?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurer_webhooks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "insurer_webhooks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "insurer_webhooks_insurer_id_fkey"
             columns: ["insurer_id"]
             isOneToOne: false
             referencedRelation: "insurers"
@@ -313,9 +697,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ledger_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          note: string | null
+          paid_on: string
+          payee_id: string | null
+          payee_kind: string
+          payer_id: string | null
+          payer_kind: string
+          reference: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          id?: string
+          note?: string | null
+          paid_on: string
+          payee_id?: string | null
+          payee_kind: string
+          payer_id?: string | null
+          payer_kind: string
+          reference?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          note?: string | null
+          paid_on?: string
+          payee_id?: string | null
+          payee_kind?: string
+          payer_id?: string | null
+          payer_kind?: string
+          reference?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: []
+      }
       members: {
         Row: {
           created_at: string
+          deactivated_at: string | null
+          deactivated_by: string | null
+          deactivation_reason: string | null
           document_number: string
           ends_on: string | null
           full_name: string
@@ -330,6 +768,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivation_reason?: string | null
           document_number: string
           ends_on?: string | null
           full_name: string
@@ -344,6 +785,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivation_reason?: string | null
           document_number?: string
           ends_on?: string | null
           full_name?: string
@@ -357,6 +801,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "members_deactivated_by_fkey"
+            columns: ["deactivated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "members_deactivated_by_fkey"
+            columns: ["deactivated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "members_policy_id_fkey"
             columns: ["policy_id"]
@@ -376,6 +834,56 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mopt_zones: {
+        Row: {
+          active_days: number[] | null
+          created_at: string
+          hours_from: string | null
+          hours_to: string | null
+          id: string
+          is_active: boolean
+          name: string
+          polygon: Json
+          provider_id: string
+          service_types: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          active_days?: number[] | null
+          created_at?: string
+          hours_from?: string | null
+          hours_to?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          polygon: Json
+          provider_id: string
+          service_types?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          active_days?: number[] | null
+          created_at?: string
+          hours_from?: string | null
+          hours_to?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          polygon?: Json
+          provider_id?: string
+          service_types?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mopt_zones_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
             referencedColumns: ["id"]
           },
         ]
@@ -435,25 +943,43 @@ export type Database = {
         Row: {
           bucket: string
           doc_type: string
+          expires_on: string | null
+          expiry_warned_at: string | null
           id: string
           operator_id: string
           path: string
+          review_note: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           uploaded_at: string
         }
         Insert: {
           bucket: string
           doc_type: string
+          expires_on?: string | null
+          expiry_warned_at?: string | null
           id?: string
           operator_id: string
           path: string
+          review_note?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           uploaded_at?: string
         }
         Update: {
           bucket?: string
           doc_type?: string
+          expires_on?: string | null
+          expiry_warned_at?: string | null
           id?: string
           operator_id?: string
           path?: string
+          review_note?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           uploaded_at?: string
         }
         Relationships: [
@@ -520,6 +1046,677 @@ export type Database = {
             columns: ["operator_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_profiles: {
+        Row: {
+          bank_account_holder: string | null
+          bank_account_number: string | null
+          bank_account_type: string | null
+          bank_name: string | null
+          created_at: string
+          dui_number: string | null
+          nit: string | null
+          operator_id: string
+          service_types: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_account_type?: string | null
+          bank_name?: string | null
+          created_at?: string
+          dui_number?: string | null
+          nit?: string | null
+          operator_id: string
+          service_types?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_account_type?: string | null
+          bank_name?: string | null
+          created_at?: string
+          dui_number?: string | null
+          nit?: string | null
+          operator_id?: string
+          service_types?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_profiles_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: true
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "operator_profiles_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operator_vehicles: {
+        Row: {
+          capacity_m3: number | null
+          created_at: string
+          id: string
+          is_active: boolean
+          operator_id: string
+          plate: string
+          updated_at: string
+          vehicle_type: string
+        }
+        Insert: {
+          capacity_m3?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          operator_id: string
+          plate: string
+          updated_at?: string
+          vehicle_type?: string
+        }
+        Update: {
+          capacity_m3?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          operator_id?: string
+          plate?: string
+          updated_at?: string
+          vehicle_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_vehicles_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "operator_vehicles_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_budget_alerts: {
+        Row: {
+          consumed: number
+          created_at: string
+          month: string
+          organization_id: string
+          threshold: number
+        }
+        Insert: {
+          consumed: number
+          created_at?: string
+          month: string
+          organization_id: string
+          threshold: number
+        }
+        Update: {
+          consumed?: number
+          created_at?: string
+          month?: string
+          organization_id?: string
+          threshold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_budget_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_onboarding: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          notes: string | null
+          organization_id: string
+          started_at: string
+          started_by: string | null
+          test_input: Json | null
+          test_passed_at: string | null
+          test_result: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          notes?: string | null
+          organization_id: string
+          started_at?: string
+          started_by?: string | null
+          test_input?: Json | null
+          test_passed_at?: string | null
+          test_result?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          notes?: string | null
+          organization_id?: string
+          started_at?: string
+          started_by?: string | null
+          test_input?: Json | null
+          test_passed_at?: string | null
+          test_result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_onboarding_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "org_onboarding_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_onboarding_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_onboarding_started_by_fkey"
+            columns: ["started_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "org_onboarding_started_by_fkey"
+            columns: ["started_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_contracts: {
+        Row: {
+          monthly_cap: number | null
+          on_cap: string
+          organization_id: string
+          reference: string | null
+          tariff_notes: string | null
+          updated_at: string
+          updated_by: string | null
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          monthly_cap?: number | null
+          on_cap?: string
+          organization_id: string
+          reference?: string | null
+          tariff_notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          monthly_cap?: number | null
+          on_cap?: string
+          organization_id?: string
+          reference?: string | null
+          tariff_notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_contracts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_contracts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "organization_contracts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          invited_by_name: string | null
+          organization_id: string
+          revoked_at: string | null
+          role: string
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_by_name?: string | null
+          organization_id: string
+          revoked_at?: string | null
+          role: string
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_by_name?: string | null
+          organization_id?: string
+          revoked_at?: string | null
+          role?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_members: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          organization_id: string
+          profile_id: string
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          organization_id: string
+          profile_id: string
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          organization_id?: string
+          profile_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "organization_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          insurer_id: string | null
+          name: string
+          parent_id: string | null
+          provider_id: string | null
+          sla_arrival_minutes: number | null
+          sla_assignment_minutes: number | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          insurer_id?: string | null
+          name: string
+          parent_id?: string | null
+          provider_id?: string | null
+          sla_arrival_minutes?: number | null
+          sla_assignment_minutes?: number | null
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          insurer_id?: string | null
+          name?: string
+          parent_id?: string | null
+          provider_id?: string | null
+          sla_arrival_minutes?: number | null
+          sla_assignment_minutes?: number | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizations_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: true
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_messages: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject: string | null
+          to_address: string
+        }
+        Insert: {
+          body: string
+          channel: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+          to_address: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject?: string | null
+          to_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "partner_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_leads: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string
+          profile_id: string | null
+          service_types: string[]
+          status: string
+          updated_at: string
+          vehicle_type: string | null
+          zone: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone: string
+          profile_id?: string | null
+          service_types?: string[]
+          status?: string
+          updated_at?: string
+          vehicle_type?: string | null
+          zone?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string
+          profile_id?: string | null
+          service_types?: string[]
+          status?: string
+          updated_at?: string
+          vehicle_type?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_leads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "partner_leads_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cutoff: string
+          id: string
+          number: string | null
+          paid_at: string | null
+          paid_by: string | null
+          paid_on: string | null
+          receipt_path: string | null
+          reference: string | null
+          status: string
+          void_reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cutoff: string
+          id?: string
+          number?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_on?: string | null
+          receipt_path?: string | null
+          reference?: string | null
+          status?: string
+          void_reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cutoff?: string
+          id?: string
+          number?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_on?: string | null
+          receipt_path?: string | null
+          reference?: string | null
+          status?: string
+          void_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "payout_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_batches_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "payout_batches_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_items: {
+        Row: {
+          account_number: string | null
+          account_type: string | null
+          amount: number
+          bank_name: string | null
+          batch_id: string
+          holder: string | null
+          ledger_payment_id: string | null
+          payee_id: string
+          payee_kind: string
+          payee_name: string | null
+          services: Json
+        }
+        Insert: {
+          account_number?: string | null
+          account_type?: string | null
+          amount: number
+          bank_name?: string | null
+          batch_id: string
+          holder?: string | null
+          ledger_payment_id?: string | null
+          payee_id: string
+          payee_kind: string
+          payee_name?: string | null
+          services?: Json
+        }
+        Update: {
+          account_number?: string | null
+          account_type?: string | null
+          amount?: number
+          bank_name?: string | null
+          batch_id?: string
+          holder?: string | null
+          ledger_payment_id?: string | null
+          payee_id?: string
+          payee_kind?: string
+          payee_name?: string | null
+          services?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "payout_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_items_ledger_payment_id_fkey"
+            columns: ["ledger_payment_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_payments"
             referencedColumns: ["id"]
           },
         ]
@@ -690,7 +1887,6 @@ export type Database = {
       }
       profiles: {
         Row: {
-          commission_rate: number | null
           created_at: string
           email: string | null
           full_name: string
@@ -709,7 +1905,6 @@ export type Database = {
           verification_submitted_at: string | null
         }
         Insert: {
-          commission_rate?: number | null
           created_at?: string
           email?: string | null
           full_name: string
@@ -728,7 +1923,6 @@ export type Database = {
           verification_submitted_at?: string | null
         }
         Update: {
-          commission_rate?: number | null
           created_at?: string
           email?: string | null
           full_name?: string
@@ -777,28 +1971,57 @@ export type Database = {
           },
         ]
       }
-      provider_commissions: {
+      provider_bank_accounts: {
         Row: {
-          commission_rate: number
+          account_number: string
+          account_type: string
+          bank_name: string
+          holder: string
+          holder_nit: string | null
           provider_id: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
-          commission_rate: number
+          account_number: string
+          account_type: string
+          bank_name: string
+          holder: string
+          holder_nit?: string | null
           provider_id: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
-          commission_rate?: number
+          account_number?: string
+          account_type?: string
+          bank_name?: string
+          holder?: string
+          holder_nit?: string | null
           provider_id?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "provider_commissions_provider_id_fkey"
+            foreignKeyName: "provider_bank_accounts_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: true
             referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_bank_accounts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "provider_bank_accounts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -864,6 +2087,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_mopt: boolean
           name: string
           tow_type_supported: string | null
           updated_at: string
@@ -876,6 +2100,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_mopt?: boolean
           name: string
           tow_type_supported?: string | null
           updated_at?: string
@@ -888,9 +2113,67 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_mopt?: boolean
           name?: string
           tow_type_supported?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      rate_limit_hits: {
+        Row: {
+          bucket: string
+          hits: number
+          subject: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          hits?: number
+          subject: string
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          hits?: number
+          subject?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      rate_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          id: string
+          kind: string
+          note: string | null
+          rate: number | null
+          subject_id: string | null
+          valid_from: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          rate?: number | null
+          subject_id?: string | null
+          valid_from: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          rate?: number | null
+          subject_id?: string | null
+          valid_from?: string
         }
         Relationships: []
       }
@@ -1061,6 +2344,52 @@ export type Database = {
           },
         ]
       }
+      request_notes: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          request_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          request_id: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "request_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_notes_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_location_trail: {
         Row: {
           id: number
@@ -1111,6 +2440,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1152,6 +2482,7 @@ export type Database = {
           id?: string
           incident_description?: string | null
           incident_type: string
+          mopt_provider_id?: string | null
           notes?: string | null
           operator_id?: string | null
           pickup_address: string
@@ -1193,6 +2524,7 @@ export type Database = {
           id?: string
           incident_description?: string | null
           incident_type?: string
+          mopt_provider_id?: string | null
           notes?: string | null
           operator_id?: string | null
           pickup_address?: string
@@ -1326,6 +2658,197 @@ export type Database = {
         }
         Relationships: []
       }
+      statement_observation_events: {
+        Row: {
+          amount: number | null
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          observation_id: string
+          side: string
+        }
+        Insert: {
+          amount?: number | null
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          kind: string
+          observation_id: string
+          side: string
+        }
+        Update: {
+          amount?: number | null
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          observation_id?: string
+          side?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statement_observation_events_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "statement_observation_events_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "statement_observation_events_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "statement_observations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statement_observations: {
+        Row: {
+          adjusted_amount: number | null
+          created_at: string
+          id: string
+          request_id: string
+          resolved_at: string | null
+          statement_id: string
+          status: string
+        }
+        Insert: {
+          adjusted_amount?: number | null
+          created_at?: string
+          id?: string
+          request_id: string
+          resolved_at?: string | null
+          statement_id: string
+          status?: string
+        }
+        Update: {
+          adjusted_amount?: number | null
+          created_at?: string
+          id?: string
+          request_id?: string
+          resolved_at?: string | null
+          statement_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statement_observations_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "account_statements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "statement_observations_statement_id_request_id_fkey"
+            columns: ["statement_id", "request_id"]
+            isOneToOne: true
+            referencedRelation: "account_statement_lines"
+            referencedColumns: ["statement_id", "request_id"]
+          },
+        ]
+      }
+      terms_acceptances: {
+        Row: {
+          accepted_at: string
+          ip: string | null
+          profile_id: string
+          terms_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          accepted_at?: string
+          ip?: string | null
+          profile_id: string
+          terms_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          accepted_at?: string
+          ip?: string | null
+          profile_id?: string
+          terms_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terms_acceptances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "terms_acceptances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "terms_acceptances_terms_id_fkey"
+            columns: ["terms_id"]
+            isOneToOne: false
+            referencedRelation: "terms_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terms_documents: {
+        Row: {
+          body: string
+          id: string
+          kind: string
+          published_at: string
+          published_by: string | null
+          title: string
+          version: string
+        }
+        Insert: {
+          body: string
+          id?: string
+          kind: string
+          published_at?: string
+          published_by?: string | null
+          title: string
+          version: string
+        }
+        Update: {
+          body?: string
+          id?: string
+          kind?: string
+          published_at?: string
+          published_by?: string | null
+          title?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terms_documents_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "terms_documents_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           color: string | null
@@ -1370,6 +2893,65 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          event: string
+          folio: string | null
+          id: string
+          last_error: string | null
+          last_status_code: number | null
+          net_request_id: number | null
+          next_attempt_at: string
+          payload: Json
+          sent_at: string | null
+          status: string
+          webhook_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          event: string
+          folio?: string | null
+          id?: string
+          last_error?: string | null
+          last_status_code?: number | null
+          net_request_id?: number | null
+          next_attempt_at?: string
+          payload: Json
+          sent_at?: string | null
+          status?: string
+          webhook_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          event?: string
+          folio?: string | null
+          id?: string
+          last_error?: string | null
+          last_status_code?: number | null
+          net_request_id?: number | null
+          next_attempt_at?: string
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "insurer_webhooks"
             referencedColumns: ["id"]
           },
         ]
@@ -1441,10 +3023,31 @@ export type Database = {
       }
     }
     Functions: {
+      _ensure_onboarding: { Args: { p_org: string }; Returns: undefined }
       _import_members: {
         Args: { p_members: Json; p_policy_id: string }
         Returns: Json
       }
+      _issue_insurer_api_key: {
+        Args: { p_insurer: string; p_name: string }
+        Returns: Json
+      }
+      _new_webhook_secret: { Args: never; Returns: string }
+      _webhook_case_data: {
+        Args: { p_insurer: string; p_request: string }
+        Returns: Json
+      }
+      _webhook_enqueue: {
+        Args: {
+          p_data: Json
+          p_event: string
+          p_folio: string
+          p_webhook: string
+        }
+        Returns: string
+      }
+      _webhook_send: { Args: { p_delivery: string }; Returns: undefined }
+      accept_org_invitation: { Args: { p_token: string }; Returns: Json }
       accept_service_request: {
         Args: { p_request_id: string }
         Returns: {
@@ -1464,6 +3067,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1493,6 +3097,45 @@ export type Database = {
           to: "service_requests"
           isOneToOne: true
           isSetofReturn: false
+        }
+      }
+      accept_terms: { Args: { p_terms_id: string }; Returns: Json }
+      account_request_ids: {
+        Args: { p_id: string; p_kind: string }
+        Returns: string[]
+      }
+      admin_account_360: {
+        Args: { p_from: string; p_id: string; p_kind: string; p_to: string }
+        Returns: Json
+      }
+      admin_add_org_member: {
+        Args: { p_email: string; p_organization_id: string; p_role?: string }
+        Returns: string
+      }
+      admin_answer_observation: {
+        Args: {
+          p_adjusted_amount?: number
+          p_body: string
+          p_observation: string
+          p_resolution?: string
+        }
+        Returns: undefined
+      }
+      admin_app_release_policy: {
+        Args: never
+        Returns: {
+          latest_version: string
+          min_version: string
+          platform: string
+          store_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "app_release_policy"
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       admin_assign_request: {
@@ -1514,6 +3157,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1545,6 +3189,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_audit_log: {
+        Args: {
+          p_action?: string
+          p_actor?: string
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_record?: string
+          p_table?: string
+          p_to?: string
+        }
+        Returns: {
+          action: string
+          actor_email: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changes: Json
+          id: number
+          occurred_at: string
+          record_id: string
+          record_label: string
+          table_name: string
+          total_count: number
+        }[]
+      }
+      admin_audit_log_facets: { Args: never; Returns: Json }
+      admin_business_dashboard: { Args: never; Returns: Json }
+      admin_cancel_rate_version: { Args: { p_id: string }; Returns: undefined }
       admin_cancel_request: {
         Args: { p_reason?: string; p_request_id: string }
         Returns: {
@@ -1564,6 +3237,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1594,6 +3268,25 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      admin_complete_onboarding: {
+        Args: { p_notes?: string; p_org: string }
+        Returns: Json
+      }
+      admin_create_institution: {
+        Args: {
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_name: string
+          p_tax_id: string
+          p_type: string
+        }
+        Returns: string
+      }
+      admin_create_payout_batch: {
+        Args: { p_cutoff?: string }
+        Returns: string
       }
       admin_finance_by_insurer: {
         Args: { p_from: string; p_to: string }
@@ -1625,9 +3318,84 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
+      admin_generate_statement: {
+        Args: { p_from: string; p_org: string; p_to: string }
+        Returns: string
+      }
+      admin_invite_org_member: {
+        Args: { p_email: string; p_org: string; p_role?: string }
+        Returns: Json
+      }
+      admin_issue_statement: { Args: { p_id: string }; Returns: string }
+      admin_ledger_balances: {
+        Args: never
+        Returns: {
+          balance: number
+          creditor_id: string
+          creditor_kind: string
+          creditor_name: string
+          debtor_id: string
+          debtor_kind: string
+          debtor_name: string
+          last_paid_on: string
+          owed: number
+          paid: number
+          services: number
+        }[]
+      }
+      admin_ledger_payments: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount: number
+          created_at: string
+          created_by_name: string
+          id: string
+          note: string
+          paid_on: string
+          payee_kind: string
+          payee_name: string
+          payer_kind: string
+          payer_name: string
+          reference: string
+          void_reason: string
+          voided_at: string
+        }[]
+      }
       admin_link_insurer_user: {
         Args: { p_insurer_id: string; p_user_id: string }
         Returns: undefined
+      }
+      admin_link_mopt_user: {
+        Args: { p_provider_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_list_organizations: {
+        Args: never
+        Returns: {
+          id: string
+          insurer_id: string
+          members: number
+          name: string
+          provider_id: string
+          status: string
+          type: string
+        }[]
+      }
+      admin_list_partner_leads: { Args: { p_status?: string }; Returns: Json }
+      admin_list_payout_batches: {
+        Args: never
+        Returns: {
+          created_at: string
+          cutoff: string
+          id: string
+          missing_bank: number
+          number: string
+          paid_on: string
+          payees: number
+          reference: string
+          status: string
+          total: number
+        }[]
       }
       admin_list_provider_commissions: {
         Args: never
@@ -1636,12 +3404,185 @@ export type Database = {
           provider_id: string
         }[]
       }
+      admin_mark_message_sent: { Args: { p_id: string }; Returns: undefined }
+      admin_mark_payout_paid: {
+        Args: {
+          p_id: string
+          p_paid_on: string
+          p_receipt_path: string
+          p_reference: string
+        }
+        Returns: number
+      }
+      admin_mark_statement_paid: {
+        Args: { p_id: string; p_paid_on: string; p_reference: string }
+        Returns: undefined
+      }
+      admin_onboarding_overview: {
+        Args: never
+        Returns: {
+          completed_at: string
+          name: string
+          organization_id: string
+          started_at: string
+          steps_done: number
+          steps_total: number
+          type: string
+        }[]
+      }
+      admin_onboarding_status: { Args: { p_org: string }; Returns: Json }
+      admin_org_members: {
+        Args: { p_organization_id: string }
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          profile_id: string
+          role: string
+          status: string
+        }[]
+      }
+      admin_partner_application: {
+        Args: { p_operator_id: string }
+        Returns: Json
+      }
+      admin_partner_terms: { Args: { p_operator: string }; Returns: Json }
+      admin_payout_batch: { Args: { p_id: string }; Returns: Json }
+      admin_preview_eligibility: {
+        Args: {
+          p_document?: string
+          p_lat?: number
+          p_lng?: number
+          p_org: string
+          p_service_type: string
+          p_total?: number
+        }
+        Returns: Json
+      }
+      admin_provider_bank: { Args: { p_provider: string }; Returns: Json }
+      admin_publish_terms: {
+        Args: {
+          p_body: string
+          p_kind: string
+          p_title: string
+          p_version: string
+        }
+        Returns: string
+      }
+      admin_rate_history: {
+        Args: { p_kind: string; p_subject: string }
+        Returns: {
+          created_at: string
+          created_by_name: string
+          id: string
+          note: string
+          rate: number
+          status: string
+          valid_from: string
+          valid_until: string
+        }[]
+      }
+      admin_rate_overview: {
+        Args: never
+        Returns: {
+          current_rate: number
+          kind: string
+          next_from: string
+          next_is_default: boolean
+          next_rate: number
+          own_rate: boolean
+          subject_id: string
+          subject_name: string
+          versions: number
+        }[]
+      }
+      admin_reset_mfa: {
+        Args: { p_profile_id: string; p_reason: string }
+        Returns: number
+      }
+      admin_review_document: {
+        Args: {
+          p_doc_type: string
+          p_expires_on?: string
+          p_note?: string
+          p_operator_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      admin_revoke_org_invitation: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      admin_schedule_rate: {
+        Args: {
+          p_effective?: string
+          p_kind: string
+          p_note?: string
+          p_rate: number
+          p_subject: string
+        }
+        Returns: string
+      }
+      admin_set_app_release_policy: {
+        Args: {
+          p_latest_version: string
+          p_min_version: string
+          p_platform: string
+          p_store_url: string
+        }
+        Returns: undefined
+      }
+      admin_set_mopt_fee: {
+        Args: { p_provider_id: string; p_rate: number }
+        Returns: undefined
+      }
       admin_set_operator_commission: {
         Args: { p_operator_id: string; p_rate?: number }
         Returns: Json
       }
+      admin_set_operator_vehicle: {
+        Args: {
+          p_capacity_m3?: number
+          p_operator_id: string
+          p_plate: string
+          p_vehicle_type?: string
+        }
+        Returns: string
+      }
       admin_set_operator_verification: {
         Args: { p_operator_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
+      admin_set_org_contract: {
+        Args: {
+          p_monthly_cap: number
+          p_on_cap: string
+          p_org: string
+          p_reference: string
+          p_tariff_notes: string
+          p_valid_from: string
+          p_valid_to: string
+        }
+        Returns: undefined
+      }
+      admin_set_org_sla: {
+        Args: {
+          p_arrival: number
+          p_assignment: number
+          p_organization_id: string
+        }
+        Returns: undefined
+      }
+      admin_set_provider_bank: {
+        Args: {
+          p_bank: string
+          p_holder: string
+          p_nit: string
+          p_number: string
+          p_provider: string
+          p_type: string
+        }
         Returns: undefined
       }
       admin_set_provider_commission: {
@@ -1689,6 +3630,19 @@ export type Database = {
           servicio: string
         }[]
       }
+      admin_update_org_member: {
+        Args: {
+          p_organization_id: string
+          p_profile_id: string
+          p_role?: string
+          p_status?: string
+        }
+        Returns: undefined
+      }
+      admin_update_partner_lead: {
+        Args: { p_id: string; p_notes?: string; p_status?: string }
+        Returns: undefined
+      }
       admin_update_user_role: {
         Args: {
           p_new_role: Database["public"]["Enums"]["user_role"]
@@ -1697,7 +3651,18 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_void_payout_batch: { Args: { p_id: string }; Returns: undefined }
+      admin_void_statement: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       alert_stale_pool_requests: { Args: never; Returns: undefined }
+      anonymize_account: { Args: { p_user_id: string }; Returns: Json }
+      app_version_check: {
+        Args: { p_platform: string; p_version: string }
+        Returns: Json
+      }
+      approve_statement: { Args: { p_id: string }; Returns: number }
       assign_nearest_operator: {
         Args: { p_request_id: string }
         Returns: {
@@ -1717,6 +3682,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1749,6 +3715,18 @@ export type Database = {
         }
       }
       auth_insurer_id: { Args: never; Returns: string }
+      auth_mopt_id: { Args: never; Returns: string }
+      auth_org: {
+        Args: never
+        Returns: {
+          insurer_id: string
+          member_role: string
+          name: string
+          organization_id: string
+          provider_id: string
+          type: string
+        }[]
+      }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -1765,6 +3743,12 @@ export type Database = {
         Returns: Json
       }
       check_member_coverage: { Args: never; Returns: Json }
+      check_operator_document_expiry: { Args: never; Returns: Json }
+      check_org_budgets: { Args: never; Returns: number }
+      commission_rate_at: {
+        Args: { p_at: string; p_operator: string; p_provider: string }
+        Returns: number
+      }
       complete_service_request: {
         Args: { p_distance_pickup_to_dropoff: number; p_request_id: string }
         Returns: {
@@ -1784,6 +3768,7 @@ export type Database = {
           id: string
           incident_description: string | null
           incident_type: string
+          mopt_provider_id: string | null
           notes: string | null
           operator_id: string | null
           pickup_address: string
@@ -1815,6 +3800,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      compute_case_km: { Args: { p_request_id: string }; Returns: undefined }
       coverage_rule_lookup: {
         Args: { p_plan_id: string; p_rule_key: string; p_service_type: string }
         Returns: {
@@ -1868,12 +3854,10 @@ export type Database = {
         }
         Returns: Json
       }
+      current_terms: { Args: { p_kind: string }; Returns: Json }
+      current_terms_id: { Args: { p_kind: string }; Returns: string }
       default_commission_rate: { Args: never; Returns: number }
       drain_notification_queue: { Args: never; Returns: undefined }
-      effective_commission_rate: {
-        Args: { p_operator_rate?: number; p_provider_id: string }
-        Returns: number
-      }
       evaluate_coverage: {
         Args: {
           p_exclude_request?: string
@@ -1930,6 +3914,10 @@ export type Database = {
         }[]
       }
       hash_pin: { Args: { p_pin: string }; Returns: string }
+      haversine_km: {
+        Args: { lat1: number; lat2: number; lng1: number; lng2: number }
+        Returns: number
+      }
       id_documents_frozen: { Args: never; Returns: boolean }
       import_members_for_insurer: {
         Args: { p_insurer_id: string; p_members: Json; p_policy_number: string }
@@ -1939,11 +3927,46 @@ export type Database = {
         Args: { p_members: Json; p_policy_id: string }
         Returns: Json
       }
+      insurer_portal_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_my_insurer: { Args: { p_insurer_id: string }; Returns: boolean }
       is_my_plan: { Args: { p_plan_id: string }; Returns: boolean }
       is_my_policy: { Args: { p_policy_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      is_staff: { Args: never; Returns: boolean }
+      is_support: { Args: never; Returns: boolean }
+      ledger_balances_all: {
+        Args: never
+        Returns: {
+          balance: number
+          creditor_id: string
+          creditor_kind: string
+          debtor_id: string
+          debtor_kind: string
+          last_paid_on: string
+          owed: number
+          paid: number
+          services: number
+        }[]
+      }
+      ledger_obligations: {
+        Args: never
+        Returns: {
+          amount: number
+          completed_at: string
+          concept: string
+          creditor_id: string
+          creditor_kind: string
+          debtor_id: string
+          debtor_kind: string
+          request_id: string
+          service_type: string
+        }[]
+      }
+      ledger_party_name: {
+        Args: { p_id: string; p_kind: string }
+        Returns: string
+      }
       list_insurer_cases: {
         Args: never
         Returns: {
@@ -1959,8 +3982,165 @@ export type Database = {
           total_price: number
         }[]
       }
+      list_statements: {
+        Args: { p_org?: string }
+        Returns: {
+          approved_amount: number
+          approved_at: string
+          id: string
+          issued_at: string
+          number: string
+          organization_id: string
+          organization_name: string
+          organization_type: string
+          paid_at: string
+          paid_reference: string
+          period_from: string
+          period_to: string
+          status: string
+          totals: Json
+        }[]
+      }
       member_document_key: { Args: { p_doc: string }; Returns: string }
       member_relationship: { Args: { p_texto: string }; Returns: string }
+      mopt_compliance: { Args: { p_from: string; p_to: string }; Returns: Json }
+      mopt_fee_rate_at: {
+        Args: { p_at: string; p_mopt: string }
+        Returns: number
+      }
+      mopt_fleet: {
+        Args: never
+        Returns: {
+          active_address: string
+          active_request_id: string
+          active_status: string
+          full_name: string
+          is_online: boolean
+          lat: number
+          lng: number
+          operator_id: string
+          phone: string
+          updated_at: string
+        }[]
+      }
+      mopt_km_by_vehicle: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          approach_km: number
+          cases: number
+          on_time_pct: number
+          operator: string
+          operator_id: string
+          plate: string
+          total_km: number
+          tow_km: number
+        }[]
+      }
+      mopt_list_operators: {
+        Args: never
+        Returns: {
+          balance: number
+          full_name: string
+          in_program: boolean
+          last_paid_on: string
+          operator_id: string
+          owed: number
+          paid: number
+          phone: string
+          services: number
+          verification_status: string
+        }[]
+      }
+      mopt_list_payments: {
+        Args: never
+        Returns: {
+          amount: number
+          created_at: string
+          id: string
+          note: string
+          paid_on: string
+          payee_id: string
+          payee_name: string
+          reference: string
+          void_reason: string
+          voided_at: string
+        }[]
+      }
+      mopt_list_services: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          client_name: string
+          completed_at: string
+          created_at: string
+          folio: string
+          id: string
+          operator_name: string
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          service_type: string
+          status: string
+          total_price: number
+          vehicle_plate: string
+          zone: string
+        }[]
+      }
+      mopt_month_consumption: {
+        Args: { p_day?: string; p_mopt_provider: string }
+        Returns: number
+      }
+      mopt_overview: { Args: never; Returns: Json }
+      mopt_payer_for: {
+        Args: {
+          p_coverage: Json
+          p_lat: number
+          p_lng: number
+          p_service_type: string
+        }
+        Returns: string
+      }
+      mopt_program_for: {
+        Args: { p_lat: number; p_lng: number; p_service_type: string }
+        Returns: string
+      }
+      mopt_program_has_budget: {
+        Args: { p_mopt_provider: string }
+        Returns: boolean
+      }
+      mopt_service_detail: { Args: { p_request_id: string }; Returns: Json }
+      mopt_vehicle_cases: {
+        Args: {
+          p_from: string
+          p_operator_id: string
+          p_plate: string
+          p_to: string
+        }
+        Returns: {
+          approach_km: number
+          arrival_seconds: number
+          completed_at: string
+          declared_km: number
+          folio: string
+          on_time: boolean
+          request_id: string
+          service_type: string
+          tow_km: number
+        }[]
+      }
+      mopt_zone_open_now: {
+        Args: { p_days: number[]; p_from: string; p_to: string }
+        Returns: boolean
+      }
+      mopt_zones_mine: {
+        Args: never
+        Returns: {
+          id: string
+          is_active: boolean
+          name: string
+          polygon: Json
+          service_types: string[]
+        }[]
+      }
       my_operator_earnings: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -1971,15 +4151,212 @@ export type Database = {
           servicios: number
         }[]
       }
+      my_operator_service_earnings: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          a_cobrar: number
+          bruto: number
+          comision: number
+          comision_pct: number
+          request_id: string
+        }[]
+      }
+      my_organization: { Args: never; Returns: Json }
+      my_partner_application: { Args: never; Returns: Json }
+      my_payouts: { Args: never; Returns: Json }
       next_case_folio: { Args: never; Returns: string }
       normalize_document: { Args: { p_doc: string }; Returns: string }
+      notify_ops: { Args: { p_text: string }; Returns: undefined }
+      observe_statement_case: {
+        Args: { p_body: string; p_request: string; p_statement: string }
+        Returns: string
+      }
       operator_can_serve: {
         Args: { p_operator: string; p_service_type: string }
         Returns: boolean
       }
+      operator_fits_program: {
+        Args: { p_mopt_provider: string; p_operator: string }
+        Returns: boolean
+      }
+      org_access_log: {
+        Args: { p_limit?: number }
+        Returns: {
+          kind: string
+          occurred_at: string
+          what: string
+          who: string
+        }[]
+      }
+      org_contract_status: { Args: { p_org?: string }; Returns: Json }
+      org_invite: { Args: { p_email: string; p_role?: string }; Returns: Json }
+      org_manager: {
+        Args: never
+        Returns: {
+          member_role: string
+          organization_id: string
+        }[]
+      }
+      org_revoke_invitation: { Args: { p_id: string }; Returns: undefined }
+      org_role_requires_mfa: { Args: { p_role: string }; Returns: boolean }
+      org_team: { Args: never; Returns: Json }
+      org_update_member: {
+        Args: { p_profile_id: string; p_role?: string; p_status?: string }
+        Returns: undefined
+      }
+      partner_can_edit: { Args: { p_operator: string }; Returns: boolean }
+      partner_doc_bucket: { Args: { p_doc_type: string }; Returns: string }
+      partner_expiring_docs: { Args: never; Returns: string[] }
+      partner_missing: { Args: { p_operator: string }; Returns: string[] }
+      partner_required_docs: { Args: never; Returns: string[] }
+      partner_save_bank: {
+        Args: {
+          p_account_number: string
+          p_account_type: string
+          p_bank_name: string
+          p_holder: string
+        }
+        Returns: undefined
+      }
+      partner_save_identity: {
+        Args: {
+          p_dui: string
+          p_full_name: string
+          p_nit: string
+          p_phone: string
+        }
+        Returns: undefined
+      }
+      partner_save_services: {
+        Args: { p_service_types: string[] }
+        Returns: undefined
+      }
+      partner_save_vehicle: {
+        Args: {
+          p_capacity_m3?: number
+          p_plate: string
+          p_vehicle_type: string
+        }
+        Returns: undefined
+      }
+      partner_terms_pending: { Args: { p_operator: string }; Returns: boolean }
+      partner_try_reactivate: { Args: { p_operator: string }; Returns: boolean }
+      payout_services_for: {
+        Args: { p_cutoff: string; p_id: string; p_kind: string }
+        Returns: Json
+      }
       plan_cubre_servicio: {
         Args: { p_plan_id: string; p_service_type: string }
         Returns: boolean
+      }
+      platform_commission_at: { Args: { p_at: string }; Returns: number }
+      point_in_polygon: {
+        Args: { p_lat: number; p_lng: number; p_polygon: Json }
+        Returns: boolean
+      }
+      portal_create_api_key: { Args: { p_name: string }; Returns: Json }
+      portal_delete_webhook: { Args: { p_id: string }; Returns: undefined }
+      portal_import_members: {
+        Args: { p_members: Json; p_policy: string; p_row_offset?: number }
+        Returns: Json
+      }
+      portal_insurer_cases: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          arrival_met: boolean
+          assignment_met: boolean
+          copago: number
+          coverage_status: string
+          created_at: string
+          cubierto: number
+          folio: string
+          service_type: string
+          status: string
+          total_price: number
+          zone: string
+        }[]
+      }
+      portal_insurer_catalog: { Args: never; Returns: Json }
+      portal_integrations: { Args: never; Returns: Json }
+      portal_policy_members: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_policy: string
+          p_search?: string
+        }
+        Returns: Json
+      }
+      portal_redeliver_webhook: {
+        Args: { p_delivery: string }
+        Returns: undefined
+      }
+      portal_revoke_api_key: { Args: { p_id: string }; Returns: undefined }
+      portal_rotate_api_key: {
+        Args: { p_grace_hours?: number; p_id: string }
+        Returns: Json
+      }
+      portal_rotate_webhook_secret: { Args: { p_id: string }; Returns: Json }
+      portal_save_plan: {
+        Args: {
+          p_code: string
+          p_description: string
+          p_id: string
+          p_is_active: boolean
+          p_name: string
+        }
+        Returns: string
+      }
+      portal_save_policy: {
+        Args: {
+          p_ends_on: string
+          p_holder_name: string
+          p_id: string
+          p_plan: string
+          p_policy_number: string
+          p_starts_on: string
+          p_status: string
+        }
+        Returns: string
+      }
+      portal_save_webhook: {
+        Args: {
+          p_description: string
+          p_events: string[]
+          p_id: string
+          p_is_active: boolean
+          p_url: string
+        }
+        Returns: Json
+      }
+      portal_set_member_active: {
+        Args: { p_active: boolean; p_member: string; p_reason?: string }
+        Returns: undefined
+      }
+      portal_test_webhook: { Args: { p_id: string }; Returns: string }
+      portal_webhook_deliveries: {
+        Args: { p_limit?: number; p_webhook: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          delivered_at: string
+          event: string
+          folio: string
+          id: string
+          last_error: string
+          last_status_code: number
+          next_attempt_at: string
+          payload: Json
+          status: string
+        }[]
+      }
+      preview_mopt_program: {
+        Args: { p_lat: number; p_lng: number; p_service_type: string }
+        Returns: Json
+      }
+      preview_mopt_services: {
+        Args: { p_lat: number; p_lng: number }
+        Returns: string[]
       }
       preview_my_coverage: {
         Args: {
@@ -1990,8 +4367,30 @@ export type Database = {
         }
         Returns: Json
       }
+      process_webhook_deliveries: { Args: never; Returns: Json }
+      purge_expired_personal_data: { Args: never; Returns: Json }
+      rate_limit_hit: {
+        Args: {
+          p_bucket: string
+          p_limit: number
+          p_subject?: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
       rate_service: {
         Args: { p_comment?: string; p_request_id: string; p_stars: number }
+        Returns: Json
+      }
+      rate_version_at: {
+        Args: { p_at: string; p_kind: string; p_subject: string }
+        Returns: {
+          found: boolean
+          rate: number
+        }[]
+      }
+      regenerate_my_request_pin: {
+        Args: { p_request_id: string }
         Returns: Json
       }
       register_device_token: {
@@ -2012,18 +4411,110 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      register_ledger_payment: {
+        Args: {
+          p_amount: number
+          p_note?: string
+          p_paid_on?: string
+          p_payee_id: string
+          p_payee_kind: string
+          p_payer_id: string
+          p_payer_kind: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       request_belongs_to_my_insurer: {
         Args: { p_request_id: string }
         Returns: boolean
       }
+      request_belongs_to_my_mopt: {
+        Args: { p_request_id: string }
+        Returns: boolean
+      }
+      request_sla: {
+        Args: { p_request_id: string }
+        Returns: {
+          arrival_seconds: number
+          arrival_target: number
+          assignment_seconds: number
+          assignment_target: number
+          insurer_name: string
+          service_seconds: number
+        }[]
+      }
+      require_insurer_role: { Args: { p_roles: string[] }; Returns: string }
       revoke_insurer_api_key: { Args: { p_key_id: string }; Returns: undefined }
+      semver_cmp: { Args: { a: string; b: string }; Returns: number }
       send_message: {
         Args: { p_message: string; p_request_id: string }
         Returns: Json
       }
+      service_payer_info: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          has_copay: boolean
+          label: string
+          payer: string
+          request_id: string
+        }[]
+      }
+      session_has_mfa: { Args: never; Returns: boolean }
       set_active_pricing_rule: { Args: { p_rule_id: string }; Returns: Json }
       set_marketing_opt_in: { Args: { p_value: boolean }; Returns: undefined }
+      staff_add_request_note: {
+        Args: { p_body: string; p_request_id: string }
+        Returns: string
+      }
+      staff_ops_alerts: { Args: never; Returns: Json }
+      staff_pin_status: { Args: { p_request_id: string }; Returns: Json }
+      staff_request_notes: {
+        Args: { p_request_id: string }
+        Returns: {
+          author_name: string
+          author_role: string
+          body: string
+          created_at: string
+          id: string
+        }[]
+      }
+      staff_reset_pin_lockout: {
+        Args: { p_note: string; p_request_id: string }
+        Returns: number
+      }
+      statement_access: { Args: { p_id: string }; Returns: string }
+      statement_candidate_lines: {
+        Args: { p_exclude: string; p_from: string; p_org: string; p_to: string }
+        Returns: {
+          amount: number
+          completed_at: string
+          copay: number
+          fee: number
+          folio: string
+          provider_id: string
+          provider_kind: string
+          provider_name: string
+          request_id: string
+          service_type: string
+          total_km: number
+          tow_km: number
+        }[]
+      }
+      statement_detail: { Args: { p_id: string }; Returns: Json }
+      statement_totals: { Args: { p_statement: string }; Returns: Json }
       submit_operator_verification: { Args: never; Returns: undefined }
+      submit_partner_lead: {
+        Args: {
+          p_email?: string
+          p_full_name: string
+          p_phone: string
+          p_service_types: string[]
+          p_vehicle_type: string
+          p_website?: string
+          p_zone: string
+        }
+        Returns: Json
+      }
       suggest_nearest_operators: {
         Args: { p_limit?: number; p_request_id: string }
         Returns: {
@@ -2035,13 +4526,25 @@ export type Database = {
         }[]
       }
       sv_day_start: { Args: { d: string }; Returns: string }
+      sv_department: { Args: { p_lat: number; p_lng: number }; Returns: string }
+      sv_month: { Args: { p_ts: string }; Returns: string }
       sv_today: { Args: never; Returns: string }
+      trail_km: {
+        Args: { p_from: string; p_request_id: string; p_to: string }
+        Returns: number
+      }
+      unaccent_simple: { Args: { p: string }; Returns: string }
       unregister_device_token: {
         Args: { p_expo_push_token: string }
         Returns: boolean
       }
       upsert_operator_document: {
-        Args: { p_bucket: string; p_doc_type: string; p_path: string }
+        Args: {
+          p_bucket: string
+          p_doc_type: string
+          p_expires_on?: string
+          p_path: string
+        }
         Returns: undefined
       }
       upsert_operator_location: {
@@ -2054,6 +4557,12 @@ export type Database = {
         Args: { p_pin: string; p_request_id: string }
         Returns: Json
       }
+      void_ledger_payment: {
+        Args: { p_payment_id: string; p_reason: string }
+        Returns: undefined
+      }
+      webhook_event_types: { Args: never; Returns: string[] }
+      webhook_url_ok: { Args: { p_url: string }; Returns: boolean }
     }
     Enums: {
       event_type:
@@ -2070,6 +4579,8 @@ export type Database = {
         | "RATING_SUBMITTED"
         | "COVERAGE_CHECKED"
         | "PRICE_DISTANCE_CAPPED"
+        | "PIN_REGENERATED"
+        | "PIN_LOCKOUT_RESET"
       request_status:
         | "initiated"
         | "assigned"
@@ -2078,552 +4589,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       tow_type: "light" | "heavy"
-      user_role: "USER" | "OPERATOR" | "ADMIN" | "INSURER"
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-  storage: {
-    Tables: {
-      buckets: {
-        Row: {
-          allowed_mime_types: string[] | null
-          avif_autodetection: boolean | null
-          created_at: string | null
-          file_size_limit: number | null
-          id: string
-          name: string
-          owner: string | null
-          owner_id: string | null
-          public: boolean | null
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string | null
-        }
-        Insert: {
-          allowed_mime_types?: string[] | null
-          avif_autodetection?: boolean | null
-          created_at?: string | null
-          file_size_limit?: number | null
-          id: string
-          name: string
-          owner?: string | null
-          owner_id?: string | null
-          public?: boolean | null
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string | null
-        }
-        Update: {
-          allowed_mime_types?: string[] | null
-          avif_autodetection?: boolean | null
-          created_at?: string | null
-          file_size_limit?: number | null
-          id?: string
-          name?: string
-          owner?: string | null
-          owner_id?: string | null
-          public?: boolean | null
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      buckets_analytics: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          format: string
-          id: string
-          name: string
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          format?: string
-          id?: string
-          name: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          format?: string
-          id?: string
-          name?: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      buckets_vectors: {
-        Row: {
-          created_at: string
-          id: string
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      iceberg_namespaces: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_namespaces_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      iceberg_tables: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id: string | null
-          shard_id: string | null
-          shard_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          location?: string
-          name?: string
-          namespace_id?: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_tables_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "iceberg_tables_namespace_id_fkey"
-            columns: ["namespace_id"]
-            isOneToOne: false
-            referencedRelation: "iceberg_namespaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      migrations: {
-        Row: {
-          executed_at: string | null
-          hash: string
-          id: number
-          name: string
-        }
-        Insert: {
-          executed_at?: string | null
-          hash: string
-          id: number
-          name: string
-        }
-        Update: {
-          executed_at?: string | null
-          hash?: string
-          id?: number
-          name?: string
-        }
-        Relationships: []
-      }
-      objects: {
-        Row: {
-          bucket_id: string | null
-          created_at: string | null
-          id: string
-          last_accessed_at: string | null
-          metadata: Json | null
-          name: string | null
-          owner: string | null
-          owner_id: string | null
-          path_tokens: string[] | null
-          updated_at: string | null
-          user_metadata: Json | null
-          version: string | null
-        }
-        Insert: {
-          bucket_id?: string | null
-          created_at?: string | null
-          id?: string
-          last_accessed_at?: string | null
-          metadata?: Json | null
-          name?: string | null
-          owner?: string | null
-          owner_id?: string | null
-          path_tokens?: string[] | null
-          updated_at?: string | null
-          user_metadata?: Json | null
-          version?: string | null
-        }
-        Update: {
-          bucket_id?: string | null
-          created_at?: string | null
-          id?: string
-          last_accessed_at?: string | null
-          metadata?: Json | null
-          name?: string | null
-          owner?: string | null
-          owner_id?: string | null
-          path_tokens?: string[] | null
-          updated_at?: string | null
-          user_metadata?: Json | null
-          version?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "objects_bucketId_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      s3_multipart_uploads: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          id: string
-          in_progress_size: number
-          key: string
-          metadata: Json | null
-          owner_id: string | null
-          upload_signature: string
-          user_metadata: Json | null
-          version: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          id: string
-          in_progress_size?: number
-          key: string
-          metadata?: Json | null
-          owner_id?: string | null
-          upload_signature: string
-          user_metadata?: Json | null
-          version: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          id?: string
-          in_progress_size?: number
-          key?: string
-          metadata?: Json | null
-          owner_id?: string | null
-          upload_signature?: string
-          user_metadata?: Json | null
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "s3_multipart_uploads_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      s3_multipart_uploads_parts: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          etag: string
-          id: string
-          key: string
-          owner_id: string | null
-          part_number: number
-          size: number
-          upload_id: string
-          version: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          etag: string
-          id?: string
-          key: string
-          owner_id?: string | null
-          part_number: number
-          size?: number
-          upload_id: string
-          version: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          etag?: string
-          id?: string
-          key?: string
-          owner_id?: string | null
-          part_number?: number
-          size?: number
-          upload_id?: string
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "s3_multipart_uploads_parts_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "s3_multipart_uploads_parts_upload_id_fkey"
-            columns: ["upload_id"]
-            isOneToOne: false
-            referencedRelation: "s3_multipart_uploads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vector_indexes: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          data_type: string
-          dimension: number
-          distance_metric: string
-          id: string
-          metadata_configuration: Json | null
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          data_type: string
-          dimension: number
-          distance_metric: string
-          id?: string
-          metadata_configuration?: Json | null
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          data_type?: string
-          dimension?: number
-          distance_metric?: string
-          id?: string
-          metadata_configuration?: Json | null
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vector_indexes_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_vectors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      allow_any_operation: {
-        Args: { expected_operations: string[] }
-        Returns: boolean
-      }
-      allow_only_operation: {
-        Args: { expected_operation: string }
-        Returns: boolean
-      }
-      can_insert_object: {
-        Args: { bucketid: string; metadata: Json; name: string; owner: string }
-        Returns: undefined
-      }
-      extension: { Args: { name: string }; Returns: string }
-      filename: { Args: { name: string }; Returns: string }
-      foldername: { Args: { name: string }; Returns: string[] }
-      get_common_prefix: {
-        Args: { p_delimiter: string; p_key: string; p_prefix: string }
-        Returns: string
-      }
-      get_size_by_bucket: {
-        Args: never
-        Returns: {
-          bucket_id: string
-          size: number
-        }[]
-      }
-      list_multipart_uploads_with_delimiter: {
-        Args: {
-          bucket_id: string
-          delimiter_param: string
-          max_keys?: number
-          next_key_token?: string
-          next_upload_token?: string
-          prefix_param: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-        }[]
-      }
-      list_objects_with_delimiter: {
-        Args: {
-          _bucket_id: string
-          delimiter_param: string
-          max_keys?: number
-          next_token?: string
-          prefix_param: string
-          sort_order?: string
-          start_after?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      operation: { Args: never; Returns: string }
-      search: {
-        Args: {
-          bucketname: string
-          levels?: number
-          limits?: number
-          offsets?: number
-          prefix: string
-          search?: string
-          sortcolumn?: string
-          sortorder?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      search_by_timestamp: {
-        Args: {
-          p_bucket_id: string
-          p_level: number
-          p_limit: number
-          p_prefix: string
-          p_sort_column: string
-          p_sort_column_after: string
-          p_sort_order: string
-          p_start_after: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      search_v2: {
-        Args: {
-          bucket_name: string
-          levels?: number
-          limits?: number
-          prefix: string
-          sort_column?: string
-          sort_column_after?: string
-          sort_order?: string
-          start_after?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-    }
-    Enums: {
-      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"
+      user_role: "USER" | "OPERATOR" | "ADMIN" | "INSURER" | "MOPT" | "SUPPORT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2639,12 +4605,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2666,13 +4632,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2691,13 +4656,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2716,13 +4680,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2735,11 +4698,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2765,6 +4728,8 @@ export const Constants = {
         "RATING_SUBMITTED",
         "COVERAGE_CHECKED",
         "PRICE_DISTANCE_CAPPED",
+        "PIN_REGENERATED",
+        "PIN_LOCKOUT_RESET",
       ],
       request_status: [
         "initiated",
@@ -2775,13 +4740,7 @@ export const Constants = {
         "cancelled",
       ],
       tow_type: ["light", "heavy"],
-      user_role: ["USER", "OPERATOR", "ADMIN", "INSURER"],
-    },
-  },
-  storage: {
-    Enums: {
-      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
+      user_role: ["USER", "OPERATOR", "ADMIN", "INSURER", "MOPT", "SUPPORT"],
     },
   },
 } as const
-
