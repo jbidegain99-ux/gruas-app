@@ -15,6 +15,8 @@ type Fila = {
   bruto: number;
   comision: number;
   a_pagar: number;
+  efectivo: number;
+  saldo: number;
 };
 
 /**
@@ -46,13 +48,13 @@ export function SettlementExportButton({ desde, hasta }: { desde: string; hasta:
       return;
     }
 
-    const cabeceras = ['Folio', 'Completado', 'Servicio', 'Se le paga a', 'Socio operador', 'Comisión %', 'Bruto', 'Comisión', 'A pagar'];
+    const cabeceras = ['Folio', 'Completado', 'Servicio', 'Se le paga a', 'Socio operador', 'Comisión %', 'Bruto', 'Comisión', 'A pagar', 'Cobró en efectivo', 'Saldo'];
     const celda = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [
       cabeceras,
       ...filas.map((f) => [
         f.folio ?? '', new Date(f.completado).toISOString(), f.servicio,
-        f.destinatario, f.operador, f.comision_pct, f.bruto, f.comision, f.a_pagar,
+        f.destinatario, f.operador, f.comision_pct, f.bruto, f.comision, f.a_pagar, f.efectivo, f.saldo,
       ]),
     ].map((r) => r.map(celda).join(',')).join('\n');
 

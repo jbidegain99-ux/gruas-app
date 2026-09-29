@@ -171,7 +171,7 @@ test.describe('Admin Portal (authenticated)', () => {
   });
 
   test('can navigate to users page', async ({ page }) => {
-    await page.getByRole('link', { name: /usuarios/i }).click();
+    await page.getByRole('link', { name: 'Usuarios', exact: true }).click();
     await expect(page).toHaveURL('/admin/users', { timeout: 15_000 });
     await expect(page.locator('h1')).toContainText('Usuarios');
   });

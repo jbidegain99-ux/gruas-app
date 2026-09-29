@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
 import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
+import type { UserRole } from '@gruas-app/shared';
 import { BudiLogo, Button, Input, toast } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
@@ -42,11 +43,15 @@ export default function Login() {
 
     if (data.user) {
       // Check user role and redirect accordingly
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single();
+      // Un reintento: justo después de iniciar sesión, una falla pasajera al
+      // leer el perfil dejaba el rol vacío y sacaba a un Usuario con "esta
+      // cuenta se usa desde la web" (visto en pruebas; la web ya reintenta).
+      let profile: { role: UserRole } | null = null;
+      for (let intento = 0; intento < 2 && !profile; intento++) {
+        if (intento > 0) await new Promise((r) => setTimeout(r, 400));
+        const { data: p } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+        profile = p;
+      }
 
       // Antes cualquier rol que no fuera OPERATOR caia en `(user)`, asi que un
       // admin o una aseguradora entraban a la app del cliente — donde no tienen

@@ -27,6 +27,7 @@ import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState, ToastHost, toast } from '@/shared/components/ui';
 import { formatDateTime } from '@/lib/dates';
+import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -600,6 +601,8 @@ export default function History() {
                       </View>
                     </View>
                   )}
+                  {/* LAN-07 (00133): comprobante o pago pendiente. */}
+                  {selectedRequest.status === 'completed' && <PaymentReceipt requestId={selectedRequest.id} />}
                 </View>
               );
             })()}

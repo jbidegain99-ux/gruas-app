@@ -27,11 +27,15 @@ export type Periodo = {
   comisionPct: number | null;
   /** Lo que se le transfiere al operador. Es el numero que importa. */
   aCobrar: number;
+  /** 00133 (LAN-07): lo que ya recibio en mano del Usuario (efectivo confirmado). */
+  efectivo: number;
+  /** aCobrar − efectivo: lo que falta que Budi le transfiera (negativo = le debe la comision a Budi). */
+  saldo: number;
 };
 
 export type EarningsSummary = { hoy: Periodo; semana: Periodo };
 
-const PERIODO_VACIO: Periodo = { servicios: 0, bruto: 0, comision: 0, comisionPct: 0, aCobrar: 0 };
+const PERIODO_VACIO: Periodo = { servicios: 0, bruto: 0, comision: 0, comisionPct: 0, aCobrar: 0, efectivo: 0, saldo: 0 };
 export const EMPTY_EARNINGS: EarningsSummary = { hoy: PERIODO_VACIO, semana: PERIODO_VACIO };
 
 /**
@@ -66,6 +70,8 @@ async function periodo(desde: string, hasta: string): Promise<Periodo> {
     comision: Number(fila.comision) || 0,
     comisionPct: fila.comision_pct == null ? null : Number(fila.comision_pct),
     aCobrar: Number(fila.a_pagar) || 0,
+    efectivo: Number(fila.efectivo) || 0,
+    saldo: Number(fila.saldo ?? fila.a_pagar) || 0,
   };
 }
 

@@ -30,6 +30,7 @@ import { AddressText } from '@/shared/components/AddressText';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
+import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -379,9 +380,11 @@ export default function OperatorHistory() {
                   {money(lineaDe(selectedRequest.id)!.aCobrar)}
                 </Text>
                 <Text style={styles.priceSectionNote}>
-                  Cobrado al usuario ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
+                  Precio del servicio ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
                   {lineaDe(selectedRequest.id)!.comisionPct}%
                 </Text>
+                {/* LAN-07 (00133): lo que pagó el Usuario y cómo. */}
+                <PaymentReceipt requestId={selectedRequest.id} />
               </View>
             )}
 

@@ -23,6 +23,7 @@ import { partnerStateFromProfile, type PartnerState } from '@/lib/partnerApplica
 import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
 import { haversineKm, estimateMinutes, formatKm } from '@/lib/distance';
 import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } from '@/lib/earnings';
+import { OperatorCashCard } from '@/features/payments/components/OperatorCashCard';
 import { osrmLegs } from '@/lib/osrm';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
@@ -537,6 +538,9 @@ export default function OperatorRequests() {
                 : 'No hay solicitudes disponibles'}
         </Text>
 
+        {/* LAN-07 (00133): efectivo recibido que falta confirmar. */}
+        <OperatorCashCard />
+
         {/* Ganancias del periodo */}
         <View style={styles.earningsCard}>
           <View style={styles.earningsBlock}>
@@ -566,6 +570,12 @@ export default function OperatorRequests() {
             {earnings.semana.comisionPct == null
               ? money(earnings.semana.comision)
               : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`}
+            {/* LAN-07 (00133): lo que ya tiene en mano no se lo transfiere Budi. */}
+            {earnings.semana.efectivo > 0 &&
+              `\nYa recibiste ${money(earnings.semana.efectivo)} en efectivo · ` +
+                (earnings.semana.saldo >= 0
+                  ? `Budi te transfiere ${money(earnings.semana.saldo)}`
+                  : `le debes a Budi ${money(-earnings.semana.saldo)} de comisión`)}
           </Text>
         )}
 

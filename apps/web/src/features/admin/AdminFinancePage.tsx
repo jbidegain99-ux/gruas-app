@@ -39,6 +39,10 @@ type Liquidacion = {
   bruto: number;
   comision: number;
   a_pagar: number;
+  /** 00133 (LAN-07): lo que el Usuario ya le pagó en efectivo al socio. */
+  efectivo: number;
+  /** a_pagar − efectivo. Negativo = el socio le debe la comisión a Budi. */
+  saldo: number;
 };
 
 type PorAseguradora = {
@@ -111,6 +115,7 @@ export default async function AdminFinancePage({
   const porAseguradora = (porAseguradoraRaw as PorAseguradora[] | null) ?? [];
   const liquidacion = (liquidacionRaw as Liquidacion[] | null) ?? [];
   const totalAPagar = liquidacion.reduce((a, l) => a + Number(l.a_pagar), 0);
+  const totalEfectivo = liquidacion.reduce((a, l) => a + Number(l.efectivo ?? 0), 0);
   const totalComision = liquidacion.reduce((a, l) => a + Number(l.comision), 0);
   const rows = (filasRaw || []) as unknown as Row[];
   const alCliente = Number(r.copagos) + Number(r.particulares);
@@ -298,7 +303,8 @@ export default async function AdminFinancePage({
             <p className="mt-0.5 text-xs text-zinc-500">
               Se calcula sobre el bruto del servicio: el proveedor hizo el trabajo completo, sin
               importar quién lo pagó. Retenido por Budi {money(totalComision)} · a pagar{' '}
-              <strong className="text-zinc-700 dark:text-zinc-300">{money(totalAPagar)}</strong>.
+              <strong className="text-zinc-700 dark:text-zinc-300">{money(totalAPagar)}</strong>
+              {totalEfectivo > 0 && <> · ya cobrado en efectivo por los socios {money(totalEfectivo)}</>}.
             </p>
           </div>
           <SettlementExportButton desde={desde} hasta={hasta} />
@@ -313,12 +319,14 @@ export default async function AdminFinancePage({
                 <th className="px-5 py-3 text-right font-medium">Bruto</th>
                 <th className="px-5 py-3 text-right font-medium">Retiene Budi</th>
                 <th className="px-5 py-3 text-right font-medium">A pagar</th>
+                <th className="px-5 py-3 text-right font-medium" title="Lo que el Usuario ya le pagó en efectivo al socio (LAN-07)">Cobró en efectivo</th>
+                <th className="px-5 py-3 text-right font-medium" title="A pagar menos el efectivo. Negativo: el socio le debe la comisión a Budi.">Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {liquidacion.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-zinc-500">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-zinc-500">
                     Sin servicios completados en el periodo.
                   </td>
                 </tr>
@@ -344,7 +352,12 @@ export default async function AdminFinancePage({
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{l.servicios}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(Number(l.bruto))}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">−{money(Number(l.comision))}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">{money(Number(l.a_pagar))}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(Number(l.a_pagar))}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{Number(l.efectivo) > 0 ? `−${money(Number(l.efectivo))}` : '—'}</td>
+                    <td className={`whitespace-nowrap px-5 py-3 text-right font-semibold tabular-nums ${Number(l.saldo) < 0 ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-900 dark:text-white'}`}
+                        title={Number(l.saldo) < 0 ? 'Cobró en efectivo más de lo que Budi le debía: le debe la comisión a Budi.' : undefined}>
+                      {Number(l.saldo) < 0 ? `Le debe ${money(-Number(l.saldo))}` : money(Number(l.saldo))}
+                    </td>
                   </tr>
                 ))
               )}

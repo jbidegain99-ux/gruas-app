@@ -8,6 +8,7 @@ import { Card, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { formatDate } from '@/lib/dates';
 import { money } from '@/lib/earnings';
 import { paidInYear, parseMyPayouts, type MyPayouts } from '@/lib/payouts';
+import { balanceLabel } from '@/lib/servicePayments';
 import { SERVICE_TYPE_CONFIGS, type ServiceType } from '@gruas-app/shared';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -73,8 +74,9 @@ export default function OperatorPayments() {
           ) : (
             <View style={styles.summary}>
               <View style={styles.summaryItem}>
-                <Text style={styles.summaryValue}>{money(data.pending)}</Text>
-                <Text style={styles.summaryLabel}>Por cobrar</Text>
+                {/* 00133: si cobró en efectivo más de lo que Budi le debía, el saldo es comisión a favor de Budi. */}
+                <Text style={styles.summaryValue}>{money(balanceLabel(data.pending).amount)}</Text>
+                <Text style={styles.summaryLabel}>{balanceLabel(data.pending).label}</Text>
               </View>
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
