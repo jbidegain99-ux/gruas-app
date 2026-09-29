@@ -46,7 +46,7 @@ export function SettlementExportButton({ desde, hasta }: { desde: string; hasta:
       return;
     }
 
-    const cabeceras = ['Folio', 'Completado', 'Servicio', 'Se le paga a', 'Operador', 'Comisión %', 'Bruto', 'Comisión', 'A pagar'];
+    const cabeceras = ['Folio', 'Completado', 'Servicio', 'Se le paga a', 'Socio operador', 'Comisión %', 'Bruto', 'Comisión', 'A pagar'];
     const celda = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const csv = [
       cabeceras,

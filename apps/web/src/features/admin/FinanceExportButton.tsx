@@ -49,8 +49,8 @@ export function FinanceExportButton({ desde, hasta }: { desde: string; hasta: st
     }
 
     const cabeceras = [
-      'Folio', 'Completado', 'Servicio', 'Cliente', 'Operador', 'Proveedor',
-      'Aseguradora', 'Bruto', 'Cubre la aseguradora', 'Paga el cliente',
+      'Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor',
+      'Aseguradora', 'Bruto', 'Cubre la aseguradora', 'Paga el usuario',
     ];
     // Escapa cada celda: comillas alrededor y comillas internas duplicadas, para
     // que un nombre con comas no corra las columnas.

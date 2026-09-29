@@ -1,8 +1,8 @@
-export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
+export type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER' | 'MOPT' | 'SUPPORT';
 
 export type TowType = 'light' | 'heavy';
 
-export type ServiceType = 'tow' | 'battery' | 'tire' | 'fuel' | 'locksmith' | 'mechanic' | 'winch';
+export type ServiceType = 'tow' | 'battery' | 'tire' | 'fuel' | 'locksmith' | 'mechanic' | 'winch' | 'water_truck';
 
 export type FuelType = 'regular' | 'premium' | 'diesel';
 

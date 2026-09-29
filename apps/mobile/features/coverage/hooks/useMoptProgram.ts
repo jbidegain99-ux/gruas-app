@@ -1,0 +1,57 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+/**
+ * ¿Este pedido lo cubre un programa MOPT? (migr. 00098)
+ *
+ * El usuario no elige: la base decide con la misma regla que aplica al crear la
+ * solicitud —sin seguro vigente, y la recogida dentro de una zona MOPT que cubre
+ * este servicio—. Esto solo lo anticipa en el resumen, para que la persona sepa
+ * ANTES de confirmar que no va a pagar. Si falla, deja `null` y la pantalla
+ * sigue como un pedido particular; el veredicto real llega al crear.
+ */
+export type MoptProgram = { applies: boolean; program_name?: string };
+
+export function useMoptProgram(params: {
+  enabled: boolean;
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  serviceType: string;
+}) {
+  const { enabled, lat, lng, serviceType } = params;
+  const [mopt, setMopt] = useState<MoptProgram | null>(null);
+
+  useEffect(() => {
+    if (!enabled || lat == null || lng == null) {
+      setMopt(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('preview_mopt_program', {
+          p_lat: lat,
+          p_lng: lng,
+          p_service_type: serviceType,
+        });
+        if (!alive) return;
+        if (error) {
+          console.error('[mopt/preview] fallo:', JSON.stringify(error));
+          setMopt(null);
+        } else {
+          setMopt((data as MoptProgram) ?? null);
+        }
+      } catch (e) {
+        if (alive) {
+          console.error('[mopt/preview] error de conexion:', e);
+          setMopt(null);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [enabled, lat, lng, serviceType]);
+
+  return { mopt };
+}

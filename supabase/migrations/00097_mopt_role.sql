@@ -1,0 +1,12 @@
+-- 00097: rol MOPT (Ministerio de Obras Publicas y de Transporte).
+--
+-- No es el rol MOP retirado en la 00045: aquel era un tercero que MIRABA los
+-- servicios (solo lectura) y se retiro por superficie de ataque. Este es un
+-- cliente del producto: el MOPT presta asistencia vial con su propia flota, el
+-- usuario no paga, y el MOPT le paga a sus operadores. La cuenta MOPT
+-- administra SU programa desde el portal /mopt.
+--
+-- Va sola en su archivo: un valor de enum recien agregado no se puede usar en la
+-- misma transaccion (ver lesson_enum_add_value / 00068). La 00098 ya lo encuentra
+-- commiteado.
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'MOPT';

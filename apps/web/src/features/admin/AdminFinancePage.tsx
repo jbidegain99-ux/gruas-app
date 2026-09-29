@@ -23,6 +23,8 @@ type Resumen = {
   aseguradoras: number;
   copagos: number;
   particulares: number;
+  /** 00098: lo que pagan los programas MOPT; el usuario no paga. */
+  mopt: number;
   ticket_promedio: number;
 };
 
@@ -30,7 +32,8 @@ type Liquidacion = {
   provider_id: string | null;
   destinatario: string;
   es_independiente: boolean;
-  comision_pct: number;
+  /** null = en el periodo rigieron tasas distintas (tarifas versionadas, 00102). */
+  comision_pct: number | null;
   servicios: number;
   sin_precio: number;
   bruto: number;
@@ -103,7 +106,7 @@ export default async function AdminFinancePage({
   ]);
 
   const r = (resumenRaw as Resumen | null) ?? {
-    servicios: 0, sin_precio: 0, bruto: 0, aseguradoras: 0, copagos: 0, particulares: 0, ticket_promedio: 0,
+    servicios: 0, sin_precio: 0, bruto: 0, aseguradoras: 0, copagos: 0, particulares: 0, mopt: 0, ticket_promedio: 0,
   };
   const porAseguradora = (porAseguradoraRaw as PorAseguradora[] | null) ?? [];
   const liquidacion = (liquidacionRaw as Liquidacion[] | null) ?? [];
@@ -124,7 +127,7 @@ export default async function AdminFinancePage({
     return [...m.values()].sort((a, b) => b.total - a.total);
   };
 
-  const operators = groupBy((x) => x.operator_id || 'none', (x) => x.operator?.full_name || 'Sin operador');
+  const operators = groupBy((x) => x.operator_id || 'none', (x) => x.operator?.full_name || 'Sin socio operador');
   const providers = groupBy((x) => x.provider_id || 'none', (x) => x.providers?.name || 'Sin proveedor');
 
   const kpis = [
@@ -136,12 +139,14 @@ export default async function AdminFinancePage({
     },
     {
       label: 'A facturar a aseguradoras', value: money(Number(r.aseguradoras)),
-      sub: 'lo que asumen las pólizas',
+      sub: Number(r.mopt) > 0
+        ? `lo que asumen las pólizas · ${money(Number(r.mopt))} más los paga el MOPT a su flota`
+        : 'lo que asumen las pólizas',
       Icon: ShieldCheck,
       tint: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
     },
     {
-      label: 'Cobrado a clientes', value: money(alCliente),
+      label: 'Cobrado a usuarios', value: money(alCliente),
       sub: `${money(Number(r.copagos))} de copagos · ${money(Number(r.particulares))} de particulares`,
       Icon: Wallet,
       tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300',
@@ -237,7 +242,7 @@ export default async function AdminFinancePage({
               {r.sin_precio} {Number(r.sin_precio) === 1 ? 'servicio completado sin precio' : 'servicios completados sin precio'}
             </strong>{' '}
             en el periodo: se prestaron pero no facturaron, así que no suman al bruto ni al ticket
-            promedio. Revisalos en Solicitudes.
+            promedio. Revísalos en Solicitudes.
           </span>
         </Link>
       )}
@@ -333,7 +338,9 @@ export default async function AdminFinancePage({
                         </span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{Number(l.comision_pct)}%</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{l.comision_pct == null ? (
+                      <span title="La tarifa cambió dentro del periodo: cada servicio se liquidó con la que regía cuando se completó.">Varias</span>
+                    ) : `${Number(l.comision_pct)}%`}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{l.servicios}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{money(Number(l.bruto))}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums text-zinc-600 dark:text-zinc-400">−{money(Number(l.comision))}</td>
@@ -348,12 +355,12 @@ export default async function AdminFinancePage({
 
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Facturado por operador</h2>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Facturado por socio operador</h2>
           <p className="mt-0.5 text-xs text-zinc-500">
             Bruto de sus servicios completados. Lo que se le paga a su empresa está arriba, en Liquidación.
           </p>
         </div>
-        <FinTable rows={operators} firstHeader="Operador" total={Number(r.bruto)} />
+        <FinTable rows={operators} firstHeader="Socio operador" total={Number(r.bruto)} />
       </div>
 
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
