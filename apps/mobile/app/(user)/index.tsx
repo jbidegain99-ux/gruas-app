@@ -38,6 +38,8 @@ import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Ph
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
 import { formatDate as formatAppDate } from '@/lib/dates';
+import { UserPaymentCard } from '@/features/payments/components/UserPaymentCard';
+import { InsurerBrandCard } from '@/features/coverage/components/InsurerBrandCard';
 import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
@@ -601,6 +603,9 @@ export default function UserHome() {
         </Text>
       </View>
 
+      {/* ASE-05 (00135): marca de su aseguradora, si la activó. */}
+      <InsurerBrandCard />
+
       {activeRequest ? (
         // Active Request View
         <View style={styles.activeRequestContainer}>
@@ -1006,6 +1011,9 @@ export default function UserHome() {
               </View>
             </Card>
           </View>
+
+          {/* LAN-07 (00133): lo que falta pagarle al socio. */}
+          <UserPaymentCard />
 
           {/* Pending Ratings Section */}
           {pendingRatings.length > 0 && (
