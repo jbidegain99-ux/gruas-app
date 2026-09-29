@@ -9,6 +9,7 @@ import { parsePolygon, polygonToText } from './mopt-zones';
 import { accountUrl } from './account-360';
 import { OrgMembersPanel } from './OrgMembersPanel';
 import { ContractEditor } from '@/features/contracts/ContractEditor';
+import { MoptReportsAdmin } from './MoptReportsAdmin';
 
 // Programas MOPT (migr. 00098/00099): el MOPT presta asistencia sin costo para el
 // usuario con su propia flota. Acá se da de alta el programa, se fija la tarifa
@@ -264,6 +265,8 @@ export default function AdminMoptPage() {
                   {/* MOPT-05 (00124): contrato, tope mensual y consumo. */}
                   <div className="mb-6">
                     <ContractEditor organizationId={org.id} />
+                    {/* MOPT-06 (00134): reportes mensuales oficiales. */}
+                    <MoptReportsAdmin providerId={program.id} />
                   </div>
                   <OrgMembersPanel organizationId={org.id} title="Equipo del portal MOPT" />
                 </div>

@@ -16,6 +16,8 @@ const TABS = [
   { href: '/mopt/pagos', label: 'Pagos' },
   // MOPT-03/04 (00123): el cierre de cada mes, con observaciones por caso.
   { href: '/mopt/estados', label: 'Estados de cuenta' },
+  // MOPT-06 (00134): reporte mensual oficial.
+  { href: '/mopt/reportes', label: 'Reportes' },
   // POR-02 (00113): invitar al equipo, roles y bitácora de accesos.
   { href: '/mopt/equipo', label: 'Equipo' },
 ];
