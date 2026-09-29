@@ -1,0 +1,22 @@
+-- =====================================================
+-- Bug: la carga de padrón se volvía cuadrática
+--
+-- `_import_members` (00046/00052) recorre las filas y, por cada una, busca el
+-- afiliado existente por (policy_id, member_document_key(document_number)).
+-- PL/pgSQL cachea el plan de esa búsqueda y, tras unas ejecuciones, fija un
+-- plan GENÉRICO calculado con las estadísticas de ese momento. Con la tabla
+-- `members` casi vacía (una aseguradora nueva, o una base recién creada) ese
+-- plan es un recorrido secuencial, y durante la carga la tabla crece: cada
+-- fila revisa todas las anteriores.
+--
+-- Medido en local (tabla con 5 afiliados, lotes de 2 000 del portal):
+--   antes:   26 s, 77 s y > 120 s (el 3.er lote ya se pasa del límite de 8 s
+--            de la API: el primer padrón grande de un cliente nuevo fallaba)
+--   después: ~0.55 s por lote, constante.
+--
+-- Arreglo: plan a la medida en cada ejecución. El planificador ve el tamaño
+-- real de la tabla (crece dentro de la transacción) y usa el índice único
+-- members_policy_document_key_uidx. Planificar cada fila cuesta microsegundos.
+-- =====================================================
+
+ALTER FUNCTION public._import_members(UUID, JSONB) SET plan_cache_mode = force_custom_plan;
