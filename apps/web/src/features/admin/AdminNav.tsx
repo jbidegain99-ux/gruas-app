@@ -24,6 +24,8 @@ import {
   FileSpreadsheet,
   Banknote,
   ClipboardCheck,
+  Network,
+  HandCoins,
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
@@ -54,6 +56,8 @@ const ICONS: Record<string, LucideIcon> = {
   statements: FileSpreadsheet,
   payouts: Banknote,
   onboarding: ClipboardCheck,
+  reinsurers: Network,
+  collections: HandCoins,
 };
 
 export function AdminNav({ role }: { role: PanelRole }) {

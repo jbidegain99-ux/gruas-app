@@ -25,6 +25,7 @@ const ROUTE_GUARDS: { prefix: string; allowedRoles: UserRole[] | null; orgType?:
   // Portales de clientes: por membresía. Sus layouts además exigen la entidad real.
   { prefix: '/mopt', allowedRoles: null, orgType: 'MOPT' },
   { prefix: '/portal', allowedRoles: null, orgType: 'INSURER' },
+  { prefix: '/reaseguro', allowedRoles: null, orgType: 'REINSURER' },
   { prefix: '/dashboard', allowedRoles: null },
 ];
 

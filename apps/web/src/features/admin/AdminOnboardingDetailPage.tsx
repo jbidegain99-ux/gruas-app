@@ -118,6 +118,13 @@ export default function AdminOnboardingDetailPage({ organizationId }: { organiza
                       </p>
                     )}
                     {step.key === 'test' && <TestStep step={step} org={org} onChange={reload} />}
+                    {step.key === 'cedents' && (
+                      <p className={muted}>
+                        {step.links === 0
+                          ? 'Sin aseguradoras vinculadas: vincúlalas en Reaseguradoras.'
+                          : `${step.granted} de ${step.links} aseguradora(s) vigente(s) ya autorizaron desde su portal.`}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -47,6 +47,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   { href: '/admin/cuentas', label: 'Cuentas', icon: 'accounts', roles: ADMIN_ONLY },
   // LAN-08 (00125): lotes de pago a socios y empresas, con archivo para el banco.
   { href: '/admin/pagos', label: 'Pagos a socios', icon: 'payouts', roles: ADMIN_ONLY },
+  // LAN-07 (00133): lo que pagan los Usuarios (efectivo al socio o tarjeta).
+  { href: '/admin/cobros', label: 'Cobros a usuarios', icon: 'collections', roles: ADMIN_ONLY },
   // MOPT-03 / ASE-03 (00123): cierre mensual por cliente institucional.
   { href: '/admin/estados-de-cuenta', label: 'Estados de cuenta', icon: 'statements', roles: ADMIN_ONLY },
   // La ficha 360 vive bajo Cuentas (/admin/cuentas/[tipo]/[id]) y hereda su acceso.
@@ -56,6 +58,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   { href: '/admin/policies', label: 'Pólizas', icon: 'insurers', roles: ADMIN_ONLY, inNav: false },
   { href: '/admin/providers', label: 'Proveedores', icon: 'providers', roles: STAFF },
   { href: '/admin/mopt', label: 'Programas MOPT', icon: 'mopt', roles: ADMIN_ONLY },
+  // REA-01 (00131): reaseguradoras y sus aseguradoras cedentes.
+  { href: '/admin/reaseguradoras', label: 'Reaseguradoras', icon: 'reinsurers', roles: ADMIN_ONLY },
   { href: '/admin/services', label: 'Servicios', icon: 'services', roles: ADMIN_ONLY },
   { href: '/admin/pricing', label: 'Precios', icon: 'pricing', roles: ADMIN_ONLY },
   { href: '/admin/tarifas', label: 'Tarifas', icon: 'rates', roles: ADMIN_ONLY },

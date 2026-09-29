@@ -81,7 +81,7 @@ BEGIN
   BEGIN PERFORM admin_create_institution('INSURER', 'seguros alta (PRUEBA)', NULL, NULL, NULL, NULL); EXCEPTION WHEN OTHERS THEN ok := true; END;
   ASSERT ok, 'B: aceptó un nombre duplicado';
   ok := false;
-  BEGIN PERFORM admin_create_institution('REINSURER', 'Rea', NULL, NULL, NULL, NULL); EXCEPTION WHEN OTHERS THEN ok := true; END;
+  BEGIN PERFORM admin_create_institution('PROVIDER', 'Empresa', NULL, NULL, NULL, NULL); EXCEPTION WHEN OTHERS THEN ok := true; END;
   ASSERT ok, 'B: aceptó un tipo no soportado';
 END $$;
 

@@ -37,7 +37,11 @@ export function exportTable<T>(
   format: 'csv' | 'xlsx',
   basename: string
 ): void {
-  const matrix = tableRows(rows, columns);
+  exportMatrix(tableRows(rows, columns), format, basename);
+}
+
+/** Igual, para una hoja ya armada (p. ej. varias secciones en un solo archivo). */
+export function exportMatrix(matrix: Cell[][], format: 'csv' | 'xlsx', basename: string): void {
   if (format === 'csv') {
     // BOM: sin él, Excel abre el UTF-8 como Latin-1 y rompe las tildes.
     download('﻿' + toCsv(matrix), 'text/csv;charset=utf-8', `${basename}.csv`);

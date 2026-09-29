@@ -1,7 +1,7 @@
 // Checklist de alta de un cliente institucional (migr. 00130, VEN-03).
 // Tipos y textos aparte de las páginas para probarlos sin montar React.
 
-export type OrgType = 'INSURER' | 'MOPT';
+export type OrgType = 'INSURER' | 'MOPT' | 'REINSURER';
 
 export type OnboardingStep =
   | { key: 'org'; done: boolean; detail: string }
@@ -22,6 +22,7 @@ export type OnboardingStep =
     }
   | { key: 'members'; done: boolean; plans: number; rules: number; policies: number; members: number }
   | { key: 'zones'; done: boolean; zones: number }
+  | { key: 'cedents'; done: boolean; links: number; granted: number }
   | {
       key: 'test';
       done: boolean;
@@ -54,7 +55,7 @@ export type OnboardingStatus = {
   ready: boolean;
 };
 
-export const ORG_TYPE_LABEL: Record<OrgType, string> = { INSURER: 'Aseguradora', MOPT: 'Programa MOPT' };
+export const ORG_TYPE_LABEL: Record<OrgType, string> = { INSURER: 'Aseguradora', MOPT: 'Programa MOPT', REINSURER: 'Reaseguradora' };
 
 export function stepTitle(key: OnboardingStep['key'], type: OrgType): string {
   switch (key) {
@@ -70,6 +71,8 @@ export function stepTitle(key: OnboardingStep['key'], type: OrgType): string {
       return 'Zonas de elegibilidad';
     case 'test':
       return 'Caso de prueba';
+    case 'cedents':
+      return 'Aseguradoras cedentes autorizadas';
   }
 }
 
@@ -78,6 +81,7 @@ export function stepLink(key: OnboardingStep['key'], org: OnboardingStatus['orga
   if (org.type === 'INSURER' && org.insurer_id && (key === 'org' || key === 'members' || key === 'contract'))
     return `/admin/insurers/${org.insurer_id}`;
   if (org.type === 'MOPT' && (key === 'org' || key === 'zones' || key === 'contract')) return '/admin/mopt';
+  if (org.type === 'REINSURER' && (key === 'org' || key === 'cedents')) return '/admin/reaseguradoras';
   return null;
 }
 

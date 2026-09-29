@@ -28,7 +28,8 @@ export function securityUrl(next: string): string {
 export const PORTAL_BY_ORG_TYPE: Record<OrganizationType, string | null> = {
   MOPT: '/mopt',
   INSURER: '/portal',
-  REINSURER: null,
+  // REA-02 (00131).
+  REINSURER: '/reaseguro',
   PROVIDER: null,
 };
 

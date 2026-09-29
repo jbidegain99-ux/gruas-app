@@ -59,7 +59,7 @@ export default function AdminOnboardingPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Altas de clientes</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-            Aseguradoras y programas MOPT, con los pasos que les faltan para operar. La meta es dejar un cliente
+            Aseguradoras, programas MOPT y reaseguradoras, con los pasos que les faltan para operar. La meta es dejar un cliente
             listo en menos de un día.
           </p>
         </div>
@@ -78,7 +78,7 @@ export default function AdminOnboardingPage() {
           <fieldset className="sm:col-span-2">
             <legend className="text-sm">Tipo de cliente</legend>
             <div className="mt-1 flex gap-4">
-              {(['INSURER', 'MOPT'] as OrgType[]).map((t) => (
+              {(['INSURER', 'MOPT', 'REINSURER'] as OrgType[]).map((t) => (
                 <label key={t} className="flex items-center gap-2 text-sm">
                   <input type="radio" name="tipo" checked={form.type === t} onChange={() => setForm({ ...form, type: t })} />
                   {ORG_TYPE_LABEL[t]}
@@ -93,8 +93,12 @@ export default function AdminOnboardingPage() {
           {form.type === 'INSURER' && (
             <label className="text-sm">Persona de contacto<input className={input} value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
           )}
-          <label className="text-sm">Correo de contacto<input type="email" className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-          <label className="text-sm">Teléfono<input className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+          {form.type !== 'REINSURER' && (
+            <label className="text-sm">Correo de contacto<input type="email" className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+          )}
+          {form.type !== 'REINSURER' && (
+            <label className="text-sm">Teléfono<input className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+          )}
           <div className="flex gap-2 sm:col-span-2">
             <button onClick={create} disabled={saving || !form.name.trim()} className="rounded-lg bg-budi-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-budi-primary-700 disabled:opacity-50">
               {saving ? 'Creando…' : 'Crear y abrir checklist'}
