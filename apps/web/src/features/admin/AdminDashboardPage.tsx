@@ -16,7 +16,7 @@ import { createClient } from '@/shared/lib/supabase/server';
 import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { DashboardLiveRefresh } from './DashboardLiveRefresh';
-import { money } from '@/shared/lib/format';
+import { duration, money } from '@/shared/lib/format';
 
 const STATUSES = ['initiated', 'assigned', 'en_route', 'active', 'completed', 'cancelled'] as const;
 
@@ -49,23 +49,12 @@ function summarize(samples: (number | null)[]): { avg: number; median: number; n
   };
 }
 
-/** 8 min · 1 h 5 min · 2 d 3 h */
-function duration(minutes: number): string {
-  if (minutes < 1) return '< 1 min';
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = minutes / 60;
-  if (hours < 24) {
-    const h = Math.floor(hours);
-    const m = Math.round(minutes - h * 60);
-    return m === 0 ? `${h} h` : `${h} h ${m} min`;
-  }
-  const d = Math.floor(hours / 24);
-  const h = Math.round(hours - d * 24);
-  return h === 0 ? `${d} d` : `${d} d ${h} h`;
-}
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
+  // Soporte ve la operacion, no los ingresos (00104).
+  const { data: role } = await supabase.rpc('auth_user_role');
+  const showMoney = role === 'ADMIN';
 
   // Server component: se renderiza por request, así que la hora actual es válida.
   // eslint-disable-next-line react-hooks/purity
@@ -165,11 +154,12 @@ export default async function AdminDashboardPage() {
     {
       label: 'Activas ahora',
       value: activeNow,
-      sub: `${counts.initiated} esperando operador`,
+      sub: `${counts.initiated} esperando socio operador`,
       Icon: Activity,
       tint: 'bg-green-50 text-green-600 dark:bg-green-900/40 dark:text-green-300',
     },
     {
+      money: true,
       label: 'Ingresos hoy',
       value: money(revenueToday),
       sub: `${money(revenueWeek)} esta semana · ${money(revenue)} histórico`,
@@ -190,7 +180,7 @@ export default async function AdminDashboardPage() {
   const slaTiles = [
     {
       label: 'Solicitud → Asignación',
-      hint: 'cuánto tarda en encontrar operador',
+      hint: 'cuánto tarda en encontrar socio operador',
       stats: toAssign,
       Icon: UserCheck,
     },
@@ -221,13 +211,13 @@ export default async function AdminDashboardPage() {
         </div>
         <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
           <Radio className="h-3.5 w-3.5 text-green-500" />
-          {operatorsOnline || 0} operador{(operatorsOnline || 0) === 1 ? '' : 'es'} en línea
+          {operatorsOnline || 0} socio{(operatorsOnline || 0) === 1 ? '' : 's'} en línea
         </div>
       </div>
 
       {/* KPI grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((k) => (
+        {kpis.filter((k) => showMoney || !('money' in k)).map((k) => (
           <div
             key={k.label}
             className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
@@ -292,7 +282,7 @@ export default async function AdminDashboardPage() {
           className="group rounded-xl border border-zinc-200 bg-white p-5 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
         >
           <div className="flex items-center gap-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            <Radio className="h-4 w-4" /> Operadores
+            <Radio className="h-4 w-4" /> Socios operadores
           </div>
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-baseline gap-2">
@@ -389,7 +379,7 @@ export default async function AdminDashboardPage() {
           <table className="w-full">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                <th className="px-5 py-3 font-medium">Cliente</th>
+                <th className="px-5 py-3 font-medium">Usuario</th>
                 <th className="px-5 py-3 font-medium">Servicio</th>
                 <th className="px-5 py-3 font-medium">Ubicación</th>
                 <th className="px-5 py-3 font-medium">Estado</th>

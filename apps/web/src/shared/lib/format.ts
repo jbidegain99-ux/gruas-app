@@ -30,3 +30,33 @@ export function formatDate(
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(LOCALE, options);
 }
+
+/** Fecha y hora cortas, en hora de El Salvador. Ej: "28 sept, 15:04". */
+export function formatDateTime(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(LOCALE, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/El_Salvador',
+  });
+}
+
+/** Duración legible desde minutos: 8 min · 1 h 5 min · 2 d 3 h. */
+export function duration(minutes: number): string {
+  if (minutes < 1) return '< 1 min';
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round(minutes - h * 60);
+    return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  }
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours - d * 24);
+  return h === 0 ? `${d} d` : `${d} d ${h} h`;
+}

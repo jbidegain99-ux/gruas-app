@@ -6,10 +6,10 @@ import { Users, Truck, ShieldCheck, Building2, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
+import { useCanConfigure } from './AdminRoleContext';
+import type { UserRole } from '@gruas-app/shared';
 
 const PAGE_SIZE = 15;
-
-type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
 
 type Profile = {
   id: string;
@@ -20,6 +20,11 @@ type Profile = {
   provider_id: string | null;
   provider_name?: string | null;
   insurer_name?: string | null;
+  /** 00106 (POR-01): el portal al que entra, por su membresía (no por el rol). */
+  org_name?: string | null;
+  org_type?: string | null;
+  /** 00107: la unidad (grúa/pipa) activa de un socio operador. */
+  vehicle?: { plate: string; vehicle_type: string; capacity_m3: number | null } | null;
   verification_status: string;
   /** Comisión propia del operador independiente. NULL = default de plataforma. */
   commission_rate: number | null;
@@ -29,13 +34,18 @@ type Profile = {
 type Provider = {
   id: string;
   name: string;
+  /** Programa MOPT (00098): paga el servicio y tiene flota propia. */
+  is_mopt: boolean;
+  is_active: boolean;
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
   USER: 'Usuario',
-  OPERATOR: 'Operador',
+  OPERATOR: 'Socio operador',
   ADMIN: 'Administrador',
   INSURER: 'Aseguradora',
+  MOPT: 'Portal MOPT',
+  SUPPORT: 'Soporte',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -43,6 +53,8 @@ const ROLE_COLORS: Record<UserRole, string> = {
   OPERATOR: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   ADMIN: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   INSURER: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
+  MOPT: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+  SUPPORT: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
 };
 
 export default function AdminUsersPage() {
@@ -51,14 +63,22 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
+  // Soporte ve la lista pero no cambia roles ni comisiones (la base igual lo rechaza).
+  const canConfigure = useCanConfigure();
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'PORTAL' | UserRole>('all');
   const [page, setPage] = useState(0);
+  // La base rechaza que un admin se cambie el rol a sí mismo (00093); acá solo
+  // se evita ofrecer el botón.
+  const [myId, setMyId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
+
+      const { data: { user: me } } = await supabase.auth.getUser();
+      setMyId(me?.id ?? null);
 
       // Fetch profiles with provider names
       const { data: profilesData, error: profilesError } = await supabase
@@ -71,24 +91,61 @@ export default function AdminUsersPage() {
           role,
           provider_id,
           verification_status,
-          commission_rate,
           created_at,
           providers:provider_id (name),
           insurers:insurer_id (name)
         `)
         .order('created_at', { ascending: false });
 
+      // La comision propia del independiente ya no vive en `profiles`: es una
+      // tarifa versionada (00102). Aca solo importa la que rige hoy. Soporte no
+      // ve tarifas (00104): ni se pide.
+      const { data: tarifas } = canConfigure
+        ? await supabase.rpc('admin_rate_overview')
+        : { data: null };
+      const comisionPropia = new Map(
+        (tarifas ?? [])
+          .filter((t) => t.kind === 'operator' && t.own_rate)
+          .map((t) => [t.subject_id as string, Number(t.current_rate)])
+      );
+
+      // Membresías activas y unidades de los socios (solo el admin las lee; para
+      // soporte vuelven vacías y la tabla simplemente no las muestra).
+      const [{ data: memberships }, { data: vehicles }] = await Promise.all([
+        supabase
+          .from('organization_members')
+          .select('profile_id, organizations(name, type)')
+          .eq('status', 'active'),
+        supabase.from('operator_vehicles').select('operator_id, plate, vehicle_type, capacity_m3').eq('is_active', true),
+      ]);
+      const orgByProfile = new Map(
+        (memberships ?? []).map((m) => [
+          m.profile_id,
+          m.organizations as unknown as { name: string; type: string } | null,
+        ])
+      );
+      const vehicleByOperator = new Map(
+        (vehicles ?? []).map((v) => [v.operator_id, { plate: v.plate, vehicle_type: v.vehicle_type, capacity_m3: v.capacity_m3 }])
+      );
+
       // Fetch providers for the dropdown
       const { data: providersData } = await supabase
         .from('providers')
-        .select('id, name')
-        .eq('is_active', true)
+        .select('id, name, is_mopt, is_active')
+        // Activos, y los programas MOPT aunque esten inactivos: una cuenta del
+        // portal puede seguir vinculada a uno, y sin el en la lista el modal
+        // mostraba otro programa y lo re-vinculaba sin avisar.
+        .or('is_active.eq.true,is_mopt.eq.true')
         .order('name');
 
       const mappedProfiles = (profilesData || []).map((p) => ({
         ...p,
+        commission_rate: comisionPropia.get(p.id) ?? null,
         provider_name: (p.providers as unknown as { name: string } | null)?.name || null,
         insurer_name: (p.insurers as unknown as { name: string } | null)?.name || null,
+        org_name: orgByProfile.get(p.id)?.name ?? null,
+        org_type: orgByProfile.get(p.id)?.type ?? null,
+        vehicle: vehicleByOperator.get(p.id) ?? null,
         providers: undefined,
         insurers: undefined,
       })) as Profile[];
@@ -102,7 +159,7 @@ export default function AdminUsersPage() {
       setLoading(false);
     };
     fetchData();
-  }, [refreshKey]);
+  }, [refreshKey, canConfigure]);
 
   const refetch = () => setRefreshKey((k) => k + 1);
 
@@ -118,7 +175,7 @@ export default function AdminUsersPage() {
   };
 
   const getRoleStats = () => {
-    const stats = { USER: 0, OPERATOR: 0, ADMIN: 0, INSURER: 0 };
+    const stats: Record<UserRole, number> = { USER: 0, OPERATOR: 0, ADMIN: 0, INSURER: 0, MOPT: 0, SUPPORT: 0 };
     profiles.forEach((p) => {
       stats[p.role]++;
     });
@@ -131,7 +188,9 @@ export default function AdminUsersPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return profiles.filter((p) => {
-      if (roleFilter !== 'all' && p.role !== roleFilter) return false;
+      if (roleFilter === 'PORTAL') {
+        if (!p.org_name) return false;
+      } else if (roleFilter !== 'all' && p.role !== roleFilter) return false;
       if (!q) return true;
       return (
         (p.full_name || '').toLowerCase().includes(q) ||
@@ -163,9 +222,9 @@ export default function AdminUsersPage() {
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Total de usuarios', value: profiles.length, Icon: Users, tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300' },
-          { label: 'Operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
-          { label: 'Administradores', value: stats.ADMIN, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
-          { label: 'Aseguradoras', value: stats.INSURER, Icon: Building2, tint: 'bg-violet-50 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300' },
+          { label: 'Socios operadores', value: stats.OPERATOR, Icon: Truck, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' },
+          { label: 'Admin y soporte', value: stats.ADMIN + stats.SUPPORT, Icon: ShieldCheck, tint: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300' },
+          { label: 'Con acceso a un portal', value: profiles.filter((p) => p.org_name).length, Icon: Building2, tint: 'bg-violet-50 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300' },
         ].map(({ label, value, Icon, tint }) => (
           <div
             key={label}
@@ -216,16 +275,17 @@ export default function AdminUsersPage() {
           <select
             value={roleFilter}
             onChange={(e) => {
-              setRoleFilter(e.target.value as 'all' | UserRole);
+              setRoleFilter(e.target.value as 'all' | 'PORTAL' | UserRole);
               setPage(0);
             }}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
           >
             <option value="all">Todos los roles</option>
             <option value="USER">Usuarios</option>
-            <option value="OPERATOR">Operadores</option>
+            <option value="OPERATOR">Socios operadores</option>
             <option value="ADMIN">Administradores</option>
-            <option value="INSURER">Aseguradoras</option>
+            <option value="PORTAL">Con acceso a un portal</option>
+            <option value="SUPPORT">Soporte</option>
           </select>
         </div>
         <div className="overflow-x-auto">
@@ -298,7 +358,15 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {profile.provider_name || profile.insurer_name || '-'}
+                      {profile.provider_name || '-'}
+                      {profile.org_name && (
+                        <span className="ml-2 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900 dark:text-violet-200">
+                          Portal · {profile.org_name}
+                        </span>
+                      )}
+                      {profile.vehicle && (
+                        <span className="ml-2 font-mono text-xs text-zinc-500">{profile.vehicle.plate}</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-2">
@@ -316,12 +384,16 @@ export default function AdminUsersPage() {
                             </Link>
                           </>
                         )}
-                        <button
-                          onClick={() => setEditingUser(profile)}
-                          className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
-                        >
-                          Editar Rol
-                        </button>
+                        {profile.id === myId ? (
+                          <span className="text-xs text-zinc-400">Tu cuenta</span>
+                        ) : !canConfigure ? null : (
+                          <button
+                            onClick={() => setEditingUser(profile)}
+                            className="text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
+                          >
+                            Editar Rol
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -354,6 +426,10 @@ function EditUserModal({
 }) {
   const [role, setRole] = useState<UserRole>(user.role);
   const [providerId, setProviderId] = useState<string>(user.provider_id || '');
+  // 00107: unidad del socio (placa, tipo y capacidad si es pipa).
+  const [plate, setPlate] = useState(user.vehicle?.plate ?? '');
+  const [vehicleType, setVehicleType] = useState(user.vehicle?.vehicle_type ?? 'tow_light');
+  const [capacity, setCapacity] = useState(user.vehicle?.capacity_m3 == null ? '' : String(user.vehicle.capacity_m3));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Solo aplica al independiente: si pertenece a una empresa manda la de la
@@ -395,6 +471,27 @@ function EditUserModal({
         setError(comError.message);
         toast.error('No se pudo guardar la comisión.');
         return;
+      }
+    }
+
+    // La unidad del socio (00107). Placa vacía = sin unidad activa.
+    if (!rpcError && role === 'OPERATOR') {
+      const samePlate = (user.vehicle?.plate ?? '') === plate.trim().toUpperCase();
+      const sameType = (user.vehicle?.vehicle_type ?? 'tow_light') === vehicleType;
+      const sameCap = String(user.vehicle?.capacity_m3 ?? '') === capacity;
+      if (!(samePlate && sameType && sameCap)) {
+        const { error: vehError } = await supabase.rpc('admin_set_operator_vehicle', {
+          p_operator_id: user.id,
+          p_plate: plate,
+          p_vehicle_type: vehicleType,
+          ...(vehicleType === 'water_truck' && capacity ? { p_capacity_m3: Number(capacity) } : {}),
+        });
+        if (vehError) {
+          setLoading(false);
+          setError(vehError.message);
+          toast.error('No se pudo guardar la unidad.');
+          return;
+        }
       }
     }
 
@@ -442,19 +539,16 @@ function EditUserModal({
               className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
             >
               <option value="USER">Usuario</option>
-              <option value="OPERATOR">Operador</option>
+              <option value="OPERATOR">Socio operador</option>
               <option value="ADMIN">Administrador</option>
-              {/* Solo como estado actual: convertir en aseguradora pide elegir
-                  cuál, y eso va por admin_link_insurer_user (00093). */}
-              {user.role === 'INSURER' && (
-                <option value="INSURER">Aseguradora{user.insurer_name ? ` (${user.insurer_name})` : ''}</option>
-              )}
+              <option value="SUPPORT">Soporte (ve la operación, sin dinero ni configuración)</option>
             </select>
-            {user.role === 'INSURER' && (
-              <p className="mt-1 text-xs text-zinc-500">
-                Al cambiarle el rol, la cuenta pierde el acceso al portal de su aseguradora.
-              </p>
-            )}
+            {/* 00106 (POR-01): aseguradoras y MOPT no son roles. */}
+            <p className="mt-1 text-xs text-zinc-500">
+              {user.org_name
+                ? `Tiene acceso al portal de ${user.org_name}. Eso se administra en el equipo de esa organización, no con el rol.`
+                : 'El acceso al portal de una aseguradora o del MOPT se da en el equipo de cada organización (Aseguradoras / Programas MOPT), no con el rol.'}
+            </p>
           </div>
 
           {role === 'OPERATOR' && (
@@ -468,14 +562,56 @@ function EditUserModal({
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
               >
                 <option value="">Independiente (sin empresa)</option>
-                {providers.map((p) => (
+                {providers.filter((p) => p.is_active).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    {p.name}{p.is_mopt ? ' (flota MOPT)' : ''}
                   </option>
                 ))}
               </select>
               <p className="mt-1 text-xs text-zinc-500">
-                Si pertenece a una empresa, se le liquida a la empresa con la comisión de ella.
+                Si pertenece a una empresa, se le liquida a la empresa con la comisión de ella. Si es de la
+                flota MOPT, solo atiende servicios del MOPT y le paga el MOPT.
+              </p>
+            </div>
+          )}
+
+          {role === 'OPERATOR' && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Placa de la unidad
+                <input
+                  value={plate}
+                  onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                  placeholder="P123456"
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 font-mono dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                />
+              </label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Tipo de unidad
+                <select
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                >
+                  <option value="tow_light">Grúa liviana</option>
+                  <option value="tow_heavy">Grúa pesada</option>
+                  <option value="water_truck">Pipa de agua</option>
+                  <option value="service">Vehículo de servicio</option>
+                </select>
+              </label>
+              {vehicleType === 'water_truck' && (
+                <label className="col-span-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Capacidad (m³)
+                  <input
+                    type="number" min={0.5} step="0.5"
+                    value={capacity}
+                    onChange={(e) => setCapacity(e.target.value)}
+                    className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                  />
+                </label>
+              )}
+              <p className="col-span-2 text-xs text-zinc-500">
+                La placa identifica la grúa en los km por grúa del portal MOPT. Vacía = sin unidad registrada.
               </p>
             </div>
           )}
@@ -509,8 +645,7 @@ function EditUserModal({
             </button>
             <button
               type="submit"
-              // La RPC rechaza INSURER como destino: sin cambio no hay nada que guardar.
-              disabled={loading || role === 'INSURER'}
+              disabled={loading}
               className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
             >
               {loading ? 'Guardando...' : 'Guardar Cambios'}

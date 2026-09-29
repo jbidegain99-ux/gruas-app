@@ -11,6 +11,7 @@ import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { CaseTimeline } from './CaseTimeline';
 import { CaseSla } from './CaseSla';
 import { NearestOperators } from './NearestOperators';
+import { RequestChatLog, RequestNotes, RequestPinPanel, RequestTrail } from './RequestOpsPanels';
 import { LocationMap } from '@/shared/components/LocationMap';
 import { resolveDisplayAddress } from '@/shared/lib/geocoding';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
@@ -203,6 +204,8 @@ export default function AdminRequestsPage() {
         .from('profiles')
         .select('id, full_name, provider_id')
         .eq('role', 'OPERATOR')
+        // 00117: la base rechaza asignar a un socio suspendido o sin aprobar.
+        .eq('verification_status', 'approved')
         .order('full_name');
       if (!data) return;
 
@@ -327,16 +330,16 @@ export default function AdminRequestsPage() {
     });
     setAssigning(false);
     if (error) {
-      toast.error(`No se pudo asignar el operador: ${error.message}`);
+      toast.error(`No se pudo asignar el socio operador: ${error.message}`);
       return;
     }
-    toast.success(selectedRequest?.operator_id ? 'Solicitud reasignada.' : 'Operador asignado.');
+    toast.success(selectedRequest?.operator_id ? 'Solicitud reasignada.' : 'Socio operador asignado.');
     refetch();
     setSelectedRequest(null);
   };
 
   const exportCSV = () => {
-    const headers = ['ID', 'Usuario', 'Operador', 'Tipo', 'Estado', 'Origen', 'Destino', 'Precio', 'Fecha'];
+    const headers = ['ID', 'Usuario', 'Socio operador', 'Tipo', 'Estado', 'Origen', 'Destino', 'Precio', 'Fecha'];
     const rows = requests.map((r) => [
       r.id,
       r.profiles?.full_name || 'N/A',
@@ -413,7 +416,7 @@ export default function AdminRequestsPage() {
             setSearch(e.target.value);
             setPage(0);
           }}
-          placeholder="Buscar por cliente, teléfono o dirección..."
+          placeholder="Buscar por usuario, teléfono o dirección..."
           className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
         />
       </div>
@@ -452,7 +455,7 @@ export default function AdminRequestsPage() {
           <table className="w-full">
             <thead className="bg-zinc-50 dark:bg-zinc-800/60">
               <tr>
-                {['Usuario', 'Tipo', 'Operador', 'Estado', 'Precio', 'Fecha'].map((h) => (
+                {['Usuario', 'Tipo', 'Socio operador', 'Estado', 'Precio', 'Fecha'].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
@@ -597,7 +600,7 @@ export default function AdminRequestsPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-zinc-500">Operador</p>
+                  <p className="text-xs text-zinc-500">Socio operador</p>
                   <p className="text-sm text-zinc-900 dark:text-white">
                     {selectedRequest.operator?.full_name || 'Sin asignar'}
                   </p>
@@ -677,8 +680,8 @@ export default function AdminRequestsPage() {
                   )}
                   {selectedRequest.coverage_status === 'error' && (
                     <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-                      El servicio se atendió sin poder confirmar la póliza. Revisá al afiliado
-                      y decidí quién paga; el motivo del fallo quedó en el historial del caso.
+                      El servicio se atendió sin poder confirmar la póliza. Revisa al afiliado
+                      y decide quién paga; el motivo del fallo quedó en el historial del caso.
                     </p>
                   )}
                 </div>
@@ -695,7 +698,7 @@ export default function AdminRequestsPage() {
                       if (!c.covered) {
                         return (
                           <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                            No cubierto{c.reason ? `: ${c.reason}` : ''}. Paga el cliente:{' '}
+                            No cubierto{c.reason ? `: ${c.reason}` : ''}. Paga el usuario:{' '}
                             <strong>{money(c.amount_copay ?? 0)}</strong>
                           </p>
                         );
@@ -739,7 +742,7 @@ export default function AdminRequestsPage() {
                       {selectedRequest.cancelled_by === selectedRequest.user_id
                         ? 'el usuario'
                         : selectedRequest.cancelled_by === selectedRequest.operator_id
-                        ? 'el operador'
+                        ? 'el socio operador'
                         : selectedRequest.cancelled_by
                         ? 'el equipo Budi (admin)'
                         : 'origen desconocido'}
@@ -782,7 +785,7 @@ export default function AdminRequestsPage() {
                         onChange={(e) => setAssignOperatorId(e.target.value)}
                         className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
                       >
-                        <option value="">Selecciona un operador...</option>
+                        <option value="">Selecciona un socio operador...</option>
                         {/* Se marcan, no se ocultan: la lista manual es la
                             salida de emergencia del despachador. */}
                         {operators.map((op) => {
@@ -800,7 +803,7 @@ export default function AdminRequestsPage() {
                         disabled={!assignOperatorId || assigning || assignOperatorId === selectedRequest.operator_id}
                         className="mt-2 w-full rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {assigning ? 'Asignando...' : 'Asignar Operador'}
+                        {assigning ? 'Asignando...' : 'Asignar socio operador'}
                       </button>
                     </div>
                   </div>
@@ -819,7 +822,7 @@ export default function AdminRequestsPage() {
                       type="text"
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      placeholder="Ej: duplicada, el cliente ya no la necesita…"
+                      placeholder="Ej: duplicada, el usuario ya no la necesita…"
                       className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
                     />
                     <button
@@ -830,6 +833,20 @@ export default function AdminRequestsPage() {
                     </button>
                   </div>
                 )}
+
+                {/* 00120 (runbook): herramientas de la guardia. */}
+                <RequestPinPanel requestId={selectedRequest.id} status={selectedRequest.status} />
+                <RequestNotes requestId={selectedRequest.id} />
+                <RequestChatLog
+                  requestId={selectedRequest.id}
+                  userId={selectedRequest.user_id}
+                  operatorId={selectedRequest.operator_id}
+                />
+                <RequestTrail
+                  requestId={selectedRequest.id}
+                  pickup={selectedRequest.pickup_lat != null && selectedRequest.pickup_lng != null ? { lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng } : null}
+                  dropoff={selectedRequest.dropoff_lat != null && selectedRequest.dropoff_lng != null ? { lat: selectedRequest.dropoff_lat, lng: selectedRequest.dropoff_lng } : null}
+                />
 
                 {/* B-15: cumplimiento de SLA del caso. */}
                 <CaseSla folio={selectedRequest.cases?.folio ?? null} />

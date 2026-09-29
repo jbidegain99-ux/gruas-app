@@ -14,28 +14,55 @@ import {
   Map,
   ShieldCheck,
   ShieldPlus,
+  History,
+  Landmark,
+  Scale,
+  Percent,
+  TrendingUp,
+  UserPlus,
+  Smartphone,
+  FileSpreadsheet,
+  Banknote,
+  ClipboardCheck,
 } from 'lucide-react';
 
-const NAV_LINKS = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/requests', label: 'Solicitudes', icon: Truck },
-  { href: '/admin/fleet', label: 'Flota', icon: Map },
-  { href: '/admin/finance', label: 'Finanzas', icon: Wallet },
-  { href: '/admin/insurers', label: 'Aseguradoras', icon: ShieldPlus },
-  { href: '/admin/providers', label: 'Proveedores', icon: Building2 },
-  { href: '/admin/services', label: 'Servicios', icon: Wrench },
-  { href: '/admin/pricing', label: 'Precios', icon: DollarSign },
-  { href: '/admin/users', label: 'Usuarios', icon: Users },
-  { href: '/admin/verifications', label: 'Verificaciones', icon: ShieldCheck },
-  { href: '/admin/ratings', label: 'Calificaciones', icon: Star },
-];
+import type { LucideIcon } from 'lucide-react';
+import { adminNavFor } from '@/shared/lib/admin-routes';
+import type { PanelRole } from './AdminRoleContext';
 
-export function AdminNav() {
+// Las rutas y quién entra viven en shared/lib/admin-routes.ts (las usa también
+// el guard del proxy). Acá solo se les pone ícono.
+const ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  business: TrendingUp,
+  requests: Truck,
+  fleet: Map,
+  finance: Wallet,
+  accounts: Scale,
+  insurers: ShieldPlus,
+  providers: Building2,
+  mopt: Landmark,
+  services: Wrench,
+  pricing: DollarSign,
+  rates: Percent,
+  users: Users,
+  verifications: ShieldCheck,
+  leads: UserPlus,
+  ratings: Star,
+  audit: History,
+  app: Smartphone,
+  statements: FileSpreadsheet,
+  payouts: Banknote,
+  onboarding: ClipboardCheck,
+};
+
+export function AdminNav({ role }: { role: PanelRole }) {
   const pathname = usePathname();
 
   return (
     <nav className="space-y-1 p-4">
-      {NAV_LINKS.map(({ href, label, icon: Icon }) => {
+      {adminNavFor(role).map(({ href, label, icon }) => {
+        const Icon = ICONS[icon] ?? LayoutDashboard;
         const active = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
         return (
           <Link

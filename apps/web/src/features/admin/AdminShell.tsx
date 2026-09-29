@@ -6,6 +6,8 @@ import { Menu, X } from 'lucide-react';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { LogoutButton } from '@/shared/components/LogoutButton';
 import { AdminNav } from '@/features/admin/AdminNav';
+import { AdminRoleProvider, type PanelRole } from '@/features/admin/AdminRoleContext';
+import { OpsAlertsBar } from '@/features/admin/OpsAlertsBar';
 
 /**
  * Shell responsive del panel admin. En pantallas grandes (lg+) la barra lateral
@@ -15,17 +17,20 @@ import { AdminNav } from '@/features/admin/AdminNav';
  */
 export function AdminShell({
   userName,
+  role,
   children,
 }: {
   userName: string;
+  role: PanelRole;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
+    <AdminRoleProvider role={role}>
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {/* Barra superior (solo móvil) */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900 lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900 lg:hidden print:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -53,7 +58,7 @@ export function AdminShell({
 
       {/* Barra lateral */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-zinc-200 bg-white transition-transform duration-200 dark:border-zinc-800 dark:bg-zinc-900 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform print:hidden border-r border-zinc-200 bg-white transition-transform duration-200 dark:border-zinc-800 dark:bg-zinc-900 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -76,8 +81,10 @@ export function AdminShell({
 
         {/* Al tocar un enlace del menú, el click burbujea aquí y cierra el drawer
             en móvil (en lg+ el drawer siempre está visible, así que da igual). */}
-        <div onClick={() => setOpen(false)}>
-          <AdminNav />
+        {/* Con muchas rutas el menú no entra en pantallas bajas: se desplaza
+            solo, sin meterse debajo del pie con el usuario (~8.5rem). */}
+        <div onClick={() => setOpen(false)} className="h-[calc(100vh-4rem-8.5rem)] overflow-y-auto">
+          <AdminNav role={role} />
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 border-t border-zinc-200 p-4 dark:border-zinc-800">
@@ -90,7 +97,7 @@ export function AdminShell({
                 {userName || 'Admin'}
               </p>
               <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                Administrador
+                {role === 'SUPPORT' ? 'Soporte' : 'Administrador'}
               </p>
             </div>
           </div>
@@ -99,7 +106,11 @@ export function AdminShell({
       </aside>
 
       {/* Contenido */}
-      <main className="p-4 sm:p-6 lg:ml-64 lg:p-8">{children}</main>
+      <main className="p-4 sm:p-6 lg:ml-64 lg:p-8 print:ml-0 print:p-0">
+        <OpsAlertsBar />
+        {children}
+      </main>
     </div>
+    </AdminRoleProvider>
   );
 }

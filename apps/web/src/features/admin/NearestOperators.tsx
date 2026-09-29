@@ -54,10 +54,10 @@ export function NearestOperators({
     });
     setAssigning(null);
     if (error) {
-      toast.error('No se pudo asignar el operador.');
+      toast.error('No se pudo asignar el socio operador.');
       return;
     }
-    toast.success('Operador asignado.');
+    toast.success('Socio operador asignado.');
     onAssigned();
   };
 
@@ -65,14 +65,14 @@ export function NearestOperators({
     <div>
       <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase text-zinc-500">
         <MapPin className="h-3.5 w-3.5" />
-        Operadores cercanos
+        Socios operadores cercanos
       </p>
 
       {loading ? (
-        <p className="text-xs text-zinc-500">Buscando operadores en línea…</p>
+        <p className="text-xs text-zinc-500">Buscando socios operadores en línea…</p>
       ) : ops.length === 0 ? (
         <p className="rounded-lg border border-dashed border-zinc-300 px-3 py-3 text-xs text-zinc-500 dark:border-zinc-700">
-          No hay operadores en línea disponibles cerca. Podés asignar uno manualmente abajo.
+          No hay socios operadores en línea disponibles cerca. Puedes asignar uno manualmente abajo.
         </p>
       ) : (
         <ul className="space-y-2">

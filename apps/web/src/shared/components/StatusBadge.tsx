@@ -7,7 +7,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   initiated: 'Pendiente',
   assigned: 'Asignada',
   en_route: 'En Camino',
