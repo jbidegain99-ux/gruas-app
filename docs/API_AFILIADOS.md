@@ -16,8 +16,10 @@ validación.
 
 ## Autenticación
 
-Cada aseguradora recibe una o varias **claves de API**, emitidas por un
-administrador de Budi desde *Aseguradoras → (aseguradora) → Claves de API*.
+Cada aseguradora tiene una o varias **claves de API**. Las crea, rota y revoca
+el dueño o un administrador de su portal (con 2FA) en *Portal → Integraciones*.
+Un administrador de Budi también puede emitirlas desde
+*Aseguradoras → (aseguradora) → Claves de API*.
 
 ```
 Authorization: Bearer budi_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -32,6 +34,9 @@ Sobre las claves:
 - Una clave solo alcanza las pólizas de **su propia aseguradora**. Esa frontera
   la impone la base de datos, no la aplicación.
 - La revocación es inmediata.
+- **Rotar** (desde el portal) emite una clave nueva con el mismo nombre y deja
+  la anterior viva **24 horas**, para cambiarla sin cortar la integración.
+  Si la clave se filtró, no rotes: **revócala** y crea otra.
 
 ---
 
@@ -183,13 +188,111 @@ Hay una plantilla descargable en el mismo diálogo.
 
 ---
 
+## Webhooks: eventos de tus casos
+
+> Entregable **ASE-04**. Implementación: `supabase/migrations/00129_insurer_webhooks.sql`.
+
+Budi avisa a tu servidor cada vez que cambia un caso de tus afiliados. Se
+configura en *Portal → Integraciones → Webhooks* (hasta 5 URLs).
+
+Solo llegan los casos que **tu plan cubre** y que consumió un afiliado tuyo:
+el mismo alcance que ves en el portal.
+
+### Eventos
+
+| Evento | Cuándo |
+|---|---|
+| `case.created` | El afiliado pidió el servicio y quedó cubierto por tu póliza. |
+| `case.assigned` | Un socio operador aceptó el servicio. |
+| `case.unassigned` | El socio soltó el servicio; vuelve a buscarse grúa. |
+| `case.arrived` | La grúa llegó y el afiliado confirmó con su PIN. |
+| `case.completed` | Servicio terminado. |
+| `case.cancelled` | Servicio cancelado. |
+| `ping` | Evento de prueba, desde el botón «Enviar prueba» (`data.test = true`). |
+
+### Petición
+
+`POST` a tu URL con `Content-Type: application/json` y estas cabeceras:
+
+| Cabecera | Valor |
+|---|---|
+| `X-Budi-Event` | El tipo de evento, p. ej. `case.assigned`. |
+| `X-Budi-Delivery` | Id único de la entrega (igual a `id` en el cuerpo). Úsalo para **deduplicar**: un reintento trae el mismo id. |
+| `X-Budi-Signature` | `t=<unix>,v1=<hex>` — ver *Verificar la firma*. |
+
+```json
+{
+  "id": "cbae4c31-16ca-4085-b674-0f46c888cbfd",
+  "type": "case.assigned",
+  "created_at": "2026-09-29T21:31:11.52Z",
+  "data": {
+    "folio": "BUDI-000267",
+    "status": "assigned",
+    "service_type": "tow",
+    "zone": "San Salvador",
+    "requested_at": "2026-09-29T21:31:11Z",
+    "assigned_at": "2026-09-29T21:31:11Z",
+    "arrived_at": null,
+    "completed_at": null,
+    "cancelled_at": null,
+    "policy_number": "POL-0001",
+    "member_document": "012345678",
+    "coverage": { "status": "covered", "covered": 60, "copay": 0 },
+    "total_price": 60
+  }
+}
+```
+
+El cuerpo no lleva datos del socio operador, ubicación exacta ni datos de
+contacto del afiliado. Con el `folio` se consulta el detalle en el portal.
+
+### Verificar la firma
+
+`v1` es el HMAC-SHA256, en hexadecimal, de `"<t>.<cuerpo crudo>"` con el
+**secreto de firma** del webhook (`whsec_...`, se muestra una vez al crearlo o
+rotarlo). Verifica **sobre el cuerpo crudo**, antes de parsear el JSON, y
+rechaza firmas con más de 5 minutos para evitar que alguien repita una entrega.
+
+```js
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+function verificar(cuerpoCrudo, cabecera, secreto) {
+  const { t, v1 } = Object.fromEntries(cabecera.split(',').map((p) => p.split('=', 2)));
+  if (!t || !v1 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const esperado = createHmac('sha256', secreto).update(`${t}.${cuerpoCrudo}`).digest();
+  const recibido = Buffer.from(v1, 'hex');
+  return recibido.length === esperado.length && timingSafeEqual(recibido, esperado);
+}
+```
+
+Hay un receptor de referencia en `scripts/webhook-receiver.mjs`.
+
+### Respuesta y reintentos
+
+- Responde **2xx en menos de 10 s**. Si tienes trabajo pesado, encólalo y
+  responde enseguida.
+- Cualquier otra respuesta (o ninguna) se reintenta a los **1 min, 5 min,
+  30 min, 2 h y 6 h**. Después del 6.º intento la entrega queda como fallida.
+- El orden de llegada no está garantizado entre reintentos: usa `data.status`
+  y las fechas del cuerpo, no el orden de llegada.
+- En *Integraciones → Entregas* ves cada entrega de los últimos 30 días, su
+  cuerpo y el resultado, y puedes **reenviar** una a mano.
+
+### Requisitos de la URL
+
+`https://` y pública. No se aceptan `localhost`, IPs privadas ni nombres
+internos. (En la base local de desarrollo se puede permitir `http://` con
+`ALTER DATABASE postgres SET app.webhooks_allow_local = 'on'`.)
+
+---
+
 ## Límites conocidos
 
 - La aseguradora **no puede consultar** su padrón por API todavía; solo cargarlo.
   La lectura llega con el portal B2B (**B-17**).
 - No hay borrado por API. Para dar de baja se usa `ends_on`.
-- No hay control de tasa por clave. Si una integración se descontrola, la vía es
-  revocar su clave.
+- El tope de peticiones es por aseguradora (30/min) y por IP (60/min). Si una
+  integración se descontrola, la vía es revocar su clave.
 
 Relacionado: [`ERD_COBERTURA.md`](./ERD_COBERTURA.md) ·
 [`backlog-aseguradoras.html`](./backlog-aseguradoras.html)

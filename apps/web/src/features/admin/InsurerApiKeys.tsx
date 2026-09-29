@@ -20,7 +20,13 @@ type ApiKey = {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  // 00129: al rotarla desde el portal, la anterior vive unas horas más.
+  expires_at: string | null;
 };
+
+const inactiva = (k: ApiKey) => !!k.revoked_at || (!!k.expires_at && new Date(k.expires_at) <= new Date());
+const estado = (k: ApiKey) =>
+  k.revoked_at ? 'Revocada' : inactiva(k) ? 'Vencida' : k.expires_at ? `Rotada · vence ${formatDate(k.expires_at)}` : 'Activa';
 
 export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -42,7 +48,7 @@ export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
       // navegador aunque el admin tenga permiso de leerlo.
       const { data } = await supabase
         .from('insurer_api_keys')
-        .select('id, name, key_prefix, created_at, last_used_at, revoked_at')
+        .select('id, name, key_prefix, created_at, last_used_at, revoked_at, expires_at')
         .eq('insurer_id', insurerId)
         .order('created_at', { ascending: false });
       setKeys((data as ApiKey[]) || []);
@@ -89,11 +95,11 @@ export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
       setCopiada(true);
       setTimeout(() => setCopiada(false), 2000);
     } catch {
-      toast.error('No se pudo copiar. Seleccioná el texto a mano.');
+      toast.error('No se pudo copiar. Selecciona el texto a mano.');
     }
   };
 
-  const activas = keys.filter((k) => !k.revoked_at);
+  const activas = keys.filter((k) => !inactiva(k));
 
   return (
     <section className="mt-10">
@@ -122,7 +128,7 @@ export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                Copiala ahora: no se vuelve a mostrar
+                Cópiala ahora: no se vuelve a mostrar
               </p>
               <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
                 Solo guardamos su huella. Si se pierde, hay que revocarla y emitir otra.
@@ -199,7 +205,7 @@ export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {keys.map((k) => (
-                  <tr key={k.id} className={k.revoked_at ? 'opacity-60' : ''}>
+                  <tr key={k.id} className={inactiva(k) ? 'opacity-60' : ''}>
                     <td className="px-6 py-4 font-medium text-zinc-900 dark:text-white">{k.name}</td>
                     <td className="px-6 py-4 font-mono text-xs text-zinc-600 dark:text-zinc-400">
                       {k.key_prefix}…
@@ -211,16 +217,16 @@ export function InsurerApiKeys({ insurerId }: { insurerId: string }) {
                     <td className="px-6 py-4">
                       <span
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          k.revoked_at
+                          inactiva(k)
                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                         }`}
                       >
-                        {k.revoked_at ? 'Revocada' : 'Activa'}
+                        {estado(k)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {!k.revoked_at && (
+                      {!inactiva(k) && (
                         <button
                           onClick={() => revocar(k)}
                           className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
