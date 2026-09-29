@@ -27,3 +27,18 @@ export function formatDate(value: DateInput, options?: Intl.DateTimeFormatOption
 export function formatTime(value: DateInput): string {
   return formatDateTime(value, { hour: '2-digit', minute: '2-digit' });
 }
+
+/**
+ * "hace 12 s", "hace 3 min", "hace 2 h", "hace 21 días". Para mostrar qué tan
+ * vieja es una ubicación: en segundos crudos salía "hace 1825965s".
+ */
+export function timeAgo(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `hace ${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} ${d === 1 ? 'día' : 'días'}`;
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchRequestOperators } from '../lib/requestOperators';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/shared/components/ui';
 
@@ -143,6 +144,9 @@ export function useActiveRequest(): UseActiveRequestResult {
     if (requests && requests.length > 0) {
       const req = requests[0];
       trackedRef.current = { id: req.id, status: req.status };
+      // 00138: el socio sale de una RPC (el embed a profiles vuelve null por RLS).
+      const ops = req.operator_id ? await fetchRequestOperators([req.id]) : new Map();
+      const op = ops.get(req.id);
       setActiveRequest({
         id: req.id,
         status: req.status,
@@ -158,8 +162,8 @@ export function useActiveRequest(): UseActiveRequestResult {
         total_price: req.total_price,
         created_at: req.created_at,
         operator_id: req.operator_id,
-        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || null,
-        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || null,
+        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || op?.name || null,
+        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || op?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         service_type: req.service_type || 'tow',
         route_polyline: (req as Record<string, unknown>).route_polyline as string | null ?? null,
@@ -199,12 +203,13 @@ export function useActiveRequest(): UseActiveRequestResult {
           .in('request_id', requestIds);
 
         const ratedIds = new Set(existingRatings?.map((r) => r.request_id) || []);
+        const ops = await fetchRequestOperators(requestIds);
 
         const unrated = completedRequests
           .filter((req) => !ratedIds.has(req.id))
           .map((req) => ({
             id: req.id,
-            operatorName: (req.operator as unknown as { full_name: string } | null)?.full_name || null,
+            operatorName: (req.operator as unknown as { full_name: string } | null)?.full_name || ops.get(req.id)?.name || null,
             completedAt: req.completed_at || '',
           }));
 

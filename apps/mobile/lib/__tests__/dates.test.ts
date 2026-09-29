@@ -21,3 +21,14 @@ describe('dates (es-SV, America/El_Salvador)', () => {
     expect(formatDate('no-es-fecha')).toBe('');
   });
 });
+
+describe('timeAgo', () => {
+  it('usa la unidad legible más grande', async () => {
+    const { timeAgo } = await import('../dates');
+    expect(timeAgo(12)).toBe('hace 12 s');
+    expect(timeAgo(185)).toBe('hace 3 min');
+    expect(timeAgo(7300)).toBe('hace 2 h');
+    expect(timeAgo(1825965)).toBe('hace 21 días');
+    expect(timeAgo(86400)).toBe('hace 1 día');
+  });
+});

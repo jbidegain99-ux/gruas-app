@@ -28,6 +28,7 @@ import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState, ToastHost, toast } from '@/shared/components/ui';
 import { formatDateTime } from '@/lib/dates';
 import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
+import { fetchRequestOperators } from '@/features/tracking/lib/requestOperators';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -188,6 +189,8 @@ export default function History() {
       // no mostrar nada que mostrar el bruto.
       const consumo = new Map<string, { covered: number; copay: number }>();
       const ids = data.map((r) => r.id);
+      // 00138: nombre del socio por RPC (el embed a profiles vuelve null por RLS).
+      const ops = await fetchRequestOperators(data.filter((r) => r.operator_id).map((r) => r.id));
       if (ids.length > 0) {
         const { data: usos, error: errUso } = await supabase
           .from('coverage_usage')
@@ -224,8 +227,8 @@ export default function History() {
         cancellation_reason: (req as Record<string, unknown>).cancellation_reason as string | null ?? null,
         notes: req.notes,
         operator_id: req.operator_id,
-        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || null,
-        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || null,
+        operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || ops.get(req.id)?.name || null,
+        operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || ops.get(req.id)?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         paid_by_mopt: req.mopt_provider_id != null,
         pin: savedPins[req.id] || null,
