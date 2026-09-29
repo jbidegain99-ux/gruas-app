@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, Award } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { BudiLogo, Card, LoadingSpinner } from '@/shared/components/ui';
+import { formatDate as formatAppDate } from '@/lib/dates';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Rating = {
@@ -129,14 +130,8 @@ export default function OperatorRatings() {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string) =>
+    formatAppDate(dateString, { day: 'numeric', month: 'short', year: 'numeric' });
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
@@ -173,7 +168,7 @@ export default function OperatorRatings() {
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{stats.totalRatings}</Text>
-              <Text style={styles.statLabel}>Resenas</Text>
+              <Text style={styles.statLabel}>Reseñas</Text>
             </View>
           </View>
 
@@ -206,15 +201,15 @@ export default function OperatorRatings() {
       )}
 
       {/* Ratings List */}
-      <Text style={styles.sectionTitle}>Resenas Recientes</Text>
+      <Text style={styles.sectionTitle}>Reseñas recientes</Text>
 
       {ratings.length === 0 ? (
         <Card variant="default" padding="l">
           <View style={styles.emptyState}>
             <Award size={56} color={colors.text.tertiary} strokeWidth={1.5} />
-            <Text style={styles.emptyTitle}>Sin calificaciones aun</Text>
+            <Text style={styles.emptyTitle}>Sin calificaciones aún</Text>
             <Text style={styles.emptyText}>
-              Las calificaciones de tus clientes apareceran aqui
+              Las calificaciones de los usuarios aparecerán aquí
             </Text>
           </View>
         </Card>
@@ -225,7 +220,7 @@ export default function OperatorRatings() {
               {renderStars(rating.stars, 18)}
               <Text style={styles.ratingDate}>{formatDate(rating.created_at)}</Text>
             </View>
-            <Text style={styles.raterName}>{rating.rater_name || 'Cliente'}</Text>
+            <Text style={styles.raterName}>{rating.rater_name || 'Usuario'}</Text>
             {rating.comment && (
               <Text style={styles.ratingComment}>{rating.comment}</Text>
             )}

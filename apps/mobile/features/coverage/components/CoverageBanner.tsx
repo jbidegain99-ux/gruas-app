@@ -89,8 +89,8 @@ export function CoverageBanner({
               Tu cobertura no esta vigente
             </Text>
             <Text style={styles.texto}>
-              {coverage.reason ?? 'La poliza no esta activa'}. Podes solicitar el servicio y
-              pagarlo como cliente particular.
+              {coverage.reason ?? 'La poliza no esta activa'}. Puedes solicitar el servicio y
+              pagarlo como usuario particular.
             </Text>
           </View>
         </View>
@@ -107,7 +107,7 @@ export function CoverageBanner({
               No pudimos verificar tu cobertura
             </Text>
             <Text style={styles.texto}>
-              Podes solicitar el servicio igual y lo atendemos, pero puede cobrarse como
+              Puedes solicitar el servicio igual y lo atendemos, pero puede cobrarse como
               particular hasta que revisemos tu poliza.
             </Text>
           </View>

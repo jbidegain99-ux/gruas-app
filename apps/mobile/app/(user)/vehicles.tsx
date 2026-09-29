@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Car, Trash2, Star, Plus } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
-import { Button, Card, Input, LoadingSpinner, ErrorState } from '@/shared/components/ui';
+import { Button, Card, Input, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 export default function Vehicles() {
@@ -59,7 +59,7 @@ export default function Vehicles() {
 
   const addVehicle = async () => {
     if (!make.trim() && !model.trim() && !plate.trim()) {
-      Alert.alert('Datos incompletos', 'Ingresa al menos la marca, el modelo o la placa.');
+      toast.error('Ingresa al menos la marca, el modelo o la placa.', 'Datos incompletos');
       return;
     }
     setSaving(true);
@@ -76,7 +76,7 @@ export default function Vehicles() {
     });
     setSaving(false);
     if (error) {
-      Alert.alert('Error', 'No se pudo guardar el vehículo.');
+      toast.error('No se pudo guardar el vehículo.');
       return;
     }
     resetForm();
@@ -93,7 +93,7 @@ export default function Vehicles() {
       const { error: unsetErr } = await supabase.from('vehicles').update({ is_default: false }).eq('user_id', user.id);
       const { error: setErr } = await supabase.from('vehicles').update({ is_default: true }).eq('id', id);
       if (unsetErr || setErr) {
-        Alert.alert('Error', 'No se pudo cambiar el vehículo predeterminado.');
+        toast.error('No se pudo cambiar el vehículo predeterminado.');
       }
       await fetchVehicles();
     } finally {
@@ -113,7 +113,7 @@ export default function Vehicles() {
           try {
             const { error } = await supabase.from('vehicles').delete().eq('id', id);
             if (error) {
-              Alert.alert('Error', 'No se pudo eliminar el vehículo.');
+              toast.error('No se pudo eliminar el vehículo.');
             }
             await fetchVehicles();
           } finally {

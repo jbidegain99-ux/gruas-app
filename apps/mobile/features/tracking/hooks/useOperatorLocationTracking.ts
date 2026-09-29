@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
-import { Alert, AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
+import { toast } from '@/shared/components/ui';
 import { DEMO_CONFIG } from '@/config/demo';
 import {
   startBackgroundTracking,
@@ -98,10 +99,9 @@ export function useOperatorLocationTracking({
 
       if (status !== 'granted') {
         isTrackingRef.current = false;
-        Alert.alert(
-          'Permiso Requerido',
-          'Se necesita acceso a tu ubicación para que los clientes puedan ver tu posición.',
-          [{ text: 'OK' }]
+        toast.error(
+          'Permite el acceso a tu ubicación para que los Usuarios puedan ver tu posición.',
+          'Permiso requerido'
         );
         return;
       }
@@ -154,10 +154,9 @@ export function useOperatorLocationTracking({
     } catch (err) {
       isTrackingRef.current = false;
       console.error('Error starting location tracking:', err);
-      Alert.alert(
-        'Error de Ubicación',
+      toast.error(
         'No se pudo iniciar el seguimiento de ubicación. Verifica los permisos.',
-        [{ text: 'OK' }]
+        'Error de ubicación'
       );
     }
   }, [intervalMs, distanceInterval, updateLocation]);

@@ -172,7 +172,7 @@ export function useDistanceCalculation(
       setError(null);
     } catch (err) {
       console.error('Distance calculation error:', err);
-      setError('Error de conexion. Verifica tu internet.');
+      setError('Error de conexión. Verifica tu internet.');
     } finally {
       setLoading(false);
     }

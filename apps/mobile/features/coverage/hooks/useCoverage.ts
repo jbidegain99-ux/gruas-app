@@ -31,7 +31,7 @@ export function useCoverage() {
     } catch (e) {
       // Sin red, timeout, etc. Mismo criterio: se reporta, no se oculta.
       console.error('[coverage] error de conexion:', e);
-      setCoverage({ status: 'error', reason: 'No hay conexion con el servidor' });
+      setCoverage({ status: 'error', reason: 'No hay conexión con el servidor' });
     }
     setLoading(false);
   }, []);

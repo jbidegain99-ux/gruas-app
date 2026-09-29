@@ -20,7 +20,7 @@ export function LogoutButton({ className = '' }: { className?: string }) {
       className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 ${className}`}
     >
       <LogOut className="h-5 w-5" />
-      Cerrar Sesion
+      Cerrar sesión
     </button>
   );
 }

@@ -201,7 +201,7 @@ export default function AdminRatingsPage() {
       {/* Operator Rankings */}
       <div className="mb-8">
         <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">
-          Ranking de Operadores
+          Ranking de Socios operadores
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {operatorSummaries.slice(0, 6).map((op, index) => (
@@ -244,14 +244,14 @@ export default function AdminRatingsPage() {
       {/* Filter */}
       <div className="mb-4 flex items-center gap-4">
         <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Filtrar por operador:
+          Filtrar por socio operador:
         </label>
         <select
           value={selectedOperator}
           onChange={(e) => setSelectedOperator(e.target.value)}
           className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
         >
-          <option value="all">Todos los operadores</option>
+          <option value="all">Todos los socios operadores</option>
           {operatorSummaries.map((op) => (
             <option key={op.id} value={op.id}>
               {op.name} ({op.totalRatings} reseñas)
@@ -273,10 +273,10 @@ export default function AdminRatingsPage() {
                   Calificación
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Operador
+                  Socio operador
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Cliente
+                  Usuario
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Comentario
@@ -309,7 +309,7 @@ export default function AdminRatingsPage() {
                       {rating.operator_name || 'Sin nombre'}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {rating.rater_name || 'Cliente'}
+                      {rating.rater_name || 'Usuario'}
                     </td>
                     <td className="max-w-xs truncate px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
                       {rating.comment || '-'}

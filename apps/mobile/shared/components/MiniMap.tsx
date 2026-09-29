@@ -60,7 +60,7 @@ export function MiniMap({ pickup, dropoff, route, height = 140 }: MiniMapProps) 
     return (
       <View style={[styles.fallback, { height }]}>
         <MapPin size={20} color={colors.text.tertiary} strokeWidth={2} />
-        <Text style={styles.fallbackText}>Mapa no disponible aqui</Text>
+        <Text style={styles.fallbackText}>Mapa no disponible aquí</Text>
         {mapsLoadError && (
           <Text style={styles.fallbackError} numberOfLines={3}>
             {mapsLoadError}

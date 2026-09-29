@@ -8,7 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   Alert,
   Linking,
@@ -29,14 +29,15 @@ import { useActiveRequest } from '@/features/tracking/hooks/useActiveRequest';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { cancellationPolicyMessage } from '@/lib/cancellation';
-import { getPin } from '@/features/pin/lib/pinStorage';
+import { getPin, savePin } from '@/features/pin/lib/pinStorage';
 import { friendlyError } from '@/lib/errorMessages';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, MessageCircle, MapPin, Maximize2, Truck, X, Clock, DollarSign, Phone, Copy, CheckCircle2 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
+import { formatDate as formatAppDate } from '@/lib/dates';
 import { colors, typography, spacing, radii } from '@/theme';
 
 // Conditionally import react-native-maps (native only)
@@ -94,11 +95,12 @@ type ActiveRequest = {
   route_polyline: string | null;
 };
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const MAP_HEIGHT = Math.round(SCREEN_HEIGHT * 0.4);
 const EDGE_PADDING = { top: 60, right: 60, bottom: 60, left: 60 };
 
 export default function UserHome() {
+  // Derived per render so the map resizes on rotation and on foldables.
+  const { height: screenHeight } = useWindowDimensions();
+  const mapHeight = Math.round(screenHeight * 0.4);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
@@ -145,6 +147,11 @@ export default function UserHome() {
   // pueda dictarselo al operador cuando llegue.
   const [activePin, setActivePin] = useState<string | null>(null);
   const [pinCopied, setPinCopied] = useState(false);
+  // El PIN solo vive en este teléfono: si no está (reinstaló la app, cambió de
+  // teléfono), el Usuario genera uno nuevo (migr. 00120). `pinLoadedFor` evita
+  // mostrar "no encontramos tu PIN" mientras SecureStore todavía responde.
+  const [pinLoadedFor, setPinLoadedFor] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const requestId = activeRequest?.id ?? null;
   const requestStatus = activeRequest?.status ?? null;
   const showPin = requestStatus !== null &&
@@ -156,12 +163,40 @@ export default function UserHome() {
     if (requestId && showPin) {
       getPin(requestId)
         .then((pin) => { if (!cancelled) setActivePin(pin); })
-        .catch(() => { if (!cancelled) setActivePin(null); });
+        .catch(() => { if (!cancelled) setActivePin(null); })
+        .finally(() => { if (!cancelled) setPinLoadedFor(requestId); });
     } else {
       setActivePin(null);
     }
     return () => { cancelled = true; };
   }, [requestId, showPin]);
+
+  const regeneratePin = () => {
+    if (!requestId) return;
+    Alert.alert(
+      'Generar un PIN de confirmación nuevo',
+      'El PIN anterior dejará de servir. Le avisaremos al socio operador que cambió.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Generar',
+          onPress: async () => {
+            setRegenerating(true);
+            const { data, error } = await supabase.rpc('regenerate_my_request_pin', { p_request_id: requestId });
+            setRegenerating(false);
+            if (error) {
+              toast.error(friendlyError(error, 'Intenta de nuevo en un momento.'), 'No se pudo generar');
+              return;
+            }
+            const pin = (data as { pin?: string } | null)?.pin;
+            if (!pin) return;
+            await savePin(requestId, pin).catch(() => {});
+            setActivePin(pin);
+          },
+        },
+      ]
+    );
+  };
 
   const copyPin = async (pin: string) => {
     try {
@@ -392,7 +427,7 @@ export default function UserHome() {
     if (activeRequest?.operator_phone) {
       Linking.openURL(`tel:${activeRequest.operator_phone}`);
     } else {
-      Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
+      toast.info('El socio operador no tiene un teléfono registrado.', 'Sin teléfono');
     }
   };
 
@@ -404,7 +439,7 @@ export default function UserHome() {
       [
         { text: 'No', style: 'cancel' },
         {
-          text: 'Si, cancelar',
+          text: 'Sí, cancelar',
           style: 'destructive',
           onPress: async () => {
             setCancelling(true);
@@ -414,7 +449,7 @@ export default function UserHome() {
             });
             setCancelling(false);
             if (error || (data && !data.success)) {
-              Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
+              toast.error(friendlyError(error, 'No se pudo cancelar la solicitud.'));
               return;
             }
             await fetchActiveRequest();
@@ -449,7 +484,7 @@ export default function UserHome() {
     return (
       <MapView
         ref={mapRef}
-        style={fullscreen ? styles.mapFullscreen : { width: '100%', height: MAP_HEIGHT }}
+        style={fullscreen ? styles.mapFullscreen : { width: '100%', height: mapHeight }}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         mapType={USE_OSM ? 'none' : 'standard'}
         initialRegion={{
@@ -496,8 +531,8 @@ export default function UserHome() {
         {showOperatorMarker && operatorCoordinate && (
           <OperatorMarkerComponent
             coordinate={operatorCoordinate}
-            title="Tu grua"
-            description={activeRequest.operator_name || 'Operador'}
+            title="Tu grúa"
+            description={activeRequest.operator_name || 'Socio operador'}
             anchor={{ x: 0.5, y: 0.5 }}
             flat={true}
             rotation={operatorHeading}
@@ -562,7 +597,7 @@ export default function UserHome() {
         </View>
         <Text style={styles.greeting}>Hola{userName ? `, ${userName}` : ''}</Text>
         <Text style={styles.subtitle}>
-          {activeRequest ? 'Tienes una solicitud activa' : 'Necesitas ayuda?'}
+          {activeRequest ? 'Tienes una solicitud activa' : '¿Necesitas ayuda?'}
         </Text>
       </View>
 
@@ -577,7 +612,7 @@ export default function UserHome() {
               <Clock size={18} color={colors.warning.dark} />
               <Text style={styles.delayText}>
                 La búsqueda esta tardando mas de lo normal. Seguimos buscando un
-                operador disponible; puedes cancelar sin costo si lo prefieres.
+                socio operador disponible; puedes cancelar sin costo si lo prefieres.
               </Text>
             </View>
           )}
@@ -585,7 +620,7 @@ export default function UserHome() {
           {/* PIN de activacion - visible hasta que el operador lo verifique */}
           {showPin && activePin && (
             <View style={styles.pinCard}>
-              <Text style={styles.pinLabel}>PIN para el operador</Text>
+              <Text style={styles.pinLabel}>PIN de confirmación para el socio</Text>
               <Text style={styles.pinValue}>{activePin}</Text>
               <Pressable
                 style={styles.pinCopyBtn}
@@ -603,8 +638,20 @@ export default function UserHome() {
                 </Text>
               </Pressable>
               <Text style={styles.pinHint}>
-                Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+                Muéstrale este PIN al socio operador cuando llegue para iniciar el servicio.
               </Text>
+            </View>
+          )}
+
+          {showPin && !activePin && pinLoadedFor === requestId && (
+            <View style={styles.pinCard}>
+              <Text style={styles.pinLabel}>¿Perdiste el PIN de confirmación?</Text>
+              <Text style={styles.pinHint}>
+                No lo encontramos en este teléfono. Genera uno nuevo para dárselo al socio operador cuando llegue.
+              </Text>
+              <View style={{ marginTop: spacing.m, alignSelf: 'stretch' }}>
+                <Button title="Generar PIN nuevo" onPress={regeneratePin} loading={regenerating} size="medium" />
+              </View>
             </View>
           )}
 
@@ -627,7 +674,7 @@ export default function UserHome() {
           {/* Live Map Tracking - PROMINENT, outside Card (Native only) */}
           {(showTracking || isDemoMode) && MapView && Marker && (
             <View style={styles.mapSection}>
-              <View style={styles.mapContainer}>
+              <View style={[styles.mapContainer, { height: mapHeight }]}>
                 {renderMapContent(false)}
 
                 {/* Expand button */}
@@ -652,7 +699,7 @@ export default function UserHome() {
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicación del operador...
+                    Esperando ubicación del socio...
                   </Text>
                 </View>
               )}
@@ -671,7 +718,7 @@ export default function UserHome() {
                   ) : !operatorLocation || !operatorLocation.is_online ? (
                     <View style={styles.etaLoading}>
                       <ActivityIndicator size="small" color={colors.primary[400]} />
-                      <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
+                      <Text style={styles.etaLoadingText}>Obteniendo ubicación del socio...</Text>
                     </View>
                   ) : etaLoading ? (
                     <View style={styles.etaLoading}>
@@ -749,7 +796,7 @@ export default function UserHome() {
                   ) : (
                     <View style={styles.trackingInfoOffline}>
                       <Text style={styles.trackingTextOffline}>
-                        Esperando ubicación del operador...
+                        Esperando ubicación del socio...
                       </Text>
                     </View>
                   )}
@@ -778,14 +825,14 @@ export default function UserHome() {
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
-                    Operador en linea
+                    Socio en línea
                     {lastUpdated && ` • Actualizado hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.trackingInfoOffline}>
                   <Text style={styles.trackingTextOffline}>
-                    Esperando ubicación del operador...
+                    Esperando ubicación del socio...
                   </Text>
                 </View>
               )}
@@ -805,7 +852,7 @@ export default function UserHome() {
               {!operatorLocation || !operatorLocation.is_online ? (
                 <View style={styles.etaLoading}>
                   <ActivityIndicator size="small" color={colors.primary[400]} />
-                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del operador...</Text>
+                  <Text style={styles.etaLoadingText}>Obteniendo ubicación del socio...</Text>
                 </View>
               ) : eta ? (
                 <>
@@ -835,7 +882,7 @@ export default function UserHome() {
                       <>
                         <SvcIcon size={16} color={cfg?.color || colors.primary[500]} strokeWidth={2} />
                         <Text style={styles.detailValue}>
-                          {cfg?.name || 'Grua'}{isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
+                          {cfg?.name || 'Grúa'}{isTow ? ` - ${activeRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
                         </Text>
                       </>
                     );
@@ -867,7 +914,7 @@ export default function UserHome() {
 
               {activeRequest.operator_name && (
                 <View style={styles.operatorSection}>
-                  <Text style={styles.operatorLabel}>Operador Asignado</Text>
+                  <Text style={styles.operatorLabel}>Socio operador asignado</Text>
                   <Text style={styles.operatorName}>{activeRequest.operator_name}</Text>
                   {activeRequest.provider_name && (
                     <Text style={styles.providerName}>{activeRequest.provider_name}</Text>
@@ -981,13 +1028,10 @@ export default function UserHome() {
                 >
                   <View style={styles.pendingRatingInfo}>
                     <Text style={styles.pendingRatingOperator}>
-                      {item.operatorName || 'Operador'}
+                      {item.operatorName || 'Socio operador'}
                     </Text>
                     <Text style={styles.pendingRatingDate}>
-                      {new Date(item.completedAt).toLocaleDateString('es-ES', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
+                      {formatAppDate(item.completedAt, { day: 'numeric', month: 'short' })}
                     </Text>
                   </View>
                   <View style={styles.pendingRatingStars}>
@@ -1217,7 +1261,7 @@ const styles = StyleSheet.create({
 
   // Map
   mapContainer: {
-    height: MAP_HEIGHT,
+    // height is applied inline from useWindowDimensions
     backgroundColor: colors.border.light,
   },
   mapFullscreen: {

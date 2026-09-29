@@ -13,9 +13,12 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogOut, Pencil, AlertCircle, HelpCircle, Car } from 'lucide-react-native';
+import Constants from 'expo-constants';
+import { DeleteAccountRow } from '@/features/account/components/DeleteAccountRow';
 import { supabase } from '@/lib/supabase';
 import { openSupportMenu } from '@/lib/support';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, Input, LoadingSpinner, ToastHost, toast } from '@/shared/components/ui';
+import { formatDate as formatAppDate } from '@/lib/dates';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
@@ -102,12 +105,12 @@ export default function Profile() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Cerrar Sesion',
-      'Estas seguro que deseas cerrar sesion?',
+      'Cerrar sesión',
+      '¿Estás seguro de que deseas cerrar sesión?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Cerrar Sesion',
+          text: 'Cerrar sesión',
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
@@ -128,18 +131,18 @@ export default function Profile() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert('Error', 'El nombre es requerido');
+      toast.error('El nombre es obligatorio.');
       return;
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Error', 'El teléfono es requerido');
+      toast.error('El teléfono es obligatorio.');
       return;
     }
 
     // Teléfono de El Salvador: 8 dígitos, opcionalmente con código +503.
     if (!/^(\+?503)?\d{8}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
-      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido de 8 dígitos.');
+      toast.error('Ingresa un teléfono válido de 8 dígitos.', 'Teléfono inválido');
       return;
     }
 
@@ -156,7 +159,7 @@ export default function Profile() {
 
       if (error) {
         console.error('Error updating profile:', error);
-        Alert.alert('Error', 'No se pudo actualizar el perfil');
+        toast.error('No se pudo actualizar el perfil.');
         setSaving(false);
         return;
       }
@@ -173,28 +176,22 @@ export default function Profile() {
       );
 
       setEditModalVisible(false);
-      Alert.alert('Exito', 'Perfil actualizado correctamente');
+      toast.success('Perfil actualizado correctamente.');
     } catch (err) {
       console.error('Error:', err);
-      Alert.alert('Error', 'Error de conexión');
+      toast.error('Error de conexión. Intenta de nuevo.');
     }
 
     setSaving(false);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateString: string) =>
+    formatAppDate(dateString, { day: '2-digit', month: 'long', year: 'numeric' });
 
   const getRoleLabel = (role: string) => {
     const roleLabels: Record<string, string> = {
       USER: 'Usuario',
-      OPERATOR: 'Operador',
+      OPERATOR: 'Socio operador',
       ADMIN: 'Administrador',
     };
     return roleLabels[role] || role;
@@ -219,7 +216,7 @@ export default function Profile() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Perfil no encontrado</Text>
-        <Button title="Cerrar Sesion" onPress={handleLogout} size="medium" />
+        <Button title="Cerrar sesión" onPress={handleLogout} size="medium" />
       </View>
     );
   }
@@ -263,7 +260,7 @@ export default function Profile() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Correo Electronico</Text>
+          <Text style={styles.infoLabel}>Correo electrónico</Text>
           <Text style={styles.infoValue}>{profile.email}</Text>
         </View>
 
@@ -302,15 +299,18 @@ export default function Profile() {
           <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={handleLogout}>
             <LogOut size={18} color={colors.error.main} />
-            <Text style={styles.logoutText}>Cerrar Sesion</Text>
+            <Text style={styles.logoutText}>Cerrar sesión</Text>
           </Pressable>
+          <View style={styles.actionDivider} />
+          {/* Apple y Google exigen poder borrar la cuenta desde la app (migr. 00101). */}
+          <DeleteAccountRow />
         </Card>
       </View>
 
       {/* App Info */}
       <View style={styles.appInfo}>
         <BudiLogo variant="wordmark" height={20} color={colors.text.tertiary} />
-        <Text style={styles.appVersion}>Version 1.0.0</Text>
+        <Text style={styles.appVersion}>Versión {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
 
       {/* Edit Modal */}
@@ -354,16 +354,18 @@ export default function Profile() {
 
             <Input
               label="Teléfono"
-              placeholder="Tu numero de teléfono"
+              placeholder="Tu número de teléfono"
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
             />
 
             <Text style={styles.inputHint}>
-              El correo electronico no puede ser modificado.
+              El correo electrónico no se puede modificar.
             </Text>
           </View>
+          {/* Los toasts se pintan sobre el Modal nativo, no detrás. */}
+          <ToastHost />
         </View>
       </Modal>
     </ScrollView>

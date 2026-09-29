@@ -71,8 +71,8 @@ export default function OperatorLayout() {
       <Tabs.Screen
         name="ratings"
         options={{
-          title: 'Mis Resenas',
-          tabBarLabel: 'Resenas',
+          title: 'Mis reseñas',
+          tabBarLabel: 'Reseñas',
           tabBarIcon: ({ color, size }) => (
             <Star size={size} color={color} strokeWidth={2} />
           ),
@@ -90,6 +90,8 @@ export default function OperatorLayout() {
       />
       {/* Ruta accesible desde el perfil, oculta del tab bar */}
       <Tabs.Screen name="verification" options={{ href: null }} />
+      {/* LAN-08 (00125): pagos recibidos, desde el historial. */}
+      <Tabs.Screen name="payments" options={{ href: null }} />
     </Tabs>
   );
 }

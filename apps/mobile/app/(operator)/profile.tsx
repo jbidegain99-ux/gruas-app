@@ -12,10 +12,13 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ChevronRight } from 'lucide-react-native';
+import { LogOut, Pencil, AlertCircle, HelpCircle, ShieldCheck, Clock, ShieldX, ShieldAlert, ClipboardList, ChevronRight } from 'lucide-react-native';
+import Constants from 'expo-constants';
+import { DeleteAccountRow } from '@/features/account/components/DeleteAccountRow';
 import { supabase } from '@/lib/supabase';
 import { openSupportMenu } from '@/lib/support';
-import { BudiLogo, Button, Card, Input, LoadingSpinner } from '@/shared/components/ui';
+import { partnerStateFromProfile } from '@/lib/partnerApplication';
+import { BudiLogo, Button, Card, Input, LoadingSpinner, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type Profile = {
@@ -27,6 +30,7 @@ type Profile = {
   created_at: string;
   provider_name: string | null;
   verification_status: string;
+  verification_submitted_at: string | null;
 };
 
 type Stats = {
@@ -69,7 +73,7 @@ export default function OperatorProfile() {
       const { data, error: profileError } = await supabase
         .from('profiles')
         .select(`
-          id, full_name, phone, role, created_at, verification_status,
+          id, full_name, phone, role, created_at, verification_status, verification_submitted_at,
           providers (name)
         `)
         .eq('id', user.id)
@@ -91,6 +95,7 @@ export default function OperatorProfile() {
         created_at: data.created_at,
         provider_name: (data.providers as unknown as { name: string } | null)?.name || null,
         verification_status: data.verification_status || 'pending',
+        verification_submitted_at: data.verification_submitted_at ?? null,
       });
 
       // Fetch operator stats
@@ -137,12 +142,12 @@ export default function OperatorProfile() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Cerrar Sesion',
+      'Cerrar sesión',
       'Estas seguro que deseas cerrar sesion?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Cerrar Sesion',
+          text: 'Cerrar sesión',
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
@@ -163,18 +168,18 @@ export default function OperatorProfile() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert('Error', 'El nombre es requerido');
+      toast.error('Escribe tu nombre.');
       return;
     }
 
     if (!editPhone.trim()) {
-      Alert.alert('Error', 'El teléfono es requerido');
+      toast.error('Escribe tu teléfono.');
       return;
     }
 
     // Teléfono de El Salvador: 8 dígitos, opcionalmente con código +503.
     if (!/^(\+?503)?\d{8}$/.test(editPhone.replace(/[\s\-()]/g, ''))) {
-      Alert.alert('Teléfono inválido', 'Ingresa un teléfono válido de 8 dígitos.');
+      toast.error('Ingresa un teléfono válido de 8 dígitos.', 'Teléfono inválido');
       return;
     }
 
@@ -191,7 +196,7 @@ export default function OperatorProfile() {
 
       if (error) {
         console.error('Error updating profile:', error);
-        Alert.alert('Error', 'No se pudo actualizar el perfil');
+        toast.error('No se pudo actualizar el perfil. Intenta de nuevo.');
         setSaving(false);
         return;
       }
@@ -207,10 +212,10 @@ export default function OperatorProfile() {
       );
 
       setEditModalVisible(false);
-      Alert.alert('Exito', 'Perfil actualizado correctamente');
+      toast.success('Perfil actualizado.');
     } catch (err) {
       console.error('Error:', err);
-      Alert.alert('Error', 'Error de conexión');
+      toast.error('Revisa tu conexión e intenta de nuevo.', 'Sin conexión');
     }
 
     setSaving(false);
@@ -244,7 +249,7 @@ export default function OperatorProfile() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Perfil no encontrado</Text>
-        <Button title="Cerrar Sesion" onPress={handleLogout} size="medium" />
+        <Button title="Cerrar sesión" onPress={handleLogout} size="medium" />
       </View>
     );
   }
@@ -274,7 +279,7 @@ export default function OperatorProfile() {
         </View>
         <Text style={styles.userName}>{profile.full_name}</Text>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>Operador</Text>
+          <Text style={styles.roleText}>Socio</Text>
         </View>
         {profile.provider_name && (
           <Text style={styles.providerName}>{profile.provider_name}</Text>
@@ -299,17 +304,17 @@ export default function OperatorProfile() {
 
       {/* Estado de verificación */}
       {(() => {
-        const vs = profile.verification_status;
-        const config = vs === 'approved'
-          ? { Icon: ShieldCheck, color: colors.success.main, bg: colors.success.light, title: 'Cuenta verificada', text: 'Tu cuenta está aprobada. Puedes recibir solicitudes cuando estés en línea.' }
-          : vs === 'rejected'
-          ? { Icon: ShieldX, color: colors.error.main, bg: colors.error.light, title: 'Verificación rechazada', text: 'Tu cuenta no fue aprobada. Contacta a soporte para más información.' }
-          : { Icon: Clock, color: colors.warning.dark, bg: colors.warning.light, title: 'Cuenta en revisión', text: 'Un administrador debe aprobar tu cuenta antes de que puedas recibir solicitudes. Te avisaremos cuando esté lista.' };
-        const cta = vs === 'approved'
-          ? 'Ver documentos'
-          : vs === 'rejected'
-          ? 'Corregir documentos'
-          : 'Subir documentos';
+        // Estado del registro de socio. Rechazado y suspendido llevan al registro
+        // para corregir (ahí se ve el motivo), no a soporte.
+        const state = partnerStateFromProfile(profile.verification_status, profile.verification_submitted_at);
+        const config = {
+          approved: { Icon: ShieldCheck, color: colors.success.main, bg: colors.success.light, title: 'Cuenta verificada', text: 'Tu cuenta está aprobada. Puedes recibir solicitudes cuando estés en línea.', cta: 'Ver mi registro' },
+          in_review: { Icon: Clock, color: colors.warning.dark, bg: colors.warning.light, title: 'Registro en revisión', text: 'Un administrador está revisando tu registro. Te avisaremos cuando esté aprobado.', cta: 'Ver mi registro' },
+          rejected: { Icon: ShieldX, color: colors.error.main, bg: colors.error.light, title: 'Registro rechazado', text: 'Revisa el motivo, corrige lo que se indica y vuelve a enviarlo.', cta: 'Corregir mi registro' },
+          suspended: { Icon: ShieldAlert, color: colors.error.main, bg: colors.error.light, title: 'Cuenta suspendida', text: 'No recibes solicitudes por ahora. Revisa el motivo y actualiza tus documentos para reactivarla.', cta: 'Corregir mi registro' },
+          draft: { Icon: ClipboardList, color: colors.warning.dark, bg: colors.warning.light, title: 'Completa tu registro', text: 'Llena tus datos, tu unidad y tus documentos para poder recibir solicitudes.', cta: 'Continuar mi registro' },
+        }[state];
+        const cta = config.cta;
         return (
           <Pressable
             style={[styles.verifCard, { backgroundColor: config.bg, borderColor: config.color }]}
@@ -355,7 +360,7 @@ export default function OperatorProfile() {
         )}
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Operador desde</Text>
+          <Text style={styles.infoLabel}>Socio desde</Text>
           <Text style={styles.infoValue}>{formatDate(profile.created_at)}</Text>
         </View>
 
@@ -379,15 +384,18 @@ export default function OperatorProfile() {
           <View style={styles.actionDivider} />
           <Pressable style={styles.actionRow} onPress={handleLogout}>
             <LogOut size={18} color={colors.error.main} />
-            <Text style={styles.logoutText}>Cerrar Sesion</Text>
+            <Text style={styles.logoutText}>Cerrar sesión</Text>
           </Pressable>
+          <View style={styles.actionDivider} />
+          {/* Apple y Google exigen poder borrar la cuenta desde la app (migr. 00101). */}
+          <DeleteAccountRow />
         </Card>
       </View>
 
       {/* App Info */}
       <View style={styles.appInfo}>
         <BudiLogo variant="wordmark" height={20} color={colors.text.tertiary} />
-        <Text style={styles.appVersion}>Version 1.0.0</Text>
+        <Text style={styles.appVersion}>Versión {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
 
       {/* Edit Modal */}

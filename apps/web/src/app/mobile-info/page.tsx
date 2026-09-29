@@ -6,8 +6,7 @@ import { Truck, User } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { LogoutButton } from '@/shared/components/LogoutButton';
 import { BudiLogo } from '@/shared/components/BudiLogo';
-
-type UserRole = 'USER' | 'OPERATOR' | 'ADMIN' | 'INSURER';
+import type { UserRole } from '@gruas-app/shared';
 
 export default function MobileInfoPage() {
   const [profile, setProfile] = useState<{ full_name: string | null; role: UserRole } | null>(null);
@@ -41,8 +40,8 @@ export default function MobileInfoPage() {
   }
 
   const roleInfo = profile?.role === 'OPERATOR' ? {
-    title: 'Operador',
-    description: 'Como operador, puedes recibir y aceptar solicitudes de servicio desde la aplicacion movil.',
+    title: 'Socio operador',
+    description: 'Como socio operador, puedes recibir y aceptar solicitudes de servicio desde la aplicacion movil.',
     icon: <Truck className="h-16 w-16" />,
   } : {
     title: 'Usuario',

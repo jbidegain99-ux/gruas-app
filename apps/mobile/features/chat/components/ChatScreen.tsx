@@ -9,12 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { formatTime as formatAppTime } from '@/lib/dates';
+import { toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 interface Message {
@@ -169,26 +170,20 @@ export function ChatScreen({
       if (error) {
         console.error('Error sending message:', error);
         setNewMessage(trimmedMessage); // Restore message on error
-        Alert.alert('No se pudo enviar', 'Revisa tu conexión e intenta de nuevo.');
+        toast.error('Revisa tu conexión e intenta de nuevo.', 'No se pudo enviar');
       } else {
         logger.log('Message sent successfully');
       }
     } catch (err) {
       console.error('Send message exception:', err);
       setNewMessage(trimmedMessage);
-      Alert.alert('No se pudo enviar', 'Revisa tu conexión e intenta de nuevo.');
+      toast.error('Revisa tu conexión e intenta de nuevo.', 'No se pudo enviar');
     } finally {
       setSending(false);
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const formatTime = (dateString: string) => formatAppTime(dateString);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isOwnMessage = item.sender_id === currentUserId;

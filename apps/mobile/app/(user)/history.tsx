@@ -8,7 +8,6 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
-  Alert,
   Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock, MapPin, MessageCircle, XCircle, CirclePlus, Truck, Phone } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
+import { MoptBreakdown } from '@/features/coverage/components/MoptProgramBanner';
 import { ChatScreen } from '@/features/chat/components/ChatScreen';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
@@ -25,7 +25,8 @@ import { friendlyError } from '@/lib/errorMessages';
 import { getAllPins } from '@/features/pin/lib/pinStorage';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState, ToastHost, toast } from '@/shared/components/ui';
+import { formatDateTime } from '@/lib/dates';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -57,6 +58,8 @@ type ServiceRequest = {
   // contradecia el desglose que se le mostro antes de confirmar: un servicio
   // con copago $0 aparecia como "$60.00".
   coverage_status: string | null;
+  /** 00098: lo pago un programa del MOPT; la persona no pago nada. */
+  paid_by_mopt: boolean;
   amount_covered: number | null;
   amount_copay: number | null;
 };
@@ -80,6 +83,9 @@ const money = (n: number) => `$${n.toFixed(2)}`;
  */
 function precioAPagar(req: ServiceRequest): { valor: number; cubierto: boolean } | null {
   if (req.status !== 'completed') return null;
+  // Lo pago el MOPT: no hay consumo de poliza, pero la persona no pago nada.
+  // Sin esto caia al bruto y contradecia el "A pagar $0.00" del resumen.
+  if (req.paid_by_mopt) return { valor: 0, cubierto: true };
   if (req.amount_copay != null) return { valor: req.amount_copay, cubierto: true };
   if (req.total_price != null) return { valor: req.total_price, cubierto: false };
   return null;
@@ -149,6 +155,7 @@ export default function History() {
         dropoff_lng,
         total_price,
         coverage_status,
+        mopt_provider_id,
         created_at,
         completed_at,
         cancelled_at,
@@ -219,6 +226,7 @@ export default function History() {
         operator_name: (req.operator as unknown as { full_name: string; phone: string } | null)?.full_name || null,
         operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
+        paid_by_mopt: req.mopt_provider_id != null,
         pin: savedPins[req.id] || null,
         service_type: req.service_type || 'tow',
         coverage_status: (req as Record<string, unknown>).coverage_status as string | null ?? null,
@@ -257,16 +265,14 @@ export default function History() {
     }
   });
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
+  const formatDate = (dateString: string) =>
+    formatDateTime(dateString, {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
 
   const openDetail = (request: ServiceRequest) => {
     setSelectedRequest(request);
@@ -279,7 +285,7 @@ export default function History() {
   const cancelledByLabel = (req: ServiceRequest): string => {
     if (req.cancelled_by && req.cancelled_by === currentUserId) return 'Cancelada por ti';
     if (req.cancelled_by && req.cancelled_by === req.operator_id) {
-      return req.operator_name ? `Cancelada por el operador (${req.operator_name})` : 'Cancelada por el operador';
+      return req.operator_name ? `Cancelada por el socio operador (${req.operator_name})` : 'Cancelada por el socio operador';
     }
     return 'Cancelada por el equipo Budi';
   };
@@ -291,12 +297,12 @@ export default function History() {
 
   const handleCancelRequest = async () => {
     if (!selectedRequest) {
-      Alert.alert('Error', 'No hay solicitud seleccionada');
+      toast.error('No hay una solicitud seleccionada.');
       return;
     }
 
     if (!cancelReason.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un motivo de cancelacion');
+      toast.error('Ingresa un motivo de cancelación.');
       return;
     }
 
@@ -309,22 +315,22 @@ export default function History() {
       });
 
       if (error) {
-        Alert.alert('Error', friendlyError(error, 'No se pudo cancelar la solicitud.'));
+        toast.error(friendlyError(error, 'No se pudo cancelar la solicitud.'));
         return;
       }
 
       if (data && !data.success) {
-        Alert.alert('Error', data.error || 'No se pudo cancelar la solicitud');
+        toast.error(data.error || 'No se pudo cancelar la solicitud.');
         return;
       }
 
-      Alert.alert('Solicitud Cancelada', 'Tu solicitud ha sido cancelada exitosamente');
+      toast.success('Tu solicitud fue cancelada.', 'Solicitud cancelada');
       setCancelModalVisible(false);
       setDetailModalVisible(false);
       setSelectedRequest(null);
       await fetchRequests();
     } catch (err: unknown) {
-      Alert.alert('Error', friendlyError(err as { message?: string }, 'No se pudo cancelar la solicitud. Intenta de nuevo.'));
+      toast.error(friendlyError(err as { message?: string }, 'No se pudo cancelar la solicitud. Intenta de nuevo.'));
     } finally {
       setCancelling(false);
     }
@@ -373,7 +379,7 @@ export default function History() {
               return <SvcIcon size={14} color={cfg?.color || colors.primary[500]} strokeWidth={2} />;
             })()}
             <Text style={styles.towType}>
-              {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
+              {`${cfg?.name || 'Grúa'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
             </Text>
           </View>
           {(() => {
@@ -405,9 +411,10 @@ export default function History() {
             <ChatScreen
               requestId={selectedRequest.id}
               currentUserId={currentUserId}
-              otherUserName={selectedRequest.operator_name || 'Operador'}
+              otherUserName={selectedRequest.operator_name || 'Socio operador'}
               onClose={() => setChatModalVisible(false)}
             />
+            <ToastHost />
           </View>
         </Modal>
       );
@@ -468,7 +475,7 @@ export default function History() {
                     <>
                       <SvcIcon size={16} color={cfg?.color || colors.primary[500]} strokeWidth={2} />
                       <Text style={styles.detailValue}>
-                        {cfg?.name || 'Grua'}{isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
+                        {cfg?.name || 'Grúa'}{isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
                       </Text>
                     </>
                   );
@@ -524,7 +531,7 @@ export default function History() {
 
             {selectedRequest.operator_name && (
               <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>Operador</Text>
+                <Text style={styles.detailLabel}>Socio operador</Text>
                 <Text style={styles.detailValue}>{selectedRequest.operator_name}</Text>
                 {selectedRequest.provider_name && (
                   <Text style={styles.detailSubvalue}>
@@ -537,14 +544,14 @@ export default function History() {
             {/* Show PIN for active requests */}
             {selectedRequest.pin && ['initiated', 'assigned', 'en_route', 'active'].includes(selectedRequest.status) && (
               <View style={styles.pinSection}>
-                <Text style={styles.pinLabel}>PIN para el operador</Text>
+                <Text style={styles.pinLabel}>PIN de confirmación para el socio</Text>
                 <PINInput
                   value={selectedRequest.pin}
                   onChangeText={() => {}}
                   displayOnly
                 />
                 <Text style={styles.pinNote}>
-                  Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+                  Muéstrale este PIN al socio operador cuando llegue para iniciar el servicio.
                 </Text>
               </View>
             )}
@@ -561,6 +568,17 @@ export default function History() {
                   <Text style={styles.priceSectionValue}>
                     {sinCosto ? 'Sin costo' : money(pago.valor)}
                   </Text>
+                  {selectedRequest.paid_by_mopt && (
+                    <>
+                      <Text style={styles.coverageLabel}>
+                        Lo cubrió el programa de asistencia vial del MOPT.
+                      </Text>
+                      {/* VID-02: el mismo desglose que vio antes de confirmar. */}
+                      {selectedRequest.total_price != null && selectedRequest.total_price > 0 && (
+                        <MoptBreakdown price={selectedRequest.total_price} />
+                      )}
+                    </>
+                  )}
                   {/* El desglose solo cuando el seguro puso algo: repite el mismo
                       reparto que se le mostro antes de confirmar (B-13). Si el
                       servicio estaba excluido del plan, `amount_covered` es 0 y
@@ -636,7 +654,7 @@ export default function History() {
                       if (selectedRequest.operator_phone) {
                         Linking.openURL(`tel:${selectedRequest.operator_phone}`);
                       } else {
-                        Alert.alert('Sin teléfono', 'El operador no tiene un teléfono registrado.');
+                        toast.info('El socio operador no tiene un teléfono registrado.', 'Sin teléfono');
                       }
                     }}
                     variant="secondary"
@@ -662,6 +680,8 @@ export default function History() {
 
             <View style={styles.modalBottomSpacer} />
           </ScrollView>
+          {/* Los toasts se pintan sobre el Modal nativo, no detrás. */}
+          <ToastHost />
         </View>
       </Modal>
     );
@@ -679,11 +699,11 @@ export default function History() {
           <Text style={styles.cancelModalTitle}>Cancelar Solicitud</Text>
           {selectedRequest && isLateCancellation(selectedRequest.status) && (
             <Text style={styles.cancelModalWarning}>
-              El operador ya fue despachado. Cancelar ahora puede generar un cargo por el desplazamiento.
+              El socio operador ya fue despachado. Cancelar ahora puede generar un cargo por el desplazamiento.
             </Text>
           )}
           <Text style={styles.cancelModalSubtitle}>
-            Por favor indica el motivo de la cancelacion
+            Indica el motivo de la cancelación
           </Text>
 
           <Input
@@ -716,6 +736,7 @@ export default function History() {
             </View>
           </View>
         </View>
+        <ToastHost />
       </View>
     </Modal>
   );
@@ -783,8 +804,8 @@ export default function History() {
           </Text>
           <Text style={styles.emptyText}>
             {filter === 'all'
-              ? 'Aun no has realizado ninguna solicitud de servicio.'
-              : 'No hay solicitudes en esta categoria.'}
+              ? 'Aún no has realizado ninguna solicitud de servicio.'
+              : 'No hay solicitudes en esta categoría.'}
           </Text>
           {filter === 'all' && (
             <View style={styles.emptyCta}>

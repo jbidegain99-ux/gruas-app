@@ -5,7 +5,7 @@
 //
 // Uso:
 //   const { error } = await supabase.auth.signInWithPassword(...);
-//   if (error) Alert.alert('Error', friendlyError(error));
+//   if (error) toast.error(friendlyError(error));
 
 interface MaybeError {
   message?: string;

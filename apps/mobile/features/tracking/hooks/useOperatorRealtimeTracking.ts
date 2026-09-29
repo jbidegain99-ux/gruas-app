@@ -56,7 +56,7 @@ export function useOperatorRealtimeTracking(
           setError(null);
         } else {
           console.error('Error fetching operator location:', fetchError);
-          setError('No se pudo obtener la ubicación del operador');
+          setError('No se pudo obtener la ubicación del socio operador');
         }
       } else if (data) {
         setLocation({

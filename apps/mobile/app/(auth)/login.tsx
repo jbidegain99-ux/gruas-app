@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
@@ -13,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
 import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
-import { BudiLogo, Button, Input } from '@/shared/components/ui';
+import { BudiLogo, Button, Input, toast } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Login() {
@@ -24,7 +23,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor ingresa email y contraseña');
+      toast.error('Ingresa tu email y contraseña.');
       return;
     }
 
@@ -37,7 +36,7 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Error', friendlyError(error, 'No se pudo iniciar sesión.'));
+      toast.error(friendlyError(error, 'No se pudo iniciar sesión.'));
       return;
     }
 
@@ -58,9 +57,9 @@ export default function Login() {
         router.replace(destino);
       } else {
         await supabase.auth.signOut();
-        Alert.alert(
-          'Esta cuenta se usa desde la web',
-          'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.'
+        toast.info(
+          'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.',
+          'Esta cuenta se usa desde la web'
         );
       }
     }
@@ -68,20 +67,20 @@ export default function Login() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      Alert.alert(
-        'Recuperar contraseña',
-        'Escribe tu email arriba y vuelve a tocar "¿Olvidaste tu contraseña?".'
+      toast.info(
+        'Escribe tu email arriba y vuelve a tocar "¿Olvidaste tu contraseña?".',
+        'Recuperar contraseña'
       );
       return;
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) {
-      Alert.alert('Error', friendlyError(error, 'No se pudo enviar el enlace de recuperación.'));
+      toast.error(friendlyError(error, 'No se pudo enviar el enlace de recuperación.'));
       return;
     }
-    Alert.alert(
-      'Revisa tu correo',
-      `Si existe una cuenta con ${email}, te enviamos un enlace para restablecer tu contraseña.`
+    toast.success(
+      `Si existe una cuenta con ${email}, te enviamos un enlace para restablecer tu contraseña.`,
+      'Revisa tu correo'
     );
   };
 

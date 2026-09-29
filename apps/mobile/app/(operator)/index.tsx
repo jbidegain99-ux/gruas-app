@@ -14,16 +14,20 @@ import { useRouter, useFocusEffect, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { MapPin, Zap, ClipboardList, Truck, Navigation, Clock, PowerOff, Wallet } from 'lucide-react-native';
+import { MapPin, Zap, ClipboardList, Truck, Navigation, Clock, PowerOff, Wallet, ShieldX, ShieldAlert } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
+import { usePayerInfo } from '@/features/coverage/hooks/usePayerInfo';
+import { PayerBadge } from '@/features/coverage/components/PayerBadge';
 import { supabase } from '@/lib/supabase';
+import { partnerStateFromProfile, type PartnerState } from '@/lib/partnerApplication';
 import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
 import { haversineKm, estimateMinutes, formatKm } from '@/lib/distance';
 import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } from '@/lib/earnings';
 import { osrmLegs } from '@/lib/osrm';
 import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, LoadingSpinner, ErrorState } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
+import { formatTime as formatAppTime } from '@/lib/dates';
 import { AddressText } from '@/shared/components/AddressText';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -50,6 +54,7 @@ export default function OperatorRequests() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<AvailableRequest[]>([]);
+  const payerInfo = usePayerInfo(requests.map((r) => r.id));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,6 +67,7 @@ export default function OperatorRequests() {
   const [online, setOnline] = useState(false);
   const [onlineLoaded, setOnlineLoaded] = useState(false);
   const [verified, setVerified] = useState(true); // hasta cargar el perfil, no bloquear
+  const [partnerState, setPartnerState] = useState<PartnerState>('approved');
   const [earnings, setEarnings] = useState<EarningsSummary>(EMPTY_EARNINGS);
 
   // Transmite ubicación cuando el operador está en línea, aprobado y sin
@@ -84,7 +90,7 @@ export default function OperatorRequests() {
     // Get operator profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, provider_id, verification_status')
+      .select('full_name, provider_id, verification_status, verification_submitted_at')
       .eq('id', user.id)
       .single();
 
@@ -92,6 +98,7 @@ export default function OperatorRequests() {
       setOperatorName(profile.full_name.split(' ')[0]);
     }
     setVerified(profile?.verification_status === 'approved');
+    setPartnerState(partnerStateFromProfile(profile?.verification_status, profile?.verification_submitted_at));
 
     // Ganancias de hoy / esta semana (se muestran siempre, incluso con servicio activo)
     setEarnings(await fetchOperatorEarnings());
@@ -107,6 +114,14 @@ export default function OperatorRequests() {
     setHasActiveService((activeServices?.length || 0) > 0);
 
     if ((activeServices?.length || 0) > 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    // Sin aprobar no hay pool que mostrar (la pantalla lleva al registro) y la
+    // RPC lo rechazaría: no se pide.
+    if (profile?.verification_status !== 'approved') {
       setRequests([]);
       setLoading(false);
       return;
@@ -257,8 +272,8 @@ export default function OperatorRequests() {
   ) => {
     const svcConfig = SERVICE_TYPE_CONFIGS[(item.service_type || 'tow') as ServiceType];
     const lines: string[] = [];
-    lines.push(`Servicio: ${svcConfig?.name || 'Grua'}`);
-    if (item.user_name) lines.push(`Cliente: ${item.user_name}`);
+    lines.push(`Servicio: ${svcConfig?.name || 'Grúa'}`);
+    if (item.user_name) lines.push(`Usuario: ${item.user_name}`);
     if (metrics.toPickupKm !== null) lines.push(`Recogida a ${formatKm(metrics.toPickupKm)} de ti`);
     if (metrics.tripKm !== null) lines.push(`Viaje: ${formatKm(metrics.tripKm)}${metrics.tripMin !== null ? ` (~${metrics.tripMin} min)` : ''}`);
 
@@ -280,7 +295,7 @@ export default function OperatorRequests() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      Alert.alert('Error', 'Debes iniciar sesión');
+      toast.error('Debes iniciar sesión.');
       setAcceptingId(null);
       return;
     }
@@ -295,7 +310,7 @@ export default function OperatorRequests() {
     });
 
     if (error) {
-      Alert.alert('Error', 'No se pudo aceptar la solicitud. Puede que ya haya sido tomada.');
+      toast.error('No se pudo aceptar la solicitud. Puede que otro socio ya la haya tomado.');
       setAcceptingId(null);
       await fetchData();
       return;
@@ -308,12 +323,9 @@ export default function OperatorRequests() {
       console.warn('[Route] Failed to save polyline (non-critical):', err)
     );
 
-    Alert.alert('Solicitud Aceptada', 'Has aceptado el servicio. Dirigete al lugar de recogida.', [
-      {
-        text: 'Ver Servicio',
-        onPress: () => router.push('/(operator)/active'),
-      },
-    ]);
+    // El toast vive en la raíz: sigue visible al abrir el servicio activo.
+    toast.success('Dirígete al lugar de recogida.', 'Solicitud aceptada');
+    router.push('/(operator)/active');
 
     setAcceptingId(null);
     await fetchData();
@@ -373,7 +385,7 @@ export default function OperatorRequests() {
     if (diffMinutes < 1) return 'Ahora';
     if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
 
-    return date.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
+    return formatAppTime(date);
   };
 
   const renderRequest = ({ item }: { item: AvailableRequest }) => {
@@ -400,7 +412,7 @@ export default function OperatorRequests() {
               return <SvcIcon size={14} color={svcConfig?.color || colors.accent[500]} strokeWidth={2} />;
             })()}
             <Text style={[styles.towTypeText, { color: svcConfig?.color || colors.accent[500] }]}>
-              {svcConfig?.name || 'Grua'}
+              {svcConfig?.name || 'Grúa'}
               {isTow && ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
             </Text>
           </View>
@@ -473,8 +485,11 @@ export default function OperatorRequests() {
         )}
 
         {item.user_name && (
-          <Text style={styles.userName}>Cliente: {item.user_name}</Text>
+          <Text style={styles.userName}>Usuario: {item.user_name}</Text>
         )}
+
+        {/* LAN-06: antes de aceptar, si no se le cobra al usuario. */}
+        <PayerBadge info={payerInfo[item.id]} />
 
         {/* Vehicle Photo */}
         {item.vehicle_photo_url && (
@@ -548,16 +563,34 @@ export default function OperatorRequests() {
         {earnings.semana.bruto > 0 && (
           <Text style={styles.earningsNote}>
             Facturado esta semana {money(earnings.semana.bruto)} · Budi retiene{' '}
-            {earnings.semana.comisionPct}% ({money(earnings.semana.comision)})
+            {earnings.semana.comisionPct == null
+              ? money(earnings.semana.comision)
+              : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`}
           </Text>
         )}
 
-        {/* Cuenta en revisión: aún no aprobado por un administrador */}
+        {/* Sin aprobar: indicador corto según en qué va el registro de socio */}
         {!hasActiveService && !verified && (
           <View style={[styles.availabilityRow, styles.availabilityOff]}>
-            <View style={[styles.statusDot, { backgroundColor: colors.warning.main }]} />
-            <Text style={[styles.availabilityText, { color: colors.warning.dark }]}>
-              Cuenta en revisión
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.main : colors.warning.main },
+              ]}
+            />
+            <Text
+              style={[
+                styles.availabilityText,
+                { color: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.dark : colors.warning.dark },
+              ]}
+            >
+              {partnerState === 'draft'
+                ? 'Registro incompleto'
+                : partnerState === 'rejected'
+                  ? 'Registro rechazado'
+                  : partnerState === 'suspended'
+                    ? 'Cuenta suspendida'
+                    : 'Registro en revisión'}
             </Text>
           </View>
         )}
@@ -611,26 +644,37 @@ export default function OperatorRequests() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
           }
         >
-          <ClipboardList size={56} color={colors.warning.main} strokeWidth={1.5} />
-          <Text style={styles.emptyTitle}>Verificación pendiente</Text>
-          <Text style={styles.emptyText}>
-            Necesitas verificar tu cuenta antes de recibir solicitudes. Sube tus
-            documentos y un administrador los revisará.
-          </Text>
-          <View style={styles.emptyAction}>
-            <Button
-              title="Completar verificación"
-              onPress={() => router.push('/(operator)/verification' as Href)}
-              size="medium"
-            />
-          </View>
+          {(() => {
+            // Sin aprobar: el texto y el CTA dependen de en qué va el registro.
+            const ui = {
+              draft: { Icon: ClipboardList, color: colors.warning.main, title: 'Completa tu registro', text: 'Para recibir solicitudes, llena tus datos, tu unidad y tus documentos. Tu avance se guarda.', cta: 'Continuar mi registro' },
+              in_review: { Icon: Clock, color: colors.warning.main, title: 'Registro en revisión', text: 'Un administrador está revisando tu registro. Te avisaremos cuando esté aprobado.', cta: 'Ver mi registro' },
+              rejected: { Icon: ShieldX, color: colors.error.main, title: 'Registro rechazado', text: 'Revisa el motivo, corrige lo que se indica y vuelve a enviarlo a revisión.', cta: 'Corregir mi registro' },
+              suspended: { Icon: ShieldAlert, color: colors.error.main, title: 'Cuenta suspendida', text: 'No puedes recibir solicitudes por ahora. Actualiza tus documentos vencidos para reactivar tu cuenta.', cta: 'Corregir mi registro' },
+              approved: { Icon: ClipboardList, color: colors.warning.main, title: 'Registro pendiente', text: 'Revisa tu registro de socio.', cta: 'Ver mi registro' },
+            }[partnerState];
+            return (
+              <>
+                <ui.Icon size={56} color={ui.color} strokeWidth={1.5} />
+                <Text style={styles.emptyTitle}>{ui.title}</Text>
+                <Text style={styles.emptyText}>{ui.text}</Text>
+                <View style={styles.emptyAction}>
+                  <Button
+                    title={ui.cta}
+                    onPress={() => router.push('/(operator)/verification' as Href)}
+                    size="medium"
+                  />
+                </View>
+              </>
+            );
+          })()}
         </ScrollView>
       ) : !online ? (
         <View style={styles.emptyState}>
           <PowerOff size={56} color={colors.text.tertiary} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Fuera de línea</Text>
           <Text style={styles.emptyText}>
-            Ponte en línea para recibir solicitudes y que los clientes vean tu ubicación.
+            Ponte en línea para recibir solicitudes y que los usuarios vean tu ubicación.
           </Text>
         </View>
       ) : loadError ? (

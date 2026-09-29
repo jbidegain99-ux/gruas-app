@@ -6,3 +6,5 @@ export { Card } from './Card';
 export { StatusBadge } from './StatusBadge';
 export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorState } from './ErrorState';
+export { ToastProvider, ToastHost, useToast, toast } from './Toast';
+export type { ToastType, ToastOptions, ToastApi } from './Toast';

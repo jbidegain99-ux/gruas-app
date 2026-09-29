@@ -135,7 +135,7 @@ export default function AdminInsurersPage() {
               Todavía no hay aseguradoras
             </p>
             <p className="mt-1 text-sm text-zinc-500">
-              Agregá la primera para poder crear planes de cobertura y pólizas.
+              Agrega la primera para poder crear planes de cobertura y pólizas.
             </p>
           </div>
         ) : (

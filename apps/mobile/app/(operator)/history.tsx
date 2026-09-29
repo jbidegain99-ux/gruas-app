@@ -9,18 +9,20 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Clock, MapPin, Phone, Truck, CheckCircle2 } from 'lucide-react-native';
+import { Clock, MapPin, Phone, Truck, CheckCircle2, Banknote, ChevronRight } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { supabase } from '@/lib/supabase';
 import {
   money,
   fetchOperatorEarnings,
   fetchOperatorTotal,
+  fetchServiceEarnings,
   EMPTY_EARNINGS,
   type EarningsSummary,
   type Periodo,
+  type LineaServicio,
 } from '@/lib/earnings';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
@@ -61,6 +63,7 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
 
 export default function OperatorHistory() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -73,6 +76,8 @@ export default function OperatorHistory() {
   // resuelve la misma RPC que usa la liquidacion del admin.
   const [earnings, setEarnings] = useState<EarningsSummary>(EMPTY_EARNINGS);
   const [total, setTotal] = useState<Periodo | null>(null);
+  // Neto de cada servicio completado, calculado en la base con su propia tasa.
+  const [lineas, setLineas] = useState<Map<string, LineaServicio>>(new Map());
   // Recorrido real del servicio seleccionado (se carga al abrir el detalle).
   const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
 
@@ -142,6 +147,9 @@ export default function OperatorHistory() {
         service_type: req.service_type || 'tow',
       }));
       setRequests(formatted);
+      fetchServiceEarnings(
+        formatted.filter((r) => r.status === 'completed' && r.total_price != null).map((r) => r.id)
+      ).then(setLineas);
     }
 
     setLoading(false);
@@ -178,10 +186,7 @@ export default function OperatorHistory() {
   const earnedToday = earnings.hoy.aCobrar;
   const earnedWeek = earnings.semana.aCobrar;
   const totalEarned = total?.aCobrar ?? 0;
-  // La comision es constante por operador; la RPC la devuelve incluso sin
-  // servicios en el periodo, asi que sirve para repartir cada linea.
-  const comisionPct = total?.comisionPct ?? 0;
-  const loQueTeQueda = (bruto: number) => bruto - Math.round(bruto * comisionPct) / 100;
+  const lineaDe = (id: string) => lineas.get(id);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -213,7 +218,7 @@ export default function OperatorHistory() {
         <Text style={styles.incidentType}>{item.incident_type}</Text>
 
         {item.user_name && (
-          <Text style={styles.clientName}>Cliente: {item.user_name}</Text>
+          <Text style={styles.clientName}>Usuario: {item.user_name}</Text>
         )}
 
         <View style={styles.addressRow}>
@@ -249,8 +254,8 @@ export default function OperatorHistory() {
               {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
             </Text>
           </View>
-          {item.status === 'completed' && item.total_price != null && (
-            <Text style={styles.price}>${loQueTeQueda(item.total_price).toFixed(2)}</Text>
+          {item.status === 'completed' && lineaDe(item.id) && (
+            <Text style={styles.price}>{money(lineaDe(item.id)!.aCobrar)}</Text>
           )}
         </View>
       </Card>
@@ -310,7 +315,7 @@ export default function OperatorHistory() {
 
             {selectedRequest.user_name && (
               <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>Cliente</Text>
+                <Text style={styles.detailLabel}>Usuario</Text>
                 <Text style={styles.detailValue}>{selectedRequest.user_name}</Text>
                 {selectedRequest.user_phone && (
                   <View style={styles.phoneRow}>
@@ -367,15 +372,15 @@ export default function OperatorHistory() {
               </View>
             )}
 
-            {selectedRequest.status === 'completed' && selectedRequest.total_price != null && (
+            {selectedRequest.status === 'completed' && selectedRequest.total_price != null && lineaDe(selectedRequest.id) && (
               <View style={styles.priceSection}>
                 <Text style={styles.priceSectionLabel}>Lo que cobras</Text>
                 <Text style={styles.priceSectionValue}>
-                  ${loQueTeQueda(selectedRequest.total_price).toFixed(2)}
+                  {money(lineaDe(selectedRequest.id)!.aCobrar)}
                 </Text>
                 <Text style={styles.priceSectionNote}>
-                  Cobrado al cliente ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
-                  {comisionPct}%
+                  Cobrado al usuario ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
+                  {lineaDe(selectedRequest.id)!.comisionPct}%
                 </Text>
               </View>
             )}
@@ -466,6 +471,17 @@ export default function OperatorHistory() {
         </View>
       </View>
 
+      {/* LAN-08 (00125): cuánto se le pagó, cuándo y por qué servicios. */}
+      <Pressable
+        style={styles.paymentsLink}
+        onPress={() => router.push('/(operator)/payments')}
+        accessibilityRole="button"
+      >
+        <Banknote size={18} color={colors.primary[500]} />
+        <Text style={styles.paymentsLinkText}>Pagos recibidos</Text>
+        <ChevronRight size={18} color={colors.text.secondary} />
+      </Pressable>
+
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -526,6 +542,23 @@ export default function OperatorHistory() {
 }
 
 const styles = StyleSheet.create({
+  paymentsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    marginHorizontal: spacing.l,
+    marginTop: spacing.s,
+    paddingVertical: spacing.m,
+    paddingHorizontal: spacing.m,
+    backgroundColor: colors.background.primary,
+    borderRadius: radii.m,
+  },
+  paymentsLinkText: {
+    flex: 1,
+    fontFamily: typography.fonts.headingMedium,
+    fontSize: typography.sizes.bodySmall,
+    color: colors.text.primary,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background.secondary,

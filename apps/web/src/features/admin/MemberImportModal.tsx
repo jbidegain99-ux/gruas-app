@@ -5,27 +5,27 @@ import { Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { parseCsv, mapearAfiliados, CSV_PLANTILLA, type MemberRow } from './csv';
+import { chunk, mergeResults, type ImportResult } from './member-import';
 
 // Importación de padrón por CSV (B-10). Deliberadamente en dos pasos —revisar y
 // luego confirmar—: quien sube un archivo de cientos de filas necesita ver qué
 // entendió el sistema ANTES de escribir en la base, no después.
 
-type ResultadoImport = {
-  inserted: number;
-  updated: number;
-  failed: number;
-  errors: { row: number; document_number: string; message: string }[];
-};
+type ResultadoImport = ImportResult;
 
 export function MemberImportModal({
   policyId,
   onClose,
   onImported,
+  source = 'admin',
 }: {
   policyId: string;
   onClose: () => void;
   onImported: () => void;
+  /** 'portal': la aseguradora desde su portal (00127, ASE-02). */
+  source?: 'admin' | 'portal';
 }) {
+  const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
   const [members, setMembers] = useState<MemberRow[] | null>(null);
   const [ignoradas, setIgnoradas] = useState<string[]>([]);
   const [faltantes, setFaltantes] = useState<string[]>([]);
@@ -64,17 +64,32 @@ export function MemberImportModal({
     const supabase = createClient();
     // Se envían también las filas inválidas: la base devuelve el motivo por
     // fila y así el informe final es uno solo, no dos listas que cuadrar.
-    const { data, error } = await supabase.rpc('import_policy_members', {
-      p_policy_id: policyId,
-      p_members: members,
-    });
-    setCargando(false);
-
-    if (error) {
-      toast.error('No se pudo importar el padrón.');
-      return;
+    // En lotes (00127): la API corta cada consulta a los 8 s.
+    const partes: { offset: number; result: ImportResult }[] = [];
+    const lotes = chunk(members);
+    setProgreso({ hechas: 0, total: members.length });
+    for (const lote of lotes) {
+      const { data, error } =
+        source === 'portal'
+          ? await supabase.rpc('portal_import_members', { p_policy: policyId, p_members: lote.rows, p_row_offset: lote.offset })
+          : await supabase.rpc('import_policy_members', { p_policy_id: policyId, p_members: lote.rows });
+      if (error) {
+        setCargando(false);
+        setProgreso(null);
+        toast.error(
+          partes.length
+            ? `Se cortó en la fila ${lote.offset + 1}: ${error.message}. Lo anterior ya quedó guardado; vuelve a subir el archivo (las filas repetidas solo se actualizan).`
+            : `No se pudo importar el padrón: ${error.message}`
+        );
+        if (partes.length) setResultado(mergeResults(partes, source === 'portal'));
+        return;
+      }
+      partes.push({ offset: lote.offset, result: data as unknown as ImportResult });
+      setProgreso({ hechas: lote.offset + lote.rows.length, total: members.length });
     }
-    const r = data as unknown as ResultadoImport;
+    setCargando(false);
+    setProgreso(null);
+    const r = mergeResults(partes, source === 'portal');
     setResultado(r);
     if (r.inserted + r.updated > 0) {
       toast.success(`${r.inserted} altas y ${r.updated} actualizaciones.`);
@@ -111,7 +126,7 @@ export function MemberImportModal({
             <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-zinc-300 p-6 text-center hover:border-budi-primary-400 dark:border-zinc-700">
               <Upload className="h-6 w-6 text-zinc-400" />
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                {nombreArchivo || 'Elegí un archivo .csv'}
+                {nombreArchivo || 'Elige un archivo .csv'}
               </span>
               <input
                 type="file"
@@ -129,7 +144,7 @@ export function MemberImportModal({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                 <p className="text-sm text-red-800 dark:text-red-300">
                   No se encontró la columna de <strong>{faltantes.join('</strong> ni la de <strong>')}</strong>.
-                  Revisá la primera fila del archivo.
+                  Revisa la primera fila del archivo.
                 </p>
               </div>
             )}
@@ -174,7 +189,13 @@ export function MemberImportModal({
                             <td className="px-3 py-2 font-mono">{m.document_number || '—'}</td>
                             <td className="px-3 py-2">{m.full_name || '—'}</td>
                             <td className="px-3 py-2">{m.phone || '—'}</td>
-                            <td className="px-3 py-2">{m.relationship || 'beneficiary'}</td>
+                            <td className="px-3 py-2">
+                              {m.relationship === 'holder'
+                                ? 'Titular'
+                                : m.relationship && m.relationship !== 'beneficiary'
+                                  ? m.relationship
+                                  : 'Beneficiario'}
+                            </td>
                             <td className="px-3 py-2">{m.starts_on || 'hoy'}</td>
                           </tr>
                         ))}
@@ -233,7 +254,11 @@ export function MemberImportModal({
               disabled={cargando || !members || validas === 0 || faltantes.length > 0}
               className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600 disabled:opacity-50"
             >
-              {cargando ? 'Importando…' : `Importar ${validas} afiliado${validas === 1 ? '' : 's'}`}
+              {cargando
+                ? progreso
+                  ? `Importando ${progreso.hechas.toLocaleString('es-SV')} de ${progreso.total.toLocaleString('es-SV')}…`
+                  : 'Importando…'
+                : `Importar ${validas} afiliado${validas === 1 ? '' : 's'}`}
             </button>
           )}
         </div>

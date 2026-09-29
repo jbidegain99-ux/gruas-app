@@ -4,16 +4,22 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Inbox } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
-import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
-import { StatusBadge } from '@/shared/components/StatusBadge';
+import { ServiceTypeBadge, serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
+import { StatusBadge, STATUS_LABELS } from '@/shared/components/StatusBadge';
+import { svToday } from '@/shared/components/LedgerPaymentModals';
+import { CaseFilters } from '@/shared/components/portal/CaseFilters';
+import { defaultCaseFilters, exportBasename, filterCases, zoneOptions } from '@/shared/components/portal/case-filters';
+import { liveLabel, useOrgLive } from '@/shared/components/portal/useOrgLive';
+import { exportTable, type ExportColumn } from '@/shared/lib/export/table-export';
 import { money } from '@/shared/lib/format';
 
-// B-17: fila de list_insurer_cases().
+// B-17 / POR-03: fila de portal_insurer_cases(desde, hasta).
 type Row = {
   folio: string;
   service_type: string;
   status: string;
   created_at: string;
+  zone: string | null;
   total_price: number | null;
   coverage_status: string | null;
   cubierto: number | null;
@@ -32,23 +38,41 @@ function SlaPill({ met }: { met: boolean | null }) {
   );
 }
 
+const EXPORT_COLUMNS: ExportColumn<Row>[] = [
+  { header: 'Folio', value: (r) => r.folio },
+  { header: 'Fecha', value: (r) => new Date(r.created_at).toLocaleString('es-SV', { timeZone: 'America/El_Salvador' }) },
+  { header: 'Servicio', value: (r) => serviceTypeLabel(r.service_type) },
+  { header: 'Estado', value: (r) => STATUS_LABELS[r.status] ?? r.status },
+  { header: 'Zona', value: (r) => r.zone },
+  { header: 'A tu cargo (USD)', value: (r) => (r.cubierto == null ? null : Number(r.cubierto)) },
+  { header: 'Copago del afiliado (USD)', value: (r) => (r.copago == null ? null : Number(r.copago)) },
+  { header: 'Asignación en tiempo', value: (r) => (r.assignment_met == null ? null : r.assignment_met ? 'Sí' : 'No') },
+  { header: 'Llegada en tiempo', value: (r) => (r.arrival_met == null ? null : r.arrival_met ? 'Sí' : 'No') },
+];
+
 export default function InsurerPortalPage() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const [allRows, setAllRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState(() => defaultCaseFilters(svToday()));
+  const { tick, live } = useOrgLive();
 
   useEffect(() => {
     let alive = true;
     createClient()
-      .rpc('list_insurer_cases')
-      .then(({ data }) => {
+      .rpc('portal_insurer_cases', { p_from: filters.from, p_to: filters.to })
+      .then(({ data, error: e }) => {
         if (!alive) return;
-        setRows((data as Row[]) ?? []);
+        setError(e?.message ?? null);
+        if (!e) setAllRows((data as Row[]) ?? []);
         setLoading(false);
       });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [filters.from, filters.to, tick]);
+
+  const rows = useMemo(() => filterCases(allRows, filters), [allRows, filters]);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -67,8 +91,23 @@ export default function InsurerPortalPage() {
       <div className="mb-6">
         <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Tus casos</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Cada servicio de tus afiliados, con su folio, estado y cumplimiento de SLA.
+          Cada servicio de tus afiliados, con su folio, estado y cumplimiento de SLA.{' '}
+          <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+            <span className={`h-2 w-2 rounded-full ${live ? 'bg-emerald-500' : 'bg-zinc-400'}`} aria-hidden="true" />
+            {liveLabel(live)}
+          </span>
         </p>
+      </div>
+
+      <div className="mb-6">
+        <CaseFilters
+          value={filters}
+          onChange={setFilters}
+          zones={zoneOptions(allRows)}
+          exportDisabled={rows.length === 0}
+          onExport={(f) => exportTable(rows, EXPORT_COLUMNS, f, exportBasename('casos', filters))}
+        />
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">No se pudieron cargar los casos: {error}</p>}
       </div>
 
       {/* Resumen */}
@@ -87,6 +126,7 @@ export default function InsurerPortalPage() {
                 <th className="px-4 py-3 font-medium">Folio</th>
                 <th className="px-4 py-3 font-medium">Servicio</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium">Zona</th>
                 <th className="px-4 py-3 text-right font-medium">A tu cargo</th>
                 <th className="px-4 py-3 font-medium">Llegada (SLA)</th>
                 <th className="px-4 py-3 text-right font-medium">Fecha</th>
@@ -96,15 +136,17 @@ export default function InsurerPortalPage() {
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-sm text-zinc-500">
+                  <td colSpan={8} className="px-4 py-16 text-center text-sm text-zinc-500">
                     Cargando…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center">
+                  <td colSpan={8} className="px-4 py-16 text-center">
                     <Inbox className="mx-auto h-10 w-10 text-zinc-300 dark:text-zinc-600" />
-                    <p className="mt-3 text-sm text-zinc-500">Todavía no hay casos de tus afiliados.</p>
+                    <p className="mt-3 text-sm text-zinc-500">
+                      {allRows.length === 0 ? 'No hay casos de tus afiliados en estas fechas.' : 'Ningún caso coincide con los filtros.'}
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -124,6 +166,7 @@ export default function InsurerPortalPage() {
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={r.status} />
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-zinc-600 dark:text-zinc-400">{r.zone ?? '—'}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">
                       {r.cubierto == null ? '—' : money(Number(r.cubierto))}
                     </td>
@@ -131,7 +174,7 @@ export default function InsurerPortalPage() {
                       <SlaPill met={r.arrival_met} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right text-zinc-500">
-                      {new Date(r.created_at).toLocaleDateString('es-SV')}
+                      {new Date(r.created_at).toLocaleDateString('es-SV', { timeZone: 'America/El_Salvador' })}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link href={`/portal/${r.folio}`} className="inline-flex text-zinc-400 hover:text-zinc-600">

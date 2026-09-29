@@ -5,6 +5,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import { useBudiFonts } from '@/shared/hooks/useBudiFonts';
 import { loadDropoffCatalog } from '@/features/catalog/lib/loadDropoffCatalog';
+import { supabase } from '@/lib/supabase';
+import { UpdateGate } from '@/features/updates/components/UpdateGate';
+import { ToastProvider } from '@/shared/components/ui';
 // Import con efecto secundario: registra la tarea de ubicación en segundo plano
 // (`TaskManager.defineTask`) al arrancar, antes de que el sistema pueda
 // entregar posiciones. Debe ocurrir en el arranque, no dentro de una pantalla.
@@ -40,11 +43,17 @@ function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   // Catalogo de servicios: que tipos trasladan el vehiculo y por lo tanto tienen
-  // destino. Se carga una vez al arrancar, antes de que monte ninguna pantalla,
-  // para que `requiresDropoff()` responda sincronicamente en historiales y mapas.
-  // Si falla, el helper cae a su respaldo.
+  // destino, para que `requiresDropoff()` responda sincronicamente en
+  // historiales y mapas. `services` solo se lee con sesion: se carga al
+  // arrancar si ya hay una, y otra vez al iniciar sesion. Si falla, el helper
+  // cae a su respaldo.
   useEffect(() => {
-    loadDropoffCatalog();
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+        loadDropoffCatalog();
+      }
+    });
+    return () => data.subscription.unsubscribe();
   }, []);
 
   if (!fontsLoaded && !fontError) {
@@ -54,12 +63,16 @@ function RootLayout() {
   return (
     <>
       <StatusBar style="auto" />
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(user)" options={{ headerShown: false }} />
-        <Stack.Screen name="(operator)" options={{ headerShown: false }} />
-      </Stack>
+      <ToastProvider>
+        <UpdateGate>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(user)" options={{ headerShown: false }} />
+            <Stack.Screen name="(operator)" options={{ headerShown: false }} />
+          </Stack>
+        </UpdateGate>
+      </ToastProvider>
     </>
   );
 }

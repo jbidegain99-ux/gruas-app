@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { ToastHost, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 interface RatingModalProps {
@@ -44,7 +45,7 @@ export function RatingModal({
 
   const handleSubmit = async () => {
     if (selectedStars === 0) {
-      Alert.alert('Selecciona una calificación', 'Por favor selecciona de 1 a 5 estrellas');
+      toast.error('Selecciona de 1 a 5 estrellas.', 'Selecciona una calificación');
       return;
     }
 
@@ -59,19 +60,17 @@ export function RatingModal({
 
       if (error) {
         console.error('Rating error:', error);
-        Alert.alert('Error', 'No se pudo enviar la calificación. Intenta de nuevo.');
+        toast.error('No se pudo enviar la calificación. Intenta de nuevo.');
         setSubmitting(false);
         return;
       }
 
-      Alert.alert(
-        'Gracias',
-        'Tu calificación ha sido enviada.',
-        [{ text: 'OK', onPress: onSubmitted }]
-      );
+      // El toast queda visible en la raíz después de cerrar el modal.
+      toast.success('Tu calificación fue enviada.', '¡Gracias!');
+      onSubmitted();
     } catch (err) {
       console.error('Rating exception:', err);
-      Alert.alert('Error', 'Error de conexión. Intenta de nuevo.');
+      toast.error('Error de conexión. Intenta de nuevo.');
     } finally {
       setSubmitting(false);
     }
@@ -111,7 +110,7 @@ export function RatingModal({
           <Text style={styles.title}>Califica el servicio</Text>
 
           {operatorName && (
-            <Text style={styles.operatorName}>Operador: {operatorName}</Text>
+            <Text style={styles.operatorName}>Socio operador: {operatorName}</Text>
           )}
 
           <View style={styles.starsContainer}>
@@ -181,6 +180,8 @@ export function RatingModal({
             </TouchableOpacity>
           </View>
         </View>
+        {/* Los toasts se pintan sobre el Modal nativo, no detrás. */}
+        <ToastHost />
       </View>
     </Modal>
   );
@@ -189,7 +190,7 @@ export function RatingModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.background.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.l,

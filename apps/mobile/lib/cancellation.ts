@@ -2,7 +2,7 @@
 // una vez que el operador fue despachado, cancelar puede tener consecuencias.
 export function cancellationPolicyMessage(status: string): string {
   if (status === 'assigned' || status === 'en_route') {
-    return 'El operador ya fue despachado hacia tu ubicación. Cancelar ahora puede generar un cargo por el desplazamiento. ¿Deseas continuar?';
+    return 'El socio operador ya fue despachado hacia tu ubicación. Cancelar ahora puede generar un cargo por el desplazamiento. ¿Deseas continuar?';
   }
   return '¿Estás seguro que deseas cancelar esta solicitud?';
 }

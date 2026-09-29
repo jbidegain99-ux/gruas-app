@@ -142,7 +142,7 @@ export default function DesignSystemScreen() {
           label="With Error"
           placeholder="Enter email..."
           value="invalid-email"
-          error="Email no valido"
+          error="Email no válido"
         />
         <Input
           label="Success"
@@ -173,7 +173,7 @@ export default function DesignSystemScreen() {
         </Card>
         <Card variant="elevated">
           <Text style={styles.cardTitle}>Elevated Card</Text>
-          <Text style={styles.cardBody}>Shadow medium, mas prominente</Text>
+          <Text style={styles.cardBody}>Shadow medium, más prominente</Text>
         </Card>
         <Card variant="outlined">
           <Text style={styles.cardTitle}>Outlined Card</Text>

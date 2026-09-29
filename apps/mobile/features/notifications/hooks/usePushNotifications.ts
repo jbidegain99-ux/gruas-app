@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 
 // Configure notification handling
 Notifications.setNotificationHandler({
@@ -81,7 +81,7 @@ export function usePushNotifications(): UsePushNotificationsResult {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
       if (!projectId || projectId === 'your-project-id') {
-        console.log('Push notifications: projectId no configurado. Configurar en app.json para producción.');
+        console.log('Push notifications: projectId no configurado. Correr `eas init` y definir EAS_PROJECT_ID (ver app.config.ts).');
         // Don't set error - expected during development
         return null;
       }
@@ -188,10 +188,11 @@ export function usePushNotifications(): UsePushNotificationsResult {
       } else {
         router.push('/(user)');
       }
-    } else if (data?.type === 'verification_result') {
-      // Operador: su verificación fue aprobada/rechazada -> su perfil (tarjeta de
-      // estado + acceso a la pantalla de documentos).
-      router.push('/(operator)/profile');
+    } else if (data?.type === 'verification_result' || data?.type === 'document_expiring') {
+      // Socio operador: resultado de su verificación (aprobado, rechazado o
+      // suspendido) o un documento por vencer -> su registro, donde ve el estado
+      // y puede corregir o subir la renovación.
+      router.push('/(operator)/verification' as Href);
     }
     // 'verification_submitted' (aviso a admins) no tiene ruta móvil: los admins
     // usan el panel web. Se encola por si un admin tiene la app, pero no navega.

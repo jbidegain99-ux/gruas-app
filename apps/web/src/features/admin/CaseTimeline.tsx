@@ -14,9 +14,10 @@ type TimelineRow = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  USER: 'Cliente',
-  OPERATOR: 'Operador',
+  USER: 'Usuario',
+  OPERATOR: 'Socio operador',
   ADMIN: 'Administrador',
+  SUPPORT: 'Soporte',
 };
 
 /**

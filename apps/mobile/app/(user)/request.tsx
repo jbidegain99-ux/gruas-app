@@ -28,14 +28,16 @@ import { savePin } from '@/features/pin/lib/pinStorage';
 import type { ServiceType, ServiceTypePricing, FuelType, CoverageResult } from '@gruas-app/shared';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff, setDropoffCatalog } from '@gruas-app/shared';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, MapPin, Flag, LocateFixed, Copy, CheckCircle2, X, Check } from 'lucide-react-native';
-import { Button, Card, Input } from '@/shared/components/ui';
+import { Truck, Battery, CircleDot, Fuel, KeyRound, Wrench, ChevronsUp, Droplets, MapPin, Flag, LocateFixed, Copy, CheckCircle2, X, Check } from 'lucide-react-native';
+import { Button, Card, Input, ToastHost, toast } from '@/shared/components/ui';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { colors, typography, spacing, radii } from '@/theme';
 import { useCoverage } from '@/features/coverage/hooks/useCoverage';
 import { CoverageBanner } from '@/features/coverage/components/CoverageBanner';
 import { useCoveragePreview } from '@/features/coverage/hooks/useCoveragePreview';
 import { CopayBreakdown } from '@/features/coverage/components/CopayBreakdown';
+import { useMoptProgram } from '@/features/coverage/hooks/useMoptProgram';
+import { MoptProgramBanner } from '@/features/coverage/components/MoptProgramBanner';
 
 // Pasos del wizard, con etiqueta para el indicador de progreso.
 const STEP_META = [
@@ -56,30 +58,32 @@ const SERVICE_ICONS: Record<ServiceType, LucideIconComponent> = {
   locksmith: KeyRound,
   mechanic: Wrench,
   winch: ChevronsUp,
+  water_truck: Droplets,
 };
 
 type TowType = 'light' | 'heavy';
 
 const INCIDENT_TYPES = [
-  'Averia mecanica',
-  'Accidente de transito',
-  'Vehiculo varado',
+  'Avería mecánica',
+  'Accidente de tránsito',
+  'Vehículo varado',
   'Llantas ponchadas',
   'Sin combustible',
-  'Bateria descargada',
-  'Llaves dentro del vehiculo',
+  'Batería descargada',
+  'Llaves dentro del vehículo',
   'Otro',
 ];
 
 // Auto-assigned incident types for non-tow services
 const SERVICE_INCIDENT_MAP: Record<ServiceType, string> = {
   tow: '',
-  battery: 'Bateria descargada',
+  battery: 'Batería descargada',
   tire: 'Llantas ponchadas',
   fuel: 'Sin combustible',
-  locksmith: 'Llaves dentro del vehiculo',
-  mechanic: 'Averia mecanica',
-  winch: 'Vehiculo varado',
+  locksmith: 'Llaves dentro del vehículo',
+  mechanic: 'Avería mecánica',
+  winch: 'Vehículo varado',
+  water_truck: 'Necesito agua potable',
 };
 
 type PricingRule = {
@@ -93,6 +97,32 @@ export default function RequestService() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
+  // VID-02: servicios que el MOPT cubre donde está la persona, para el badge
+  // "Sin costo" del catálogo (00110). Con la última ubicación conocida y solo si
+  // ya dio permiso: el catálogo no pide ubicación por su cuenta.
+  const [moptServices, setMoptServices] = useState<string[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const last = await Location.getLastKnownPositionAsync();
+        if (!last || !alive) return;
+        const { data } = await supabase.rpc('preview_mopt_services', {
+          p_lat: last.coords.latitude,
+          p_lng: last.coords.longitude,
+        });
+        if (alive) setMoptServices((data as string[] | null) ?? []);
+      } catch {
+        // Sin badge: el veredicto real llega en el resumen y al crear.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [submitting, setSubmitting] = useState(false);
 
   // Modal de éxito con el PIN (reemplaza el Alert efímero no copiable).
@@ -108,6 +138,8 @@ export default function RequestService() {
   const { coverage, loading: loadingCoverage } = useCoverage();
 
   const [finalCoverage, setFinalCoverage] = useState<CoverageResult | null>(null);
+  // 00098: el veredicto del servidor sobre si lo paga un programa MOPT.
+  const [finalMopt, setFinalMopt] = useState<{ program_name?: string } | null>(null);
 
   // Service type
   const [serviceType, setServiceType] = useState<ServiceType>('tow');
@@ -251,7 +283,7 @@ export default function RequestService() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permisos', 'Se requiere acceso a la ubicación para continuar');
+        toast.error('Permite el acceso a tu ubicación para continuar.', 'Permisos');
         setGettingLocation(false);
         return;
       }
@@ -270,7 +302,7 @@ export default function RequestService() {
       const address = await reverseGeocode(coords.lat, coords.lng);
       setPickupAddress(address);
     } catch {
-      Alert.alert('Error', 'No se pudo obtener la ubicación');
+      toast.error('No se pudo obtener tu ubicación.');
     }
     setGettingLocation(false);
   };
@@ -313,7 +345,7 @@ export default function RequestService() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permisos', 'Se requiere acceso a la galeria');
+      toast.error('Permite el acceso a la galería para elegir una foto.', 'Permisos');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -328,7 +360,7 @@ export default function RequestService() {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permisos', 'Se requiere acceso a la camara');
+      toast.error('Permite el acceso a la cámara para tomar la foto.', 'Permisos');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -373,6 +405,16 @@ export default function RequestService() {
     towType,
   });
 
+  // 00098: sin seguro vigente, ¿lo cubre un programa MOPT en este punto? Mismo
+  // criterio que create_service_request; aca solo se anticipa en el resumen.
+  const { mopt } = useMoptProgram({
+    enabled: step === 5 && !loadingCoverage && coverage?.status !== 'covered',
+    lat: pickupCoords?.lat,
+    lng: pickupCoords?.lng,
+    serviceType,
+  });
+  const moptApplies = mopt?.applies === true;
+
   useEffect(() => {
     if (serviceType === 'tow' && calculatedDistance && pricing) {
       calculatePrice();
@@ -393,11 +435,11 @@ export default function RequestService() {
 
   const handleSubmit = async () => {
     if (!pickupAddress) {
-      Alert.alert('Error', 'Por favor selecciona el punto de recogida');
+      toast.error('Selecciona el punto de recogida.');
       return;
     }
     if (requiresDestination && !dropoffAddress) {
-      Alert.alert('Error', 'Por favor selecciona el destino');
+      toast.error('Selecciona el destino.');
       return;
     }
 
@@ -405,25 +447,25 @@ export default function RequestService() {
     // a DEFAULT_LOCATION y se podía despachar la grúa al lugar equivocado). Si la
     // geocodificación falló, pedimos re-seleccionar el punto en el mapa.
     if (!pickupCoords) {
-      Alert.alert(
-        'No pudimos ubicar la recogida',
-        'Vuelve al paso de Ubicación y selecciona el punto de recogida en el mapa para continuar.'
+      toast.error(
+        'Vuelve al paso de Ubicación y selecciona el punto de recogida en el mapa para continuar.',
+        'No pudimos ubicar la recogida'
       );
       return;
     }
     if (requiresDestination && !dropoffCoords) {
-      Alert.alert(
-        'No pudimos ubicar el destino',
-        'Vuelve al paso de Ubicación y selecciona el destino en el mapa para continuar.'
+      toast.error(
+        'Vuelve al paso de Ubicación y selecciona el destino en el mapa para continuar.',
+        'No pudimos ubicar el destino'
       );
       return;
     }
 
     // Zona de cobertura: el punto de recogida debe estar dentro del área servida.
     if (!isWithinCoverage(pickupCoords.lat, pickupCoords.lng)) {
-      Alert.alert(
-        'Fuera de cobertura',
-        `Por ahora solo damos servicio en ${COVERAGE.areaName}. El punto de recogida está fuera de la zona de cobertura.`
+      toast.error(
+        `Por ahora solo damos servicio en ${COVERAGE.areaName}. El punto de recogida está fuera de la zona de cobertura.`,
+        'Fuera de cobertura'
       );
       return;
     }
@@ -436,7 +478,7 @@ export default function RequestService() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert('Error', 'Debes iniciar sesion');
+        toast.error('Debes iniciar sesión.');
         router.replace('/(auth)/login');
         return;
       }
@@ -472,13 +514,13 @@ export default function RequestService() {
           vehiclePhotoUrl = urlData.publicUrl;
         } catch (uploadErr) {
           console.error('Photo upload failed:', uploadErr);
-          Alert.alert('Aviso', 'No se pudo subir la foto, pero la solicitud continuara sin ella.');
+          toast.info('No se pudo subir la foto, pero la solicitud continuará sin ella.', 'Aviso');
         }
       }
 
       // Combine notes
       const combinedNotes = [
-        vehicleDescription ? `Vehiculo: ${vehicleDescription}` : '',
+        vehicleDescription ? `Vehículo: ${vehicleDescription}` : '',
         notes || '',
       ].filter(Boolean).join('\n') || null;
 
@@ -510,13 +552,13 @@ export default function RequestService() {
 
       if (error) {
         console.error('Error creating request:', JSON.stringify(error));
-        Alert.alert('Error al crear solicitud', friendlyError(error, 'No se pudo crear la solicitud. Intenta de nuevo.'));
+        toast.error(friendlyError(error, 'No se pudo crear la solicitud. Intenta de nuevo.'), 'Error al crear la solicitud');
         setSubmitting(false);
         return;
       }
 
       if (!data || data.success !== true) {
-        Alert.alert('Error', 'No se pudo crear la solicitud.');
+        toast.error('No se pudo crear la solicitud.');
         setSubmitting(false);
         return;
       }
@@ -534,9 +576,10 @@ export default function RequestService() {
       setPinCopied(false);
       // B-11: lo que dictamino el servidor manda sobre la consulta previa.
       setFinalCoverage((data.coverage as CoverageResult) ?? null);
+      setFinalMopt((data.mopt as { program_name?: string } | null) ?? null);
       setSuccessPin(data.pin);
     } catch {
-      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor.');
+      toast.error('No se pudo conectar con el servidor.', 'Error de conexión');
       setSubmitting(false);
     }
   };
@@ -573,6 +616,7 @@ export default function RequestService() {
     resetForm();
     setSuccessPin(null);
     setFinalCoverage(null);
+    setFinalMopt(null);
     setPinCopied(false);
     router.replace('/(user)');
   };
@@ -645,7 +689,13 @@ export default function RequestService() {
                   {stp.display_name}
                 </Text>
                 <Text style={styles.serviceCardDesc}>{stp.description}</Text>
-                <Text style={styles.serviceCardPrice}>Desde ${stp.base_price.toFixed(2)}</Text>
+                {moptServices.includes(stp.service_type) ? (
+                  <View style={styles.sinCostoBadge}>
+                    <Text style={styles.sinCostoText}>Sin costo</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.serviceCardPrice}>Desde ${stp.base_price.toFixed(2)}</Text>
+                )}
               </Pressable>
             );
           })}
@@ -851,7 +901,7 @@ export default function RequestService() {
         <Text style={styles.label}>Tipo de Combustible</Text>
         <View style={styles.toggleContainer}>
           {(['regular', 'premium', 'diesel'] as FuelType[]).map((ft) => {
-            const ftLabel = ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diesel';
+            const ftLabel = ft === 'regular' ? 'Regular' : ft === 'premium' ? 'Premium' : 'Diésel';
             return (
               <Pressable
                 key={ft}
@@ -904,8 +954,8 @@ export default function RequestService() {
       <View style={styles.infoBox}>
         <Text style={styles.infoBoxText}>
           {currentPricingType?.description
-            ? `${currentPricingType.description}. Un operador llegara para atender tu solicitud en el lugar.`
-            : 'Un operador llegara para atender tu solicitud en el lugar.'}
+            ? `${currentPricingType.description}. Un socio operador llegará para atender tu solicitud en el lugar.`
+            : 'Un socio operador llegará para atender tu solicitud en el lugar.'}
         </Text>
       </View>
     );
@@ -930,7 +980,7 @@ export default function RequestService() {
 
         <Input
           label="Notas Adicionales (opcional)"
-          placeholder="Información adicional para el operador..."
+          placeholder="Información adicional para el socio operador..."
           value={notes}
           onChangeText={setNotes}
           multiline
@@ -956,7 +1006,7 @@ export default function RequestService() {
 
       {savedVehicles.length > 0 && (
         <View style={styles.vehicleChips}>
-          <Text style={styles.label}>Tus vehiculos</Text>
+          <Text style={styles.label}>Tus vehículos</Text>
           <View style={styles.chipsRow}>
             {savedVehicles.map((v) => {
               const label = vehicleLabel(v);
@@ -1023,11 +1073,17 @@ export default function RequestService() {
             `serviceCovered` viene de B-13: sin eso el banner anunciaba "Cubierto
             por tu seguro" aunque el plan excluyera justo este servicio, y se
             contradecia con el desglose de copago de mas abajo. */}
-        <CoverageBanner
-          coverage={coverage}
-          loading={loadingCoverage}
-          serviceCovered={copayPreview ? copayPreview.covered : null}
-        />
+        {/* 00098: si lo cubre el MOPT, el banner de "Servicio particular" diria
+            "pagas el servicio" y se contradiria: se reemplaza. */}
+        {moptApplies ? (
+          <MoptProgramBanner programName={mopt?.program_name} estimatedPrice={displayPrice} />
+        ) : (
+          <CoverageBanner
+            coverage={coverage}
+            loading={loadingCoverage}
+            serviceCovered={copayPreview ? copayPreview.covered : null}
+          />
+        )}
 
         {pickupCoords && (
           <View style={styles.summaryMap}>
@@ -1083,7 +1139,7 @@ export default function RequestService() {
               <>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Combustible:</Text>
-                  <Text style={styles.summaryValue}>{fuelType === 'regular' ? 'Regular' : fuelType === 'premium' ? 'Premium' : 'Diesel'}</Text>
+                  <Text style={styles.summaryValue}>{fuelType === 'regular' ? 'Regular' : fuelType === 'premium' ? 'Premium' : 'Diésel'}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Galones:</Text>
@@ -1156,9 +1212,13 @@ export default function RequestService() {
           )}
 
           <Text style={styles.priceDisclaimer}>
-            {requiresDestination
-              ? 'El precio final puede variar segun la distancia real recorrida.'
-              : 'Precio fijo por el servicio.'}
+            {moptApplies
+              ? 'Lo paga el MOPT. Tú no pagas nada.'
+              : requiresDestination
+                ? 'El precio final puede variar según la distancia real recorrida.'
+                : serviceType === 'water_truck'
+                  ? `Precio por viaje más $${(currentPricingType?.extra_fee ?? 0).toFixed(2)} por km que recorre el socio hasta ti.`
+                  : 'Precio fijo por el servicio.'}
           </Text>
         </View>
 
@@ -1251,7 +1311,7 @@ export default function RequestService() {
               <CheckCircle2 size={40} color={colors.success.main} strokeWidth={2} />
             </View>
             <Text style={styles.successTitle}>¡Solicitud enviada!</Text>
-            <Text style={styles.successSubtitle}>Tu PIN de verificación es:</Text>
+            <Text style={styles.successSubtitle}>Tu PIN de confirmación es:</Text>
             <Text style={styles.successPin}>{successPin}</Text>
 
             <Pressable
@@ -1271,26 +1331,32 @@ export default function RequestService() {
             </Pressable>
 
             <Text style={styles.successHint}>
-              Muéstrale este PIN al operador cuando llegue para iniciar el servicio.
+              Muéstrale este PIN al socio operador cuando llegue para iniciar el servicio.
               Siempre estará disponible en tu pantalla de inicio.
             </Text>
 
             {/* B-11: el veredicto del servidor. Se muestra SIEMPRE, tambien cuando
                 la verificacion fallo — que la solicitud se haya creado no puede
                 dejar a la persona creyendo que su seguro la cubre. */}
-            {finalCoverage && (
+            {finalMopt ? (
+              <View style={styles.successCoverage}>
+                <MoptProgramBanner programName={finalMopt.program_name} estimatedPrice={previewTotal} />
+              </View>
+            ) : finalCoverage ? (
               <View style={styles.successCoverage}>
                 <CoverageBanner
                   coverage={finalCoverage}
                   serviceCovered={copayPreview ? copayPreview.covered : null}
                 />
               </View>
-            )}
+            ) : null}
 
             <View style={styles.successButton}>
               <Button title="Ver estado del servicio" onPress={handleSuccessClose} size="medium" />
             </View>
           </View>
+          {/* Los toasts (p. ej. "no se pudo subir la foto") se pintan sobre el Modal. */}
+          <ToastHost />
         </View>
       </Modal>
     </View>
@@ -1484,6 +1550,19 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.bodySmall,
     color: colors.accent[600],
     marginTop: spacing.micro,
+  },
+  sinCostoBadge: {
+    marginTop: spacing.micro,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.s,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+    backgroundColor: colors.success.light,
+  },
+  sinCostoText: {
+    fontFamily: typography.fonts.bodySemiBold,
+    fontSize: typography.sizes.caption,
+    color: colors.success.dark,
   },
 
   // Location

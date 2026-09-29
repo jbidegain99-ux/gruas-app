@@ -66,7 +66,7 @@ const allErrors = [];
 // El click navega dentro del grupo correcto — lo que hace una persona de verdad.
 //
 // `tabs` son los tabBarLabel VISIBLES, que no siempre son el `title` de la ruta:
-// el operador define 'Servicio Activo' -> 'Activo' y 'Mis Resenas' -> 'Resenas'.
+// el operador define 'Servicio Activo' -> 'Activo' y 'Mis reseñas' -> 'Reseñas'.
 async function authRun(role, email, pass, tabs) {
   const ctx = await browser.newContext({ viewport: PHONE });
   const page = await ctx.newPage();
@@ -108,7 +108,7 @@ if (process.env.SKIP_AUTH !== '1') {
   userRun = await authRun('USER', process.env.USER_EMAIL || 'usuario1@gruas.sv', process.env.USER_PASS || 'User123!',
     ['Inicio', 'Solicitar', 'Historial', 'Perfil']);
   opRun = await authRun('OPERATOR', process.env.OP_EMAIL || 'operador1@gruas.sv', process.env.OP_PASS || 'Op123!',
-    ['Solicitudes', 'Activo', 'Historial', 'Resenas', 'Perfil']);
+    ['Solicitudes', 'Activo', 'Historial', 'Reseñas', 'Perfil']);
 }
 const userAuthed = userRun && userRun.authed;
 const opAuthed = opRun && opRun.authed;

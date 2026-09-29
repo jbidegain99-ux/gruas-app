@@ -37,7 +37,7 @@ export function CopayBreakdown({
           <Text style={styles.copayValue}>{money(preview.amount_copay)}</Text>
         </View>
         <Text style={styles.foot}>
-          Tu seguro cubre otros servicios, pero no este. Lo pagás como particular.
+          Tu seguro cubre otros servicios, pero no este. Lo pagas como particular.
         </Text>
       </View>
     );
@@ -81,7 +81,7 @@ export function CopayBreakdown({
         <Text style={styles.foot}>
           {isEstimate
             ? 'Aproximado. Se ajusta con la distancia real al cerrar el servicio.'
-            : 'Lo pagás al finalizar el servicio.'}
+            : 'Lo pagas al finalizar el servicio.'}
         </Text>
       )}
     </View>

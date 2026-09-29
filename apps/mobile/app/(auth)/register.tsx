@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
@@ -18,7 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
 import { LEGAL_CONFIG } from '@/config/legal';
 import type { UserRole } from '@gruas-app/shared';
-import { BudiLogo, Button, Input } from '@/shared/components/ui';
+import { BudiLogo, Button, Input, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 export default function Register() {
@@ -37,23 +36,23 @@ export default function Register() {
 
   const handleRegister = async () => {
     if (!email || !password || !fullName || !phone) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      toast.error('Completa todos los campos.');
       return;
     }
 
     // Validación básica antes de llamar a Supabase (evita errores crudos)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      Alert.alert('Email inválido', 'Escribe un email con un formato válido (ej. tu@correo.com).');
+      toast.error('Escribe un email con un formato válido (ej. tu@correo.com).', 'Email inválido');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
+      toast.error('La contraseña debe tener al menos 6 caracteres.', 'Contraseña muy corta');
       return;
     }
     if (!privacyAccepted) {
-      Alert.alert(
-        'Falta aceptar el aviso',
-        'Debes aceptar el Aviso de privacidad para crear tu cuenta.'
+      toast.error(
+        'Debes aceptar el Aviso de privacidad para crear tu cuenta.',
+        'Falta aceptar el aviso'
       );
       return;
     }
@@ -79,16 +78,14 @@ export default function Register() {
 
     if (error) {
       console.error('Registration error:', JSON.stringify(error, null, 2));
-      Alert.alert('Error de Registro', friendlyError(error, 'No se pudo crear la cuenta. Intenta de nuevo.'));
+      toast.error(friendlyError(error, 'No se pudo crear la cuenta. Intenta de nuevo.'), 'Error de registro');
       return;
     }
 
     if (data.user) {
-      Alert.alert(
-        'Registro exitoso',
-        'Tu cuenta ha sido creada. Por favor verifica tu email.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-      );
+      // El toast vive en la raíz: sigue visible tras navegar al login.
+      toast.success('Tu cuenta fue creada. Verifica tu email para entrar.', 'Registro exitoso');
+      router.replace('/(auth)/login');
     }
   };
 
@@ -126,7 +123,7 @@ export default function Register() {
 
             <Input
               label="Teléfono"
-              placeholder="+503 7000-0000"
+              placeholder="+503 XXXX-XXXX"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -155,23 +152,23 @@ export default function Register() {
                 onPress={() => setRole('OPERATOR')}
               >
                 <Text style={[styles.roleText, role === 'OPERATOR' && styles.roleTextActive]}>
-                  Operador
+                  Socio operador
                 </Text>
               </Pressable>
             </View>
 
             {role === 'OPERATOR' && (
               <Text style={styles.operatorNote}>
-                Los operadores son gestionados por Budi. Un administrador debe
-                asignarte un proveedor antes de que puedas recibir solicitudes.
+                Después de crear tu cuenta completarás tu registro de socio: datos, unidad y
+                documentos. Te avisamos cuando esté aprobado.
               </Text>
             )}
 
             <View style={styles.consentBox}>
               <Text style={styles.consentIntro}>
                 {role === 'OPERATOR'
-                  ? 'Para verificar tu cuenta necesitamos tu DUI, licencia y tarjeta de circulación. Mientras estés en línea registramos tu ubicación, incluso con la app en segundo plano, para asignarte servicios cercanos.'
-                  : 'Para prestarte asistencia vial tratamos tu nombre, teléfono, correo, datos de tu vehículo y tu ubicación durante el servicio. Compartimos tu nombre, teléfono y ubicación de recogida únicamente con el operador que te atiende.'}
+                  ? 'Para verificar tu cuenta necesitamos tu DUI, NIT, licencia, tarjeta de circulación y póliza de seguro. Mientras estés en línea registramos tu ubicación, incluso con la app en segundo plano, para asignarte servicios cercanos.'
+                  : 'Para prestarte asistencia vial tratamos tu nombre, teléfono, correo, datos de tu vehículo y tu ubicación durante el servicio. Compartimos tu nombre, teléfono y ubicación de recogida únicamente con el socio operador que te atiende.'}
               </Text>
 
               <Pressable

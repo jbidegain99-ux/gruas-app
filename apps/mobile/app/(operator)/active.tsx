@@ -25,6 +25,8 @@ import {
   Truck,
 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
+import { usePayerInfo } from '@/features/coverage/hooks/usePayerInfo';
+import { PayerBadge } from '@/features/coverage/components/PayerBadge';
 import { supabase } from '@/lib/supabase';
 import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
 import { haversineKm } from '@/lib/distance';
@@ -35,7 +37,7 @@ import { AddressText } from '@/shared/components/AddressText';
 import { ChatScreen } from '@/features/chat/components/ChatScreen';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
-import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner } from '@/shared/components/ui';
+import { BudiLogo, Button, Card, Input, PINInput, LoadingSpinner, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ActiveService = {
@@ -70,6 +72,7 @@ export default function ActiveService() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [service, setService] = useState<ActiveService | null>(null);
+  const payerInfo = usePayerInfo(service ? [service.id] : []);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -278,18 +281,18 @@ export default function ActiveService() {
     switch (status) {
       case 'en_route':
         return {
-          title: 'Operador en camino',
-          body: 'El operador va en camino a tu ubicación',
+          title: 'Socio operador en camino',
+          body: 'El socio va en camino a tu ubicación',
         };
       case 'active':
         return {
-          title: 'Operador ha llegado',
-          body: 'El operador ha llegado y el servicio esta en curso',
+          title: 'Socio operador ha llegado',
+          body: 'El socio ha llegado y el servicio está en curso',
         };
       case 'completed':
         return {
           title: 'Servicio completado',
-          body: 'Tu servicio ha sido completado. No olvides calificar al operador.',
+          body: 'Tu servicio ha sido completado. No olvides calificar al socio operador.',
         };
       default:
         return null;
@@ -306,7 +309,7 @@ export default function ActiveService() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      Alert.alert('Error', 'Debes iniciar sesión');
+      toast.error('Debes iniciar sesión.');
       setUpdating(false);
       return;
     }
@@ -341,7 +344,7 @@ export default function ActiveService() {
     }
 
     if (opError) {
-      Alert.alert('Error', opError.message || 'No se pudo actualizar el estado');
+      toast.error(opError.message || 'No se pudo actualizar el estado.');
       setUpdating(false);
       return;
     }
@@ -364,18 +367,15 @@ export default function ActiveService() {
     await fetchActiveService();
 
     if (newStatus === 'completed') {
-      Alert.alert('Servicio Completado', 'El servicio ha sido completado exitosamente.', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/(operator)'),
-        },
-      ]);
+      // El toast vive en la raíz: sigue visible tras volver al inicio.
+      toast.success('El servicio se completó correctamente.', 'Servicio completado');
+      router.replace('/(operator)');
     }
   };
 
   const handleStartEnRoute = () => {
     Alert.alert(
-      'Iniciar Traslado',
+      'Iniciar traslado',
       'Confirma que vas en camino al lugar de recogida.',
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -391,7 +391,7 @@ export default function ActiveService() {
 
   const verifyPinAndArrive = async () => {
     if (!service || pinInput.length !== 4) {
-      Alert.alert('Error', 'Ingresa el PIN de 4 dígitos');
+      toast.error('Ingresa el PIN de confirmación.');
       return;
     }
 
@@ -408,17 +408,21 @@ export default function ActiveService() {
       if (data?.locked) {
         const seconds = Number(data.retry_after_seconds) || 0;
         const minutes = Math.ceil(seconds / 60);
-        Alert.alert(
-          'Bloqueado temporalmente',
-          `Demasiados intentos fallidos. Intenta de nuevo en ${minutes} minuto${minutes === 1 ? '' : 's'}.`
-        );
+        toast.show({
+          type: 'error',
+          title: 'Bloqueado temporalmente',
+          message:
+            `Demasiados intentos fallidos. Intenta de nuevo en ${minutes} minuto${minutes === 1 ? '' : 's'}. ` +
+            'Si el Usuario perdió su PIN de confirmación, puede generar uno nuevo desde su app; si no, llama a soporte.',
+          duration: 10000,
+        });
       } else if (typeof data?.attempts_remaining === 'number') {
-        Alert.alert(
-          'PIN Incorrecto',
-          `El PIN no coincide. Te quedan ${data.attempts_remaining} intento${data.attempts_remaining === 1 ? '' : 's'} antes del bloqueo.`
+        toast.error(
+          `El PIN no coincide. Te quedan ${data.attempts_remaining} intento${data.attempts_remaining === 1 ? '' : 's'} antes del bloqueo.`,
+          'PIN incorrecto'
         );
       } else {
-        Alert.alert('PIN Incorrecto', data?.error ?? 'El PIN no coincide. Verifica con el cliente.');
+        toast.error(data?.error ?? 'El PIN no coincide. Verifica con el Usuario.', 'PIN incorrecto');
       }
       return;
     }
@@ -426,12 +430,12 @@ export default function ActiveService() {
     setShowPinVerification(false);
     setUpdating(false);
     await updateStatus('active');
-    Alert.alert('Verificado', 'PIN correcto. El servicio está ahora activo.');
+    toast.success('PIN correcto. El servicio ya está activo.', 'Verificado');
   };
 
   const handleComplete = () => {
     Alert.alert(
-      'Completar Servicio',
+      'Completar servicio',
       '¿Confirmas que el vehículo ha sido entregado en el destino?',
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -449,7 +453,7 @@ export default function ActiveService() {
     if (!service) return;
 
     if (!cancelReason.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un motivo de cancelacion');
+      toast.error('Ingresa un motivo de cancelación.');
       return;
     }
 
@@ -463,37 +467,33 @@ export default function ActiveService() {
     setCancelling(false);
 
     if (error) {
-      Alert.alert('Error', friendlyError(error, 'No se pudo cancelar el servicio.'));
+      toast.error(friendlyError(error, 'No se pudo cancelar el servicio.'));
       return;
     }
 
     if (data && !data.success) {
-      Alert.alert('Error', data.error || 'No se pudo cancelar el servicio');
+      toast.error(data.error || 'No se pudo cancelar el servicio.');
       return;
     }
 
-    Alert.alert(
-      'Servicio Cancelado',
+    toast.info(
       data?.released
-        ? 'El servicio fue liberado y volverá a ofrecerse a otros operadores.'
-        : 'El servicio ha sido cancelado.',
-      [
-      {
-        text: 'OK',
-        onPress: () => router.replace('/(operator)'),
-      },
-    ]);
+        ? 'El servicio fue liberado y volverá a ofrecerse a otros socios operadores.'
+        : 'El servicio fue cancelado.',
+      'Servicio cancelado'
+    );
     setShowCancelModal(false);
+    router.replace('/(operator)');
   };
 
   const openNavigation = async (lat: number, lng: number, label: string) => {
     if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-      Alert.alert('Error', 'Las coordenadas de navegación no son válidas.');
+      toast.error('Las coordenadas de navegación no son válidas.');
       return;
     }
 
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      Alert.alert('Error', 'Las coordenadas están fuera de rango válido.');
+      toast.error('Las coordenadas están fuera de rango válido.');
       return;
     }
 
@@ -556,7 +556,7 @@ export default function ActiveService() {
     if (service?.user_phone) {
       Linking.openURL(`tel:${service.user_phone}`);
     } else {
-      Alert.alert('Sin teléfono', 'El cliente no tiene teléfono registrado');
+      toast.info('El Usuario no tiene un teléfono registrado.', 'Sin teléfono');
     }
   };
 
@@ -671,7 +671,7 @@ export default function ActiveService() {
               return <SvcIcon size={14} color={svcConfig?.color || colors.accent[500]} strokeWidth={2} />;
             })()}
             <Text style={[styles.towTypeText, { color: svcConfig?.color || colors.accent[500] }]}>
-              {svcConfig?.name || 'Grua'}
+              {svcConfig?.name || 'Grúa'}
               {isTow && ` - ${service.tow_type === 'light' ? 'Liviana' : 'Pesada'}`}
             </Text>
           </View>
@@ -741,7 +741,7 @@ export default function ActiveService() {
         {/* Vehicle Photo */}
         {service.vehicle_photo_url && (
           <View style={styles.photoSection}>
-            <Text style={styles.photoLabel}>Foto del Vehiculo</Text>
+            <Text style={styles.photoLabel}>Foto del vehículo</Text>
             <Image
               source={{ uri: service.vehicle_photo_url }}
               style={styles.vehiclePhotoLarge}
@@ -753,8 +753,10 @@ export default function ActiveService() {
         {/* Client Info */}
         <View style={styles.clientSection}>
           <View style={styles.clientInfo}>
-            <Text style={styles.clientLabel}>Cliente</Text>
+            <Text style={styles.clientLabel}>Usuario</Text>
             <Text style={styles.clientName}>{service.user_name || 'Sin nombre'}</Text>
+            {/* LAN-06: cortesía MOPT o cubierto por una aseguradora. */}
+            <PayerBadge info={payerInfo[service.id]} />
           </View>
           <View style={styles.clientActions}>
             <Pressable style={styles.chatButtonSmall} onPress={() => setShowChat(true)}>
@@ -782,7 +784,7 @@ export default function ActiveService() {
         {/* Navigate Button */}
         {['assigned', 'en_route'].includes(service.status) && (
           <Button
-            title="Navegar al Cliente"
+            title="Navegar al usuario"
             onPress={() => openNavigation(service.pickup_lat, service.pickup_lng, 'Punto de Recogida')}
             variant="secondary"
             size="large"
@@ -849,7 +851,7 @@ export default function ActiveService() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Verificar PIN</Text>
             <Text style={styles.modalDescription}>
-              Solicita el PIN de 4 digitos al cliente para verificar tu llegada.
+              Solicita el PIN de confirmación al usuario para verificar tu llegada.
             </Text>
 
             <View style={styles.pinInputWrapper}>

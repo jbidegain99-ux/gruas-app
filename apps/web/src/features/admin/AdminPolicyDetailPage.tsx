@@ -240,7 +240,7 @@ export default function AdminPolicyDetailPage({ policyId }: { policyId: string }
         <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           {members.length === 0 ? (
             <p className="p-8 text-center text-sm text-zinc-500">
-              Sin afiliados. Agregalos a mano o importá el padrón desde un CSV.
+              Sin afiliados. Agrégalos a mano o importa el padrón desde un CSV.
             </p>
           ) : (
             <div className="overflow-x-auto">

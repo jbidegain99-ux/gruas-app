@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { toast } from '@/shared/components/ui';
 
 export interface ActiveRequest {
   id: string;
@@ -263,18 +263,20 @@ export function useActiveRequest(): UseActiveRequestResult {
               ) {
                 // El operador libero la solicitud: volvio al pool (RPC
                 // cancel_service_request, migracion 00035).
-                Alert.alert(
-                  'Buscando otro operador',
-                  'El operador no pudo atender tu servicio. Tu solicitud sigue activa y estamos buscando otro operador.'
+                toast.info(
+                  'El socio operador no pudo atender tu servicio. Tu solicitud sigue activa y estamos buscando otro socio.',
+                  'Buscando otro socio operador'
                 );
               } else if (next.status === 'cancelled' && next.cancelled_by !== user.id) {
                 // Cancelacion terminal por admin (u otro actor que no es el usuario).
-                Alert.alert(
-                  'Servicio cancelado',
-                  next.cancellation_reason
-                    ? `Tu servicio fue cancelado.\n\nMotivo: ${next.cancellation_reason}`
-                    : 'Tu servicio fue cancelado.'
-                );
+                toast.show({
+                  type: 'error',
+                  title: 'Servicio cancelado',
+                  message: next.cancellation_reason
+                    ? `Tu servicio fue cancelado. Motivo: ${next.cancellation_reason}`
+                    : 'Tu servicio fue cancelado.',
+                  duration: 10000,
+                });
               }
             }
 

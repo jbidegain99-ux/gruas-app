@@ -85,7 +85,7 @@ export function CaseSla({ folio }: { folio: string | null }) {
       ) : (
         <div className="space-y-2">
           <Row
-            label="Encontrar operador"
+            label="Encontrar socio operador"
             value={fmtDur(sla.assignment_seconds)}
             target={sla.assignment_target_minutes}
             met={sla.assignment_met}
