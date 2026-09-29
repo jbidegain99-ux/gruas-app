@@ -13,14 +13,22 @@
       },
       "ios": {
         "simulator": false
-      }
+      },
+      "env": {
+        "APP_VARIANT": "development"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
       "environment": "preview",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "env": {
+        "APP_VARIANT": "preview"
+      },
+      "channel": "preview"
     },
     "production": {
       "distribution": "store",
@@ -28,7 +36,11 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "env": {
+        "APP_VARIANT": "production"
+      },
+      "channel": "production"
     }
   },
   "submit": {
