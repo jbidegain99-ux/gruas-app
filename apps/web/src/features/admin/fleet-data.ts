@@ -90,7 +90,7 @@ export async function fetchFleet(
 
       return {
         id: loc.operator_id,
-        name: profile?.full_name || 'Operador',
+        name: profile?.full_name || 'Socio operador',
         phone: profile?.phone ?? null,
         lat: loc.lat,
         lng: loc.lng,

@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { getMyOrganization, PORTAL_BY_ORG_TYPE, securityUrl } from '@/shared/lib/organization';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 
@@ -37,20 +38,33 @@ function LoginForm() {
     // Get user profile to determine redirect
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      // Un reintento del perfil: con una falla pasajera (sesión recién escrita,
+      // servidor compilando) el rol llegaba vacío y un admin terminaba en la home.
+      const readProfile = async () => {
+        for (let intento = 0; intento < 2; intento++) {
+          const { data, error: e } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+          if (!e) return data;
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        return null;
+      };
+      const [profile, org] = await Promise.all([readProfile(), getMyOrganization(supabase)]);
+      // 00106 (POR-01): quien trabaja en un cliente institucional entra a su
+      // portal por su membresía, no por un rol.
+      const portal = org ? PORTAL_BY_ORG_TYPE[org.type] : null;
 
-      if (profile?.role === 'ADMIN') {
+      // 00113: vuelve a aceptar la invitación al equipo de un portal.
+      if (redirect.startsWith('/invitacion?') || redirect === '/socios/registro') {
+        router.push(redirect);
+      } else if (profile?.role === 'ADMIN' || profile?.role === 'SUPPORT') {
         router.push('/admin');
-      } else if (profile?.role === 'INSURER') {
-        // B-17: la aseguradora va a su portal.
-        router.push('/portal');
+      } else if (portal && redirect !== '/eliminar-cuenta') {
+        // 00113: dueño o administrador sin 2FA en esta sesión -> primero el código.
+        router.push(org && !org.mfa_ok ? securityUrl(portal) : portal);
       } else if (profile?.role === 'USER' || profile?.role === 'OPERATOR') {
-        // Redirect mobile-first roles to info page
-        router.push('/mobile-info');
+        // Los roles de la app movil van a la pagina informativa, salvo que
+        // hayan venido a eliminar su cuenta (00101): ahi se vuelve a esa pagina.
+        router.push(redirect === '/eliminar-cuenta' ? '/eliminar-cuenta' : '/mobile-info');
       } else {
         router.push(redirect);
       }
@@ -69,10 +83,10 @@ function LoginForm() {
           </span>
         </Link>
         <h1 className="mt-6 text-2xl font-bold text-zinc-900 dark:text-white">
-          Iniciar Sesion
+          Iniciar sesión
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Ingresa tus credenciales para acceder
+          Ingresa tus credenciales para acceder.
         </p>
       </div>
 
@@ -106,7 +120,7 @@ function LoginForm() {
             htmlFor="password"
             className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
           >
-            Contrasena
+            Contraseña
           </label>
           <input
             id="password"
@@ -124,17 +138,17 @@ function LoginForm() {
           disabled={loading}
           className="w-full rounded-lg bg-budi-primary-500 px-4 py-2 font-medium text-white hover:bg-budi-primary-600 focus:outline-none focus:ring-2 focus:ring-budi-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
         >
-          {loading ? 'Iniciando sesion...' : 'Iniciar Sesion'}
+          {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
-        No tienes cuenta?{' '}
+        ¿No tienes cuenta?{' '}
         <Link
           href="/register"
           className="font-medium text-budi-primary-500 hover:text-budi-primary-400"
         >
-          Registrate
+          Regístrate
         </Link>
       </p>
     </div>

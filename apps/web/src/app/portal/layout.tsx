@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/shared/lib/supabase/server';
 import { FeedbackProvider } from '@/shared/components/FeedbackProvider';
 import { InsurerShell } from '@/features/insurer/InsurerShell';
+import { getMyOrganization } from '@/shared/lib/organization';
 
-// B-17: portal de la aseguradora. Guard server-side: solo rol INSURER.
+// B-17: portal de la aseguradora. Guard server-side: membresía activa en una
+// organización de tipo aseguradora (00106, POR-01), no un rol de perfil.
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
@@ -12,16 +14,14 @@ export default async function PortalLayout({ children }: { children: React.React
 
   if (!user) redirect('/login?redirect=/portal');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, insurer_id, insurers:insurer_id(name)')
-    .eq('id', user.id)
-    .single();
+  const [{ data: profile }, org] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    getMyOrganization(supabase),
+  ]);
 
-  if (profile?.role !== 'INSURER') redirect('/');
+  if (org?.type !== 'INSURER') redirect('/');
 
-  const insurerName =
-    (profile?.insurers as unknown as { name: string } | null)?.name ?? 'Aseguradora';
+  const insurerName = org.name;
 
   return (
     <FeedbackProvider>

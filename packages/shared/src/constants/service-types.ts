@@ -8,13 +8,15 @@ export interface ServiceTypeConfig {
 }
 
 export const SERVICE_TYPE_CONFIGS: Record<ServiceType, ServiceTypeConfig> = {
-  tow:       { type: 'tow',       emoji: '🚛', name: 'Grua',        color: '#E67E22' },
-  battery:   { type: 'battery',   emoji: '🔋', name: 'Bateria',     color: '#2ECC71' },
+  tow:       { type: 'tow',       emoji: '🚛', name: 'Grúa',        color: '#E67E22' },
+  battery:   { type: 'battery',   emoji: '🔋', name: 'Batería',     color: '#2ECC71' },
   tire:      { type: 'tire',      emoji: '🛞', name: 'Llanta',      color: '#3498DB' },
   fuel:      { type: 'fuel',      emoji: '⛽', name: 'Combustible', color: '#E74C3C' },
-  locksmith: { type: 'locksmith', emoji: '🔑', name: 'Cerrajeria',  color: '#9B59B6' },
-  mechanic:  { type: 'mechanic',  emoji: '🔧', name: 'Mecanico',    color: '#F39C12' },
+  locksmith: { type: 'locksmith', emoji: '🔑', name: 'Cerrajería',  color: '#9B59B6' },
+  mechanic:  { type: 'mechanic',  emoji: '🔧', name: 'Mecánico',    color: '#F39C12' },
   winch:     { type: 'winch',     emoji: '🏗️', name: 'Winche',      color: '#1ABC9C' },
+  // SRV-01 (migr. 00108): la pipa va a la ubicación del Usuario, sin destino.
+  water_truck: { type: 'water_truck', emoji: '💧', name: 'Pipa de agua', color: '#2E86C1' },
 };
 
 /**
@@ -34,6 +36,7 @@ const DESTINO_POR_DEFECTO: Record<string, boolean> = {
   fuel: false,
   locksmith: false,
   mechanic: false,
+  water_truck: false,
 };
 
 /**

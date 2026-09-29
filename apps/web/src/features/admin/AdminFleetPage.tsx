@@ -79,7 +79,7 @@ export default function AdminFleetPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Flota</h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Operadores en el mapa, en vivo
+            Socios operadores en el mapa, en vivo
           </p>
         </div>
         <button
@@ -133,9 +133,9 @@ export default function AdminFleetPage() {
           ) : operators.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
               <Truck className="h-10 w-10 text-zinc-300 dark:text-zinc-700" />
-              <p className="text-sm font-medium text-zinc-900 dark:text-white">Sin operadores ubicados</p>
+              <p className="text-sm font-medium text-zinc-900 dark:text-white">Sin socios operadores ubicados</p>
               <p className="max-w-xs text-sm text-zinc-500">
-                Aparecerán aquí en cuanto un operador se ponga en línea desde la app.
+                Aparecerán aquí en cuanto un socio operador se ponga en línea desde la app.
               </p>
             </div>
           ) : (
@@ -148,7 +148,7 @@ export default function AdminFleetPage() {
           <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <Radio className="h-4 w-4 text-zinc-400" />
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Operadores ({operators.length})
+              Socios operadores ({operators.length})
             </h2>
           </div>
           <div className="max-h-[500px] divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800">

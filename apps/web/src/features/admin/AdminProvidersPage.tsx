@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
+import Link from 'next/link';
+import { useCanConfigure } from './AdminRoleContext';
+import { ProviderBankModal } from '@/features/payouts/ProviderBankModal';
+import { accountUrl } from './account-360';
 
 type Provider = {
   id: string;
@@ -12,8 +16,9 @@ type Provider = {
   business_type: string;
   /**
    * Porcentaje del bruto que retiene Budi por cada servicio de esta empresa.
-   * NO viene en la fila de `providers`: vive en `provider_commissions`, que solo
-   * el admin puede leer. Se completa aparte, con admin_list_provider_commissions.
+   * NO viene en la fila de `providers`: es una tarifa versionada (00102) que
+   * solo el admin puede leer. Se completa aparte, con admin_list_provider_commissions
+   * (la que rige hoy, propia o heredada del default).
    */
   commission_rate: number;
   /** NULL cuando la empresa no remolca (una cerrajeria, un taller). */
@@ -26,8 +31,6 @@ type Provider = {
   provider_services?: ProviderServiceRow[];
 };
 
-/** Espeja `default_commission_rate()` en la DB: con lo que nace una empresa nueva. */
-const DEFAULT_COMMISSION = 20;
 
 const BUSINESS_TYPES: { valor: string; etiqueta: string }[] = [
   { valor: 'tow', etiqueta: 'Operadora de grúas' },
@@ -59,8 +62,12 @@ export default function AdminProvidersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // LAN-08 (00125): cuenta a la que Budi le paga a la empresa.
+  const [bankFor, setBankFor] = useState<Provider | null>(null);
   const toast = useToast();
   const confirm = useConfirm();
+  // Soporte ve las empresas y lo que prestan, pero no las edita ni ve comisiones.
+  const canConfigure = useCanConfigure();
 
   useEffect(() => {
     const fetchProviders = async () => {
@@ -75,8 +82,12 @@ export default function AdminProvidersPage() {
             *,
             provider_services(service_id, is_available, services(slug, name_es))
           `)
+          // Los programas MOPT se gestionan en su propia pantalla (tarifa, zonas).
+          .eq('is_mopt', false)
           .order('created_at', { ascending: false }),
-        supabase.rpc('admin_list_provider_commissions'),
+        canConfigure
+          ? supabase.rpc('admin_list_provider_commissions')
+          : Promise.resolve({ data: [] as { provider_id: string; commission_rate: number }[] }),
       ]);
       const porProveedor = new Map(
         (comisiones ?? []).map((c) => [c.provider_id, Number(c.commission_rate)])
@@ -86,13 +97,13 @@ export default function AdminProvidersPage() {
       setProviders(
         ((data as Omit<Provider, 'commission_rate'>[]) || []).map((p) => ({
           ...p,
-          commission_rate: porProveedor.get(p.id) ?? DEFAULT_COMMISSION,
+          commission_rate: porProveedor.get(p.id) ?? 0,
         }))
       );
       setLoading(false);
     };
     fetchProviders();
-  }, [refreshKey]);
+  }, [refreshKey, canConfigure]);
 
   const refetch = () => setRefreshKey((k) => k + 1);
 
@@ -140,17 +151,20 @@ export default function AdminProvidersPage() {
             Gestiona los proveedores de servicios
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditingProvider(null);
-            setShowForm(true);
-          }}
-          className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600"
-        >
-          Agregar Proveedor
-        </button>
+        {canConfigure && (
+          <button
+            onClick={() => {
+              setEditingProvider(null);
+              setShowForm(true);
+            }}
+            className="rounded-lg bg-budi-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-budi-primary-600"
+          >
+            Agregar Proveedor
+          </button>
+        )}
       </div>
 
+      {bankFor && <ProviderBankModal providerId={bankFor.id} providerName={bankFor.name} onClose={() => setBankFor(null)} />}
       {showForm && (
         <ProviderForm
           provider={editingProvider}
@@ -189,9 +203,11 @@ export default function AdminProvidersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Acciones
-                </th>
+                {canConfigure && (
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    Acciones
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -212,9 +228,19 @@ export default function AdminProvidersPage() {
                   <tr key={provider.id}>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div>
-                        <p className="text-sm font-medium text-zinc-900 dark:text-white">
-                          {provider.name}
-                        </p>
+                        {/* La ficha 360 tiene dinero: solo el admin la abre. */}
+                        {canConfigure ? (
+                          <Link
+                            href={accountUrl('provider', provider.id)}
+                            className="text-sm font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
+                          >
+                            {provider.name}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-medium text-zinc-900 dark:text-white">
+                            {provider.name}
+                          </p>
+                        )}
                         {provider.address && (
                           <p className="text-xs text-zinc-500 dark:text-zinc-400">
                             {provider.address}
@@ -251,7 +277,8 @@ export default function AdminProvidersPage() {
                     <td className="whitespace-nowrap px-6 py-4">
                       <button
                         onClick={() => handleToggleActive(provider)}
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        disabled={!canConfigure}
+                        className={`inline-flex disabled:cursor-default rounded-full px-2 py-1 text-xs font-medium ${
                           provider.is_active
                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                             : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200'
@@ -260,6 +287,7 @@ export default function AdminProvidersPage() {
                         {provider.is_active ? 'Activo' : 'Inactivo'}
                       </button>
                     </td>
+                    {canConfigure && (
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                       <button
                         onClick={() => {
@@ -271,12 +299,19 @@ export default function AdminProvidersPage() {
                         Editar
                       </button>
                       <button
+                        onClick={() => setBankFor(provider)}
+                        className="mr-2 text-budi-primary-500 hover:text-budi-primary-700 dark:text-budi-primary-400"
+                      >
+                        Cuenta bancaria
+                      </button>
+                      <button
                         onClick={() => handleDelete(provider.id)}
                         className="text-red-600 hover:text-red-800 dark:text-red-400"
                       >
                         Eliminar
                       </button>
                     </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -300,9 +335,11 @@ function ProviderForm({
   const toast = useToast();
   const [name, setName] = useState(provider?.name || '');
   const [businessType, setBusinessType] = useState<string>(provider?.business_type || 'tow');
-  // Se negocia empresa por empresa. El default es solo el valor con el que nace una nueva.
+  // Se negocia empresa por empresa. Una empresa nueva nace sin tarifa propia
+  // (vacio = hereda el default de plataforma, y sigue sus cambios). Un numero
+  // escrito aca queda fijo aunque el default cambie despues.
   const [commission, setCommission] = useState<string>(
-    String(provider?.commission_rate ?? DEFAULT_COMMISSION)
+    provider ? String(provider.commission_rate) : ''
   );
   // '' = no remolca -> se guarda NULL.
   const [towType, setTowType] = useState<'light' | 'heavy' | 'both' | ''>(
@@ -395,8 +432,9 @@ function ProviderForm({
       providerId = data?.id;
     }
 
-    // La comision va a `provider_commissions`, no a la fila del proveedor.
-    if (providerId) {
+    // La comision no va en la fila del proveedor: se registra como version nueva
+    // desde ya (00102). Si no cambio, la RPC no crea nada.
+    if (providerId && commission.trim() !== '') {
       const { error: comisionError } = await supabase.rpc('admin_set_provider_commission', {
         p_provider_id: providerId,
         p_rate: Number(commission),
@@ -489,10 +527,14 @@ function ProviderForm({
               type="number" min={0} max={100} step="0.01"
               value={commission}
               onChange={(e) => setCommission(e.target.value)}
+              placeholder={provider ? undefined : 'Default de plataforma'}
               className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
             />
             <p className="mt-1 text-xs text-zinc-500">
               Porcentaje del bruto que retiene Budi. El resto se le liquida a la empresa.
+              Cambia desde hoy: los servicios ya completados conservan su tasa. Para
+              programarlo a futuro o ver la historia, abre{' '}
+              <a href="/admin/tarifas" className="font-medium text-budi-primary-600 underline dark:text-budi-primary-400">Tarifas</a>.
             </p>
           </div>
 

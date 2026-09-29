@@ -27,13 +27,13 @@ export default function RegisterPage() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError('Las contrasenas no coinciden');
+      setError('Las contraseñas no coinciden.');
       setLoading(false);
       return;
     }
 
     if (password.length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres');
+      setError('La contraseña debe tener al menos 6 caracteres.');
       setLoading(false);
       return;
     }
@@ -94,17 +94,17 @@ export default function RegisterPage() {
               </svg>
             </div>
             <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
-              Registro Exitoso
+              Registro exitoso
             </h1>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Hemos enviado un correo de verificacion a tu email.
-              Por favor revisa tu bandeja de entrada.
+              Te enviamos un correo de verificación a tu email.
+              Revisa tu bandeja de entrada.
             </p>
             <Link
               href="/login"
               className="mt-6 inline-block rounded-lg bg-budi-primary-500 px-6 py-2 font-medium text-white hover:bg-budi-primary-600"
             >
-              Ir a Iniciar Sesion
+              Ir a iniciar sesión
             </Link>
           </div>
         </div>
@@ -124,10 +124,10 @@ export default function RegisterPage() {
               </span>
             </Link>
             <h1 className="mt-6 text-2xl font-bold text-zinc-900 dark:text-white">
-              Crear Cuenta
+              Crear cuenta
             </h1>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Registrate para solicitar servicios de asistencia
+              Regístrate para solicitar servicios de asistencia
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export default function RegisterPage() {
                 htmlFor="fullName"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Nombre Completo
+                Nombre completo
               </label>
               <input
                 id="fullName"
@@ -152,7 +152,7 @@ export default function RegisterPage() {
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-budi-primary-500 focus:outline-none focus:ring-1 focus:ring-budi-primary-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:placeholder-zinc-500"
-                placeholder="Juan Perez"
+                placeholder="Juan Pérez"
               />
             </div>
 
@@ -179,7 +179,7 @@ export default function RegisterPage() {
                 htmlFor="phone"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Telefono
+                Teléfono
               </label>
               <input
                 id="phone"
@@ -197,7 +197,7 @@ export default function RegisterPage() {
                 htmlFor="password"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Contrasena
+                Contraseña
               </label>
               <input
                 id="password"
@@ -216,7 +216,7 @@ export default function RegisterPage() {
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Confirmar Contrasena
+                Confirmar contraseña
               </label>
               <input
                 id="confirmPassword"
@@ -232,10 +232,10 @@ export default function RegisterPage() {
 
             <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
               <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-                Para prestarte asistencia vial tratamos tu nombre, telefono, correo,
-                datos de tu vehiculo y <strong>tu ubicacion durante el servicio</strong>.
-                Compartimos tu nombre, telefono y ubicacion de recogida{' '}
-                <strong>unicamente con el operador que te atiende</strong>.
+                Para prestarte asistencia vial tratamos tu nombre, teléfono, correo,
+                datos de tu vehículo y <strong>tu ubicación durante el servicio</strong>.
+                Compartimos tu nombre, teléfono y ubicación de recogida{' '}
+                <strong>únicamente con el socio operador que te atiende</strong>.
               </p>
 
               <label className="flex items-start gap-2">
@@ -246,7 +246,7 @@ export default function RegisterPage() {
                   className="mt-0.5 rounded border-zinc-300 text-budi-primary-500 focus:ring-budi-primary-500"
                 />
                 <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  He leido y acepto el{' '}
+                  He leído y acepto el{' '}
                   <Link href="/privacidad" target="_blank" className="font-medium text-budi-primary-500 hover:underline">
                     Aviso de privacidad
                   </Link>
@@ -273,17 +273,17 @@ export default function RegisterPage() {
               disabled={loading || !privacyAccepted}
               className="w-full rounded-lg bg-budi-primary-500 px-4 py-2 font-medium text-white hover:bg-budi-primary-600 focus:outline-none focus:ring-2 focus:ring-budi-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
             >
-              {loading ? 'Registrando...' : 'Crear Cuenta'}
+              {loading ? 'Registrando...' : 'Crear cuenta'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
-            Ya tienes cuenta?{' '}
+            ¿Ya tienes cuenta?{' '}
             <Link
               href="/login"
               className="font-medium text-budi-primary-500 hover:text-budi-primary-400"
             >
-              Inicia Sesion
+              Inicia sesión
             </Link>
           </p>
         </div>

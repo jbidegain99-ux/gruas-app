@@ -6,6 +6,7 @@ import {
   KeyRound,
   Wrench,
   CableCar,
+  Droplets,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -23,6 +24,7 @@ const SERVICE_TYPES: Record<string, ServiceTypeInfo> = {
   locksmith: { label: 'Cerrajería',  icon: KeyRound,  color: 'text-purple-600' },
   mechanic:  { label: 'Mecánico',    icon: Wrench,    color: 'text-amber-600' },
   winch:     { label: 'Winche',      icon: CableCar,  color: 'text-teal-600' },
+  water_truck: { label: 'Pipa de agua', icon: Droplets, color: 'text-sky-600' },
 };
 
 export function ServiceTypeBadge({ serviceType }: { serviceType: string }) {
@@ -36,3 +38,10 @@ export function ServiceTypeBadge({ serviceType }: { serviceType: string }) {
     </span>
   );
 }
+
+/** Nombre del servicio en español (para filtros y exportaciones). */
+export function serviceTypeLabel(serviceType: string | null | undefined): string {
+  return SERVICE_TYPES[serviceType || 'tow']?.label ?? serviceType ?? '—';
+}
+
+export const SERVICE_TYPE_KEYS = Object.keys(SERVICE_TYPES);
