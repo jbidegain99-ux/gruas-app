@@ -657,6 +657,11 @@ export type Database = {
       }
       insurers: {
         Row: {
+          brand_color: string | null
+          brand_enabled: boolean
+          brand_logo_path: string | null
+          brand_name: string | null
+          brand_updated_at: string | null
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
@@ -670,6 +675,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand_color?: string | null
+          brand_enabled?: boolean
+          brand_logo_path?: string | null
+          brand_name?: string | null
+          brand_updated_at?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -683,6 +693,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand_color?: string | null
+          brand_enabled?: boolean
+          brand_logo_path?: string | null
+          brand_name?: string | null
+          brand_updated_at?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -834,6 +849,47 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mopt_reports: {
+        Row: {
+          email_status: string | null
+          emailed_at: string | null
+          emailed_to: string[] | null
+          generated_at: string
+          id: string
+          month: string
+          provider_id: string
+          report: Json
+        }
+        Insert: {
+          email_status?: string | null
+          emailed_at?: string | null
+          emailed_to?: string[] | null
+          generated_at?: string
+          id?: string
+          month: string
+          provider_id: string
+          report: Json
+        }
+        Update: {
+          email_status?: string | null
+          emailed_at?: string | null
+          emailed_to?: string[] | null
+          generated_at?: string
+          id?: string
+          month?: string
+          provider_id?: string
+          report?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mopt_reports_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
             referencedColumns: ["id"]
           },
         ]
@@ -2243,6 +2299,149 @@ export type Database = {
           },
         ]
       }
+      reinsurer_cedents: {
+        Row: {
+          consent_at: string | null
+          consent_by: string | null
+          consent_status: string
+          created_at: string
+          created_by: string | null
+          id: string
+          insurer_org_id: string
+          reinsurer_org_id: string
+          updated_at: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          consent_at?: string | null
+          consent_by?: string | null
+          consent_status?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          insurer_org_id: string
+          reinsurer_org_id: string
+          updated_at?: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          consent_at?: string | null
+          consent_by?: string | null
+          consent_status?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          insurer_org_id?: string
+          reinsurer_org_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reinsurer_cedents_consent_by_fkey"
+            columns: ["consent_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "reinsurer_cedents_consent_by_fkey"
+            columns: ["consent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reinsurer_cedents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "reinsurer_cedents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reinsurer_cedents_insurer_org_id_fkey"
+            columns: ["insurer_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reinsurer_cedents_reinsurer_org_id_fkey"
+            columns: ["reinsurer_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reinsurer_consent_events: {
+        Row: {
+          action: string
+          actor: string | null
+          actor_name: string | null
+          created_at: string
+          id: number
+          ip: string | null
+          link_id: string
+          reason: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          actor_name?: string | null
+          created_at?: string
+          id?: number
+          ip?: string | null
+          link_id: string
+          reason?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          actor_name?: string | null
+          created_at?: string
+          id?: number
+          ip?: string | null
+          link_id?: string
+          reason?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reinsurer_consent_events_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "reinsurer_consent_events_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reinsurer_consent_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "reinsurer_cedents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_events: {
         Row: {
           actor_id: string
@@ -2418,6 +2617,102 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_payments: {
+        Row: {
+          amount: number
+          collected_by: string | null
+          created_at: string
+          gateway: string | null
+          gateway_tx: string | null
+          id: string
+          method: string | null
+          note: string | null
+          paid_at: string | null
+          receipt_number: string | null
+          reference: string | null
+          request_id: string
+          status: string
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          amount: number
+          collected_by?: string | null
+          created_at?: string
+          gateway?: string | null
+          gateway_tx?: string | null
+          id?: string
+          method?: string | null
+          note?: string | null
+          paid_at?: string | null
+          receipt_number?: string | null
+          reference?: string | null
+          request_id: string
+          status?: string
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          amount?: number
+          collected_by?: string | null
+          created_at?: string
+          gateway?: string | null
+          gateway_tx?: string | null
+          id?: string
+          method?: string | null
+          note?: string | null
+          paid_at?: string | null
+          receipt_number?: string | null
+          reference?: string | null
+          request_id?: string
+          status?: string
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_payments_collected_by_fkey"
+            columns: ["collected_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "service_payments_collected_by_fkey"
+            columns: ["collected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_payments_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
+            referencedRelation: "service_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_payments_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "service_payments_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3023,16 +3318,101 @@ export type Database = {
       }
     }
     Functions: {
+      _cash_collected: { Args: { p_request: string }; Returns: number }
+      _email_mopt_report: { Args: { p_report: string }; Returns: string }
       _ensure_onboarding: { Args: { p_org: string }; Returns: undefined }
+      _generate_mopt_report: {
+        Args: { p_month: string; p_mopt: string; p_send: boolean }
+        Returns: string
+      }
       _import_members: {
         Args: { p_members: Json; p_policy_id: string }
         Returns: Json
       }
+      _insurer_branding_json: { Args: { p_insurer: string }; Returns: Json }
       _issue_insurer_api_key: {
         Args: { p_insurer: string; p_name: string }
         Returns: Json
       }
+      _mark_payment_paid: {
+        Args: {
+          p_collected_by: string
+          p_id: string
+          p_method: string
+          p_note: string
+        }
+        Returns: undefined
+      }
+      _mopt_compliance_for: {
+        Args: { p_from: string; p_mopt: string; p_to: string }
+        Returns: Json
+      }
+      _mopt_report_build: {
+        Args: { p_month: string; p_mopt: string }
+        Returns: Json
+      }
       _new_webhook_secret: { Args: never; Returns: string }
+      _onboarding_status_core: { Args: { p_org: string }; Returns: Json }
+      _rea_cell: {
+        Args: {
+          p_asig_n: number
+          p_asig_ok: number
+          p_cost: number
+          p_lleg_n: number
+          p_lleg_ok: number
+          p_members?: number
+          p_n: number
+        }
+        Returns: Json
+      }
+      _rea_change: {
+        Args: { p_cur: Json; p_key: string; p_prev: Json }
+        Returns: number
+      }
+      _rea_loss_cell: {
+        Args: { p_cost: number; p_exposure: number; p_n: number }
+        Returns: Json
+      }
+      _rea_quarter_bounds: {
+        Args: { p_quarter: number; p_year: number }
+        Returns: {
+          q_from: string
+          q_to: string
+        }[]
+      }
+      _rea_quarter_raw: {
+        Args: { p_from: string; p_reinsurer: string; p_to: string }
+        Returns: {
+          cost: number
+          exposure: number
+          insurer_name: string
+          insurer_org_id: string
+          services: number
+        }[]
+      }
+      _reinsurer_cases: {
+        Args: { p_from: string; p_reinsurer: string; p_to: string }
+        Returns: {
+          arrival_met: boolean
+          assignment_met: boolean
+          covered: number
+          insurer_name: string
+          insurer_org_id: string
+          month: string
+          service_type: string
+        }[]
+      }
+      _save_insurer_branding: {
+        Args: {
+          p_color: string
+          p_enabled: boolean
+          p_insurer: string
+          p_logo_path: string
+          p_name: string
+        }
+        Returns: undefined
+      }
+      _vault_secret: { Args: { p_name: string }; Returns: string }
       _webhook_case_data: {
         Args: { p_insurer: string; p_request: string }
         Returns: Json
@@ -3318,10 +3698,15 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
+      admin_generate_mopt_report: {
+        Args: { p_month: string; p_mopt: string; p_send?: boolean }
+        Returns: Json
+      }
       admin_generate_statement: {
         Args: { p_from: string; p_org: string; p_to: string }
         Returns: string
       }
+      admin_insurer_branding: { Args: { p_insurer: string }; Returns: Json }
       admin_invite_org_member: {
         Args: { p_email: string; p_org: string; p_role?: string }
         Returns: Json
@@ -3418,6 +3803,16 @@ export type Database = {
         Args: { p_id: string; p_paid_on: string; p_reference: string }
         Returns: undefined
       }
+      admin_mopt_reports: {
+        Args: { p_mopt: string }
+        Returns: {
+          email_status: string
+          emailed_to: string[]
+          generated_at: string
+          month: string
+          services: number
+        }[]
+      }
       admin_onboarding_overview: {
         Args: never
         Returns: {
@@ -3496,6 +3891,11 @@ export type Database = {
           versions: number
         }[]
       }
+      admin_record_service_payment: {
+        Args: { p_id: string; p_method: string; p_note: string }
+        Returns: undefined
+      }
+      admin_reinsurers: { Args: never; Returns: Json }
       admin_reset_mfa: {
         Args: { p_profile_id: string; p_reason: string }
         Returns: number
@@ -3514,6 +3914,16 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      admin_save_insurer_branding: {
+        Args: {
+          p_color: string
+          p_enabled: boolean
+          p_insurer: string
+          p_logo_path: string
+          p_name: string
+        }
+        Returns: undefined
+      }
       admin_schedule_rate: {
         Args: {
           p_effective?: string
@@ -3523,6 +3933,25 @@ export type Database = {
           p_subject: string
         }
         Returns: string
+      }
+      admin_service_payments: {
+        Args: { p_from: string; p_status?: string; p_to: string }
+        Returns: {
+          amount: number
+          completed_at: string
+          folio: string
+          id: string
+          method: string
+          note: string
+          operator_name: string
+          paid_at: string
+          receipt_number: string
+          request_id: string
+          service_type: string
+          status: string
+          user_name: string
+          void_reason: string
+        }[]
       }
       admin_set_app_release_policy: {
         Args: {
@@ -3589,6 +4018,15 @@ export type Database = {
         Args: { p_provider_id: string; p_rate: number }
         Returns: Json
       }
+      admin_set_reinsurer_link: {
+        Args: {
+          p_insurer_org: string
+          p_reinsurer_org: string
+          p_valid_from: string
+          p_valid_to: string
+        }
+        Returns: string
+      }
       admin_settlement_by_operator: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -3596,9 +4034,11 @@ export type Database = {
           bruto: number
           comision: number
           comision_pct: number
+          efectivo: number
           empresa: string
           operador: string
           operator_id: string
+          saldo: number
           servicios: number
         }[]
       }
@@ -3610,8 +4050,10 @@ export type Database = {
           comision: number
           comision_pct: number
           destinatario: string
+          efectivo: number
           es_independiente: boolean
           provider_id: string
+          saldo: number
           servicios: number
           sin_precio: number
         }[]
@@ -3625,8 +4067,10 @@ export type Database = {
           comision_pct: number
           completado: string
           destinatario: string
+          efectivo: number
           folio: string
           operador: string
+          saldo: number
           servicio: string
         }[]
       }
@@ -3652,6 +4096,10 @@ export type Database = {
         Returns: Json
       }
       admin_void_payout_batch: { Args: { p_id: string }; Returns: undefined }
+      admin_void_service_payment: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       admin_void_statement: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
@@ -3727,10 +4175,12 @@ export type Database = {
           type: string
         }[]
       }
+      auth_reinsurer_org: { Args: never; Returns: string }
       auth_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      branding_insurer_for_caller: { Args: never; Returns: string }
       calculate_price: {
         Args: {
           p_distance_km: number
@@ -3801,6 +4251,16 @@ export type Database = {
         }
       }
       compute_case_km: { Args: { p_request_id: string }; Returns: undefined }
+      confirm_gateway_payment: {
+        Args: {
+          p_amount: number
+          p_approved: boolean
+          p_gateway: string
+          p_gateway_tx: string
+          p_reference: string
+        }
+        Returns: string
+      }
       coverage_rule_lookup: {
         Args: { p_plan_id: string; p_rule_key: string; p_service_type: string }
         Returns: {
@@ -4089,6 +4549,7 @@ export type Database = {
         Args: { p_day?: string; p_mopt_provider: string }
         Returns: number
       }
+      mopt_monthly_reports_job: { Args: never; Returns: number }
       mopt_overview: { Args: never; Returns: Json }
       mopt_payer_for: {
         Args: {
@@ -4106,6 +4567,16 @@ export type Database = {
       mopt_program_has_budget: {
         Args: { p_mopt_provider: string }
         Returns: boolean
+      }
+      mopt_report: { Args: { p_month: string }; Returns: Json }
+      mopt_reports_list: {
+        Args: never
+        Returns: {
+          email_status: string
+          generated_at: string
+          month: string
+          services: number
+        }[]
       }
       mopt_service_detail: { Args: { p_request_id: string }; Returns: Json }
       mopt_vehicle_cases: {
@@ -4141,6 +4612,7 @@ export type Database = {
           service_types: string[]
         }[]
       }
+      my_insurer_branding: { Args: never; Returns: Json }
       my_operator_earnings: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -4148,6 +4620,8 @@ export type Database = {
           bruto: number
           comision: number
           comision_pct: number
+          efectivo: number
+          saldo: number
           servicios: number
         }[]
       }
@@ -4164,6 +4638,16 @@ export type Database = {
       my_organization: { Args: never; Returns: Json }
       my_partner_application: { Args: never; Returns: Json }
       my_payouts: { Args: never; Returns: Json }
+      my_pending_payments: {
+        Args: never
+        Returns: {
+          amount: number
+          completed_at: string
+          folio: string
+          request_id: string
+          service_type: string
+        }[]
+      }
       next_case_folio: { Args: never; Returns: string }
       normalize_document: { Args: { p_doc: string }; Returns: string }
       notify_ops: { Args: { p_text: string }; Returns: undefined }
@@ -4175,9 +4659,21 @@ export type Database = {
         Args: { p_operator: string; p_service_type: string }
         Returns: boolean
       }
+      operator_confirm_cash: { Args: { p_request: string }; Returns: Json }
       operator_fits_program: {
         Args: { p_mopt_provider: string; p_operator: string }
         Returns: boolean
+      }
+      operator_pending_cash: {
+        Args: never
+        Returns: {
+          amount: number
+          completed_at: string
+          folio: string
+          request_id: string
+          service_type: string
+          user_name: string
+        }[]
       }
       org_access_log: {
         Args: { p_limit?: number }
@@ -4241,6 +4737,7 @@ export type Database = {
       }
       partner_terms_pending: { Args: { p_operator: string }; Returns: boolean }
       partner_try_reactivate: { Args: { p_operator: string }; Returns: boolean }
+      payment_gateway_enabled: { Args: never; Returns: boolean }
       payout_services_for: {
         Args: { p_cutoff: string; p_id: string; p_kind: string }
         Returns: Json
@@ -4254,6 +4751,7 @@ export type Database = {
         Args: { p_lat: number; p_lng: number; p_polygon: Json }
         Returns: boolean
       }
+      portal_branding: { Args: never; Returns: Json }
       portal_create_api_key: { Args: { p_name: string }; Returns: Json }
       portal_delete_webhook: { Args: { p_id: string }; Returns: undefined }
       portal_import_members: {
@@ -4291,12 +4789,22 @@ export type Database = {
         Args: { p_delivery: string }
         Returns: undefined
       }
+      portal_reinsurer_links: { Args: never; Returns: Json }
       portal_revoke_api_key: { Args: { p_id: string }; Returns: undefined }
       portal_rotate_api_key: {
         Args: { p_grace_hours?: number; p_id: string }
         Returns: Json
       }
       portal_rotate_webhook_secret: { Args: { p_id: string }; Returns: Json }
+      portal_save_branding: {
+        Args: {
+          p_color: string
+          p_enabled: boolean
+          p_logo_path: string
+          p_name: string
+        }
+        Returns: undefined
+      }
       portal_save_plan: {
         Args: {
           p_code: string
@@ -4331,6 +4839,10 @@ export type Database = {
       }
       portal_set_member_active: {
         Args: { p_active: boolean; p_member: string; p_reason?: string }
+        Returns: undefined
+      }
+      portal_set_reinsurer_consent: {
+        Args: { p_grant: boolean; p_link: string; p_reason?: string }
         Returns: undefined
       }
       portal_test_webhook: { Args: { p_id: string }; Returns: string }
@@ -4424,6 +4936,15 @@ export type Database = {
         }
         Returns: string
       }
+      reinsurer_dashboard: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      reinsurer_loss_report: {
+        Args: { p_quarter: number; p_year: number }
+        Returns: Json
+      }
+      reinsurer_min_cell: { Args: never; Returns: number }
       request_belongs_to_my_insurer: {
         Args: { p_request_id: string }
         Returns: boolean
@@ -4459,6 +4980,7 @@ export type Database = {
           request_id: string
         }[]
       }
+      service_payment: { Args: { p_request: string }; Returns: Json }
       session_has_mfa: { Args: never; Returns: boolean }
       set_active_pricing_rule: { Args: { p_rule_id: string }; Returns: Json }
       set_marketing_opt_in: { Args: { p_value: boolean }; Returns: undefined }
@@ -4551,6 +5073,8 @@ export type Database = {
         Args: { p_is_online?: boolean; p_lat: number; p_lng: number }
         Returns: Json
       }
+      user_amount_due: { Args: { p_request: string }; Returns: number }
+      user_start_card_payment: { Args: { p_request: string }; Returns: Json }
       verify_insurer_api_key: { Args: { p_key: string }; Returns: string }
       verify_pin: { Args: { p_hash: string; p_pin: string }; Returns: boolean }
       verify_request_pin: {
