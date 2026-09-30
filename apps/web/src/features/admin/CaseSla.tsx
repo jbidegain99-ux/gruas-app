@@ -9,6 +9,7 @@ type Sla = {
   folio: string;
   insurer_name: string | null;
   program_name?: string | null; // 00141: servicio de un programa MOPT
+  cancelled?: boolean; // 00152: lo que no ocurrió no queda "pendiente"
   assignment_seconds: number | null;
   arrival_seconds: number | null;
   service_seconds: number | null;
@@ -30,7 +31,13 @@ function fmtDur(secs: number | null): string {
   return `${h} h ${m % 60} min`;
 }
 
-function Chip({ met }: { met: boolean | null }) {
+function Chip({ met, cancelled = false }: { met: boolean | null; cancelled?: boolean }) {
+  if (met === null && cancelled)
+    return (
+      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        No aplica
+      </span>
+    );
   if (met === null)
     return (
       <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
@@ -106,12 +113,14 @@ export function CaseSla({
             value={fmtDur(sla.assignment_seconds)}
             target={sla.assignment_target_minutes}
             met={sla.assignment_met}
+            cancelled={sla.cancelled}
           />
           <Row
             label="Llegada al lugar"
             value={fmtDur(sla.arrival_seconds)}
             target={sla.arrival_target_minutes}
             met={sla.arrival_met}
+            cancelled={sla.cancelled}
           />
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-zinc-600 dark:text-zinc-400">Duración del servicio</span>
@@ -137,11 +146,13 @@ function Row({
   value,
   target,
   met,
+  cancelled,
 }: {
   label: string;
   value: string;
   target: number;
   met: boolean | null;
+  cancelled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -151,7 +162,7 @@ function Row({
       </div>
       <div className="flex items-center gap-2 whitespace-nowrap">
         <span className="text-sm font-medium tabular-nums text-zinc-900 dark:text-white">{value}</span>
-        <Chip met={met} />
+        <Chip met={met} cancelled={cancelled} />
       </div>
     </div>
   );

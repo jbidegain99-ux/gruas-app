@@ -23,6 +23,8 @@ export default function InsurerPolicyMembersPage({ policyId }: { policyId: strin
   const [q, setQ] = useState('');
   const [page, setPage] = useState(0);
   const [data, setData] = useState<{ total: number; rows: Member[] } | null>(null);
+  // Una falla (póliza ajena o inexistente) dejaba "Cargando…" para siempre.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [bajaFor, setBajaFor] = useState<string | null>(null);
@@ -38,8 +40,13 @@ export default function InsurerPolicyMembersPage({ policyId }: { policyId: strin
       const { data: d, error } = await createClient().rpc('portal_policy_members', {
         p_policy: policyId, p_search: q, p_limit: PAGE, p_offset: page * PAGE,
       });
-      if (error) toast.error(error.message);
-      else setData(d as unknown as { total: number; rows: Member[] });
+      if (error) {
+        toast.error(error.message);
+        setLoadError(error.message);
+      } else {
+        setLoadError(null);
+        setData(d as unknown as { total: number; rows: Member[] });
+      }
     }, 250);
     return () => clearTimeout(id);
   }, [policyId, q, page, refresh, toast]);
@@ -92,7 +99,9 @@ export default function InsurerPolicyMembersPage({ policyId }: { policyId: strin
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {!data ? (
+            {loadError && !data ? (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-red-600">No se pudo cargar el padrón: {loadError}</td></tr>
+            ) : !data ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">Cargando…</td></tr>
             ) : data.rows.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">{q ? 'Nadie coincide con la búsqueda.' : 'Sin afiliados todavía. Importa el padrón por CSV.'}</td></tr>

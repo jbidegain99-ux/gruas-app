@@ -48,6 +48,8 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
       .then(({ data, error: e }) => {
         if (!alive) return;
         if (e) setError(e.message);
+        // Sin fila (id inexistente) la RPC devuelve null: antes quedaba "Cargando…".
+        else if (!data) setError('Estado de cuenta no encontrado');
         else setD(data as unknown as StatementDetail);
       });
     return () => {
@@ -55,7 +57,15 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
     };
   }, [id, refresh]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error)
+    return (
+      <div className="space-y-4">
+        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800">
+          <ArrowLeft className="h-4 w-4" /> Estados de cuenta
+        </Link>
+        <p className="text-sm text-red-600">{error}</p>
+      </div>
+    );
   if (!d) return <p className="text-sm text-zinc-500">Cargando…</p>;
 
   const isMopt = d.organization.type === 'MOPT';
@@ -170,7 +180,13 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
           </>
         ) : (
           <>
-            <Box label={covered} value={money(t.amount)} />
+            {/* Igual que el MOPT: lo que cuenta (con ajustes, sin lo observado),
+                para que la tarjeta cuadre con las líneas y el total. */}
+            <Box
+              label={covered}
+              value={money(t.approvable_amount ?? t.amount)}
+              sub={t.approvable_amount != null && Number(t.approvable_amount) !== Number(t.amount) ? `de ${money(t.amount)}` : undefined}
+            />
             <Box label="Copagos de afiliados" value={money(t.copay)} sub="Informativo: lo pagó el afiliado" />
           </>
         )}
