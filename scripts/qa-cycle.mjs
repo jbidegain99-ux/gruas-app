@@ -124,11 +124,13 @@ async function loginMfa(email, userId) {
   return ver.data.access_token;
 }
 
-// Puntos: San Salvador (particular) y la zona MOPT de prueba (Puerto de La Libertad).
+// Puntos: San Salvador (particular) y la zona MOPT de prueba (Acajutla, Sonsonate).
+// Lejos de la zona demo del MOPT (Carretera al Puerto): encimadas, en una base
+// local con la demo ganaba el programa más antiguo y el ciclo fallaba.
 const SS = { lat: 13.6929, lng: -89.2182 };
 const SS_DEST = { lat: 13.7035, lng: -89.2244 };
-const ZONA = { lat: 13.55, lng: -89.32 };
-const ZONA_DEST = { lat: 13.56, lng: -89.33 };
+const ZONA = { lat: 13.58, lng: -89.83 };
+const ZONA_DEST = { lat: 13.60, lng: -89.84 };
 
 async function crearSolicitud(token, { at, dest, service = 'tow', plate = 'P111111' }) {
   const r = await rpc(
@@ -210,8 +212,11 @@ const setup = sqlJson(`
   with prog as (select id from providers where name = 'QA MOPT')
   update profiles set provider_id = (select id from prog), verification_status = 'approved' where id = '${ids.opMopt}';
   insert into mopt_zones (provider_id, name, polygon, service_types, is_active)
-  select id, 'Zona QA', '[[13.48,-89.36],[13.48,-89.28],[13.62,-89.28],[13.62,-89.36]]'::jsonb, array['tow'], true
+  select id, 'Zona QA', '[[13.54,-89.87],[13.54,-89.79],[13.64,-89.79],[13.64,-89.87]]'::jsonb, array['tow'], true
     from providers p where name = 'QA MOPT' and not exists (select 1 from mopt_zones z where z.provider_id = p.id);
+  -- Bases que ya tenían la Zona QA vieja (encima de la demo): la mueve.
+  update mopt_zones z set polygon = '[[13.54,-89.87],[13.54,-89.79],[13.64,-89.79],[13.64,-89.87]]'::jsonb
+    from providers p where p.id = z.provider_id and p.name = 'QA MOPT' and z.name = 'Zona QA';
   insert into organization_members (organization_id, profile_id, role)
   select o.id, '${ids.mopt}', 'owner' from organizations o join providers p on p.id = o.provider_id where p.name = 'QA MOPT'
   on conflict do nothing;
@@ -231,7 +236,7 @@ const setup = sqlJson(`
    where not exists (select 1 from operator_vehicles x where x.operator_id = v.o and x.is_active);
   insert into operator_locations (operator_id, lat, lng, is_online, updated_at)
   select o, lat, lng, true, now() from (values ('${ids.op}'::uuid, 13.69, -89.21), ('${ids.opInd}'::uuid, 13.69, -89.21),
-                                               ('${ids.opMopt}'::uuid, 13.55, -89.31), ('${ids.opPipa}'::uuid, 13.69, -89.21)) v(o, lat, lng)
+                                               ('${ids.opMopt}'::uuid, 13.58, -89.82), ('${ids.opPipa}'::uuid, 13.69, -89.21)) v(o, lat, lng)
   on conflict (operator_id) do update set is_online = true, updated_at = now(), lat = excluded.lat, lng = excluded.lng;
   -- Solicitudes abiertas de corridas anteriores: se cierran para empezar limpio.
   update service_requests set status = 'cancelled', cancelled_at = now()
