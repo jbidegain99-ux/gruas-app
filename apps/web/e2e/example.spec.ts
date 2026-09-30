@@ -17,8 +17,10 @@ test('homepage covers the three audiences (LAN-10)', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('lang', 'es-SV');
   await expect(page.getByText('PIN de confirmación').first()).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: 'MOPT', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 3, name: 'Aseguradoras', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 3, name: 'Reaseguradoras', exact: true })).toBeVisible();
+  // Aseguradoras y reaseguradoras en pausa (interruptor 00153, apagado hasta que
+  // Walter avise): la landing no las muestra. Al prenderlo, volver a esperarlas.
+  await expect(page.getByRole('heading', { level: 3, name: 'Aseguradoras', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 3, name: 'Reaseguradoras', exact: true })).toHaveCount(0);
   await expect(page.getByText('Agenda una demo')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Conoce cómo ser socio' })).toHaveAttribute('href', '/socios');
   const footer = page.getByRole('navigation', { name: 'Pie de página' });

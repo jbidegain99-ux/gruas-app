@@ -22,14 +22,43 @@ import { BudiLogo } from '@/shared/components/BudiLogo';
 // Landing pública (backlog LAN-10). Página estática, sin sesión: tres públicos
 // en una sola página — el Usuario (descargar la app), las instituciones (MOPT,
 // aseguradoras, reaseguradoras: agendar demo) y los socios operadores (/socios).
+// Aseguradoras y reaseguradoras solo con el interruptor prendido (00153).
 // Reglas: tuteo, terminología del backlog §0, nunca mostrar la comisión de Budi,
 // y nada de clientes, cifras ni testimonios inventados.
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-const DESCRIPTION =
-  'Pide grúa o asistencia vial en El Salvador desde tu teléfono: sigue a tu socio operador en vivo y confirma el servicio con tu PIN de confirmación. Soluciones para el MOPT, aseguradoras y reaseguradoras.';
+const DESCRIPTION_BASE =
+  'Pide grúa o asistencia vial en El Salvador desde tu teléfono: sigue a tu socio operador en vivo y confirma el servicio con tu PIN de confirmación.';
 
-export const metadata: Metadata = {
+// 00153: aseguradoras y reaseguradoras en pausa hasta que Walter avise. Se lee
+// el mismo interruptor que el panel y la app, con la llave pública y un caché
+// de un minuto (la landing no tiene sesión y sigue siendo rápida).
+async function insurersOn(): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return false;
+  try {
+    const res = await fetch(`${url}/rest/v1/rpc/platform_features`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: '{}',
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { insurers?: unknown } | null;
+    return data?.insurers === true;
+  } catch {
+    return false;
+  }
+}
+
+function description(insurers: boolean): string {
+  return `${DESCRIPTION_BASE} Soluciones para el MOPT${insurers ? ', aseguradoras y reaseguradoras' : ''}.`;
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const DESCRIPTION = description(await insurersOn());
+  return {
   metadataBase: new URL(SITE_URL),
   title: { absolute: 'Budi · Grúas y asistencia vial en El Salvador' },
   description: DESCRIPTION,
@@ -47,19 +76,22 @@ export const metadata: Metadata = {
     title: 'Budi · Grúas y asistencia vial en El Salvador',
     description: DESCRIPTION,
   },
-};
+  };
+}
 
 // Contacto comercial: configurable por entorno. Si no hay correo, se cae a
 // WhatsApp de soporte; si tampoco, el botón se muestra como "próximamente".
 const SALES_EMAIL = (process.env.NEXT_PUBLIC_SALES_EMAIL ?? '').trim();
 const SUPPORT_WHATSAPP = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '').replace(/\D/g, '');
 const DEMO_SUBJECT = 'Quiero agendar una demo de Budi';
-const DEMO_BODY =
-  'Hola, equipo de Budi:\n\nMe interesa agendar una demo.\n\nInstitución:\nTipo (MOPT / aseguradora / reaseguradora / otra):\nNombre y cargo:\nTeléfono:\n';
+function demoBody(insurers: boolean): string {
+  const tipos = insurers ? 'MOPT / aseguradora / reaseguradora / otra' : 'MOPT / otra';
+  return `Hola, equipo de Budi:\n\nMe interesa agendar una demo.\n\nInstitución:\nTipo (${tipos}):\nNombre y cargo:\nTeléfono:\n`;
+}
 
-function demoHref(): string | null {
+function demoHref(insurers: boolean): string | null {
   if (SALES_EMAIL) {
-    return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(DEMO_SUBJECT)}&body=${encodeURIComponent(DEMO_BODY)}`;
+    return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(DEMO_SUBJECT)}&body=${encodeURIComponent(demoBody(insurers))}`;
   }
   if (SUPPORT_WHATSAPP) {
     return `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(DEMO_SUBJECT)}`;
@@ -108,11 +140,13 @@ const INSTITUCIONES = [
   {
     Icon: ShieldCheck,
     title: 'Aseguradoras',
+    insurers: true,
     text: 'Carga tu padrón de asegurados, define qué cubre cada plan y sigue cada caso con folio, línea de tiempo y cumplimiento de tiempos de atención (SLA).',
   },
   {
     Icon: Building2,
     title: 'Reaseguradoras',
+    insurers: true,
     text: 'Conversemos sobre cómo darte visibilidad de la operación de asistencia de las aseguradoras que respaldas.',
   },
 ];
@@ -212,8 +246,10 @@ function ServicePreview() {
   );
 }
 
-export default function LandingPage() {
-  const demo = demoHref();
+export default async function LandingPage() {
+  const insurers = await insurersOn();
+  const demo = demoHref(insurers);
+  const instituciones = INSTITUCIONES.filter((i) => insurers || !('insurers' in i && i.insurers));
   const year = new Date().getFullYear();
 
   return (
@@ -359,8 +395,8 @@ export default function LandingPage() {
               verificables.
             </p>
 
-            <div className="mt-10 grid gap-6 md:grid-cols-3">
-              {INSTITUCIONES.map(({ Icon, title, text }) => (
+            <div className={`mt-10 grid gap-6 ${instituciones.length > 1 ? 'md:grid-cols-3' : 'max-w-xl'}`}>
+              {instituciones.map(({ Icon, title, text }) => (
                 <article key={title} className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-budi-primary-100 text-budi-primary-700 dark:bg-budi-primary-900/60 dark:text-budi-primary-200">
                     <Icon aria-hidden="true" className="h-5 w-5" />
@@ -426,7 +462,7 @@ export default function LandingPage() {
               </h2>
               <p className="mt-3 text-zinc-300">
                 Recibe solicitudes cerca de ti, conéctate cuando quieras trabajar y ve en la app lo que cobras por cada
-                servicio. Atiende a particulares, afiliados de aseguradoras y el programa del MOPT.
+                servicio. Atiende a particulares{insurers ? ', afiliados de aseguradoras' : ''} y el programa del MOPT.
               </p>
             </div>
             <Link

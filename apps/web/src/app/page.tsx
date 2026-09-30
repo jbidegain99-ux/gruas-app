@@ -1,1 +1,1 @@
-export { default, metadata } from '@/features/landing/LandingPage';
+export { default, generateMetadata } from '@/features/landing/LandingPage';
