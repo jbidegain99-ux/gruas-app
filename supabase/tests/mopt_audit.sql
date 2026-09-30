@@ -178,8 +178,18 @@ BEGIN
   ASSERT (SELECT amount FROM ledger_obligations()
            WHERE request_id = (SELECT caso FROM t) AND concept = 'servicio' AND debtor_kind = 'mopt') = 20,
     'C5: el libro sigue con el monto original del caso ajustado';
-  RAISE NOTICE 'C. se aprueba sin observaciones abiertas, cerrado no se mueve y el libro sigue al ajuste: OK';
 END $$;
+
+-- C6 (00146): las ganancias del socio también cuentan el monto aprobado.
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT socio FROM t), 'aal1');
+DO $$
+BEGIN
+  ASSERT (SELECT a_pagar FROM my_operator_earnings(sv_today() - 1, sv_today() + 1)) = 20,
+    'C6: la app del socio muestra el monto original y no el aprobado por el MOPT';
+  RAISE NOTICE 'C. se aprueba sin observaciones abiertas, cerrado no se mueve y libro y socio siguen al ajuste: OK';
+END $$;
+RESET ROLE;
 
 RESET ROLE;
 
