@@ -155,8 +155,18 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
         <Box label="Servicios" value={String(t.services)} />
         {isMopt ? (
           <>
-            <Box label="Servicios a proveedores" value={money(t.amount)} />
-            <Box label="Tarifa de plataforma" value={money(t.fee)} />
+            {/* 00149: lo que cuenta (sin lo observado, con los ajustes), para que
+                el desglose sume el total; si difiere, el original debajo. */}
+            <Box
+              label="Servicios a proveedores"
+              value={money(t.approvable_amount ?? t.amount)}
+              sub={t.approvable_amount != null && Number(t.approvable_amount) !== Number(t.amount) ? `de ${money(t.amount)}` : undefined}
+            />
+            <Box
+              label="Tarifa de plataforma"
+              value={money(t.approvable_fee ?? t.fee)}
+              sub={t.approvable_fee != null && Number(t.approvable_fee) !== Number(t.fee) ? `de ${money(t.fee)}` : undefined}
+            />
           </>
         ) : (
           <>
@@ -230,7 +240,12 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
                     <td className="px-4 py-2 text-zinc-900 dark:text-white">{p.provider_name}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{p.services}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{km(p.tow_km)}</td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums">{money(Number(p.amount))}</td>
+                    <td className="px-4 py-2 text-right font-medium tabular-nums">
+                      {money(Number(p.approved_amount ?? p.amount))}
+                      {p.approved_amount != null && Number(p.approved_amount) !== Number(p.amount) && (
+                        <span className="block text-xs font-normal text-zinc-500">de {money(Number(p.amount))}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

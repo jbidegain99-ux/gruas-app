@@ -13,6 +13,9 @@ export type StatementTotals = {
   observed_open: number;
   observed_open_amount: number;
   approvable: number;
+  // 00149: lo aprobable partido (servicios / tarifa).
+  approvable_amount?: number;
+  approvable_fee?: number;
 };
 
 export type StatementSummary = {
@@ -75,7 +78,7 @@ export type StatementDetail = {
   totals: StatementTotals;
   lines: StatementLine[];
   // provider_id / provider_kind llegan desde 00141; antes solo el nombre (que puede repetirse).
-  by_provider: { provider_id?: string | null; provider_kind?: string | null; provider_name: string; services: number; amount: number; tow_km: number | null }[];
+  by_provider: { provider_id?: string | null; provider_kind?: string | null; provider_name: string; services: number; amount: number; tow_km: number | null; approved_amount?: number }[];
 };
 
 export const STATUS_LABEL: Record<StatementStatus, string> = {
