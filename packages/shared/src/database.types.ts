@@ -4583,6 +4583,7 @@ export type Database = {
       mark_partner_guide_seen: { Args: never; Returns: undefined }
       member_document_key: { Args: { p_doc: string }; Returns: string }
       member_relationship: { Args: { p_texto: string }; Returns: string }
+      mopt_can_manage_payments: { Args: never; Returns: boolean }
       mopt_compliance: { Args: { p_from: string; p_to: string }; Returns: Json }
       mopt_fee_rate_at: {
         Args: { p_at: string; p_mopt: string }
@@ -4601,6 +4602,25 @@ export type Database = {
           operator_id: string
           phone: string
           updated_at: string
+        }[]
+      }
+      mopt_in_progress_services: {
+        Args: never
+        Returns: {
+          client_name: string
+          completed_at: string
+          created_at: string
+          folio: string
+          id: string
+          operator_name: string
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          service_type: string
+          status: string
+          total_price: number
+          vehicle_plate: string
+          zone: string
         }[]
       }
       mopt_km_by_vehicle: {
@@ -4670,6 +4690,10 @@ export type Database = {
         Returns: number
       }
       mopt_monthly_reports_job: { Args: never; Returns: number }
+      mopt_open_reservation: {
+        Args: { p_mopt_provider: string }
+        Returns: number
+      }
       mopt_overview: { Args: never; Returns: Json }
       mopt_payer_for: {
         Args: {

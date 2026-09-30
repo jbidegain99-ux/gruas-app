@@ -21,10 +21,25 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.como TO PUBLIC;
 
 -- El libro de movimientos (00097) visto como el dueño de la base.
-CREATE OR REPLACE FUNCTION pg_temp.libro_mopt(p UUID) RETURNS TABLE (amount NUMERIC)
+-- Solo los casos del estado de cuenta: los que ya están en otro (aprobado,
+-- pagado) no entran al borrador nuevo pero siguen en el libro.
+CREATE OR REPLACE FUNCTION pg_temp.libro_mopt(p UUID, p_ec UUID) RETURNS TABLE (amount NUMERIC)
 LANGUAGE sql SECURITY DEFINER AS $$
-  SELECT amount FROM public.ledger_obligations() WHERE debtor_kind = 'mopt' AND debtor_id = p;
+  SELECT o.amount FROM public.ledger_obligations() o
+   WHERE o.debtor_kind = 'mopt' AND o.debtor_id = p
+     AND o.request_id IN (SELECT l.request_id FROM public.account_statement_lines l WHERE l.statement_id = p_ec);
 $$;
+-- Completados del programa en el período que no están en ningún estado de
+-- cuenta vigente: el borrador tiene que haberlos tomado todos.
+CREATE OR REPLACE FUNCTION pg_temp.mopt_sin_estado(p UUID, p_desde DATE, p_hasta DATE) RETURNS BIGINT
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT count(*) FROM public.service_requests sr
+   WHERE sr.mopt_provider_id = p AND sr.status = 'completed' AND sr.total_price IS NOT NULL
+     AND sr.completed_at >= public.sv_day_start(p_desde) AND sr.completed_at < public.sv_day_start(p_hasta + 1)
+     AND NOT EXISTS (SELECT 1 FROM public.account_statement_lines l JOIN public.account_statements s ON s.id = l.statement_id
+                      WHERE l.request_id = sr.id AND s.status <> 'void');
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.mopt_sin_estado TO PUBLIC;
 GRANT EXECUTE ON FUNCTION pg_temp.libro_mopt TO PUBLIC;
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -108,7 +123,9 @@ BEGIN
   UPDATE t SET ec_mopt = v_ec;
   v_tot := (SELECT totals FROM list_statements((SELECT mopt FROM t)) WHERE id = v_ec);
   SELECT provider_id INTO v_prov FROM organizations WHERE id = (SELECT mopt FROM t);
-  SELECT COALESCE(sum(amount), 0) INTO v_libro FROM pg_temp.libro_mopt(v_prov);
+  SELECT COALESCE(sum(amount), 0) INTO v_libro FROM pg_temp.libro_mopt(v_prov, v_ec);
+  ASSERT pg_temp.mopt_sin_estado(v_prov, (SELECT desde FROM t), (SELECT hasta FROM t)) = 0,
+    'B1: quedaron servicios del período fuera del borrador';
   ASSERT (v_tot->>'total')::numeric = v_libro,
     format('B1: el estado de cuenta MOPT (%s) no cuadra con el libro (%s)', v_tot->>'total', v_libro);
   RAISE NOTICE 'B. MOPT: % servicios, servicio $% + tarifa $% = libro', v_tot->>'services', v_tot->>'amount', v_tot->>'fee';
@@ -194,6 +211,18 @@ BEGIN
   ASSERT v = (d->'totals'->>'approvable')::numeric, 'C8: aprobo otro monto';
   ASSERT (d->'totals'->>'approvable')::numeric < (d->'totals'->>'total')::numeric, 'C8: el ajuste no bajo el total';
 END $$;
+
+-- C8b (00143): aprobado, el libro cobra a la aseguradora lo aprobado (con el ajuste).
+RESET ROLE;
+DO $$
+BEGIN
+  ASSERT (SELECT sum(o.amount) FROM ledger_obligations() o
+           WHERE o.concept = 'cobertura'
+             AND o.request_id IN (SELECT request_id FROM account_statement_lines WHERE statement_id = (SELECT ec_aseg FROM t)))
+       = (SELECT approved_amount FROM account_statements WHERE id = (SELECT ec_aseg FROM t)),
+    'C8b: el libro no refleja el ajuste aprobado';
+END $$;
+SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.como((SELECT admin FROM t));
 DO $$
