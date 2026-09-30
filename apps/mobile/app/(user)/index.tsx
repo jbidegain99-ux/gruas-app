@@ -437,7 +437,7 @@ export default function UserHome() {
     if (!activeRequest) return;
     confirmAction({
       title: 'Cancelar solicitud',
-      message: cancellationPolicyMessage(activeRequest.status),
+      message: cancellationPolicyMessage(activeRequest.status, activeRequest.paid_by_mopt),
       cancelText: 'No',
       confirmText: 'Sí, cancelar',
       destructive: true,

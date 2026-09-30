@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import { useBudiFonts } from '@/shared/hooks/useBudiFonts';
 import { loadDropoffCatalog } from '@/features/catalog/lib/loadDropoffCatalog';
-import { supabase } from '@/lib/supabase';
+import { consumeIntentionalSignOut, supabase } from '@/lib/supabase';
 import { UpdateGate } from '@/features/updates/components/UpdateGate';
-import { ToastProvider } from '@/shared/components/ui';
+import { ToastProvider, toast } from '@/shared/components/ui';
 // Import con efecto secundario: registra la tarea de ubicación en segundo plano
 // (`TaskManager.defineTask`) al arrancar, antes de que el sistema pueda
 // entregar posiciones. Debe ocurrir en el arranque, no dentro de una pantalla.
@@ -51,6 +51,20 @@ function RootLayout() {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
         loadDropoffCatalog();
+      }
+      // La sesión se cayó sola (token revocado, sin poder renovarse): antes la
+      // pantalla seguía como si nada ("En línea · Sin solicitudes") y las
+      // consultas volvían vacías. Se avisa y se vuelve al inicio de sesión.
+      if (event === 'SIGNED_OUT' && !consumeIntentionalSignOut()) {
+        toast.info('Vuelve a iniciar sesión para seguir.', 'Tu sesión se cerró');
+        setTimeout(() => {
+          try {
+            router.replace('/(auth)/login');
+          } catch {
+            // El router todavía no montó (arranque): la pantalla inicial ya
+            // manda al inicio de sesión por no haber sesión.
+          }
+        }, 0);
       }
     });
     return () => data.subscription.unsubscribe();

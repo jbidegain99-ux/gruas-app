@@ -7,9 +7,9 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { confirmAction } from '@/lib/confirm';
 import { ToastHost, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
 
@@ -77,14 +77,12 @@ export function RatingModal({
   };
 
   const handleSkip = () => {
-    Alert.alert(
-      'Omitir calificación',
-      '¿Estás seguro de que no deseas calificar el servicio?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Omitir', onPress: onClose },
-      ]
-    );
+    confirmAction({
+      title: 'Omitir calificación',
+      message: '¿Estás seguro de que no deseas calificar el servicio?',
+      confirmText: 'Omitir',
+      onConfirm: onClose,
+    });
   };
 
   const getStarLabel = () => {

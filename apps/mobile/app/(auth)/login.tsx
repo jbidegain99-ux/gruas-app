@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { supabase, signOut } from '@/lib/supabase';
 import { friendlyError } from '@/lib/errorMessages';
 import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
 import type { UserRole } from '@gruas-app/shared';
@@ -61,7 +61,7 @@ export default function Login() {
       if (destino) {
         router.replace(destino);
       } else {
-        await supabase.auth.signOut();
+        await signOut();
         toast.info(
           'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.',
           'Esta cuenta se usa desde la web'

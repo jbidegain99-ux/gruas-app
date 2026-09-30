@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Modal,
   RefreshControl,
 } from 'react-native';
@@ -17,7 +16,8 @@ import Constants from 'expo-constants';
 import { DeleteAccountRow } from '@/features/account/components/DeleteAccountRow';
 import { ExportDataRow } from '@/features/account/components/ExportDataRow';
 import { PartnerGuide } from '@/features/partners/components/PartnerGuide';
-import { supabase } from '@/lib/supabase';
+import { supabase, signOut } from '@/lib/supabase';
+import { confirmAction } from '@/lib/confirm';
 import { openSupportMenu } from '@/lib/support';
 import { partnerStateFromProfile } from '@/lib/partnerApplication';
 import { BudiLogo, Button, Card, Input, LoadingSpinner, toast } from '@/shared/components/ui';
@@ -144,21 +144,16 @@ export default function OperatorProfile() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro de que deseas cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro de que deseas cerrar sesión?',
+      confirmText: 'Cerrar sesión',
+      destructive: true,
+      onConfirm: async () => {
+        await signOut();
+        router.replace('/(auth)/login');
+      },
+    });
   };
 
   const openEditModal = () => {

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
   Modal,
@@ -17,6 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
+import { confirmAction } from '@/lib/confirm';
 import { logger } from '@/lib/logger';
 import { friendlyError } from '@/lib/errorMessages';
 import { getPositionFast, reverseGeocode, searchPlaces } from '@/lib/geocoding';
@@ -636,14 +636,17 @@ export default function RequestService() {
       router.replace('/(user)');
       return;
     }
-    Alert.alert(
-      '¿Salir de la solicitud?',
-      'Se perderá la información que ingresaste.',
-      [
-        { text: 'Seguir aquí', style: 'cancel' },
-        { text: 'Salir', style: 'destructive', onPress: () => { resetForm(); router.replace('/(user)'); } },
-      ]
-    );
+    confirmAction({
+      title: '¿Salir de la solicitud?',
+      message: 'Se perderá la información que ingresaste.',
+      cancelText: 'Seguir aquí',
+      confirmText: 'Salir',
+      destructive: true,
+      onConfirm: () => {
+        resetForm();
+        router.replace('/(user)');
+      },
+    });
   };
 
   // Ir a un paso ya visitado (retroceder para editar desde el indicador o el resumen).

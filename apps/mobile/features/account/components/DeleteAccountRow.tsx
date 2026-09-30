@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Trash2 } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
+import { supabase, signOut } from '@/lib/supabase';
 import { Button, Input } from '@/shared/components/ui';
 import { colors, radii, spacing, typography } from '@/theme';
 
@@ -61,7 +61,7 @@ export function DeleteAccountRow() {
 
     // El servidor ya borró la sesión: `scope: 'local'` solo limpia la guardada
     // acá. Un signOut normal le pide al servidor cerrarla y responde 500.
-    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    await signOut({ scope: 'local' });
     setDeleting(false);
     setVisible(false);
     router.replace('/(auth)/login');

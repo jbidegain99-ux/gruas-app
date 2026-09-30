@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import type { UserRole } from '@gruas-app/shared';
-import { supabase } from '@/lib/supabase';
+import { supabase, signOut } from '@/lib/supabase';
 
 /**
  * Guard de rol para los grupos de rutas `(user)` y `(operator)`.
@@ -80,7 +80,7 @@ export function useRoleGuard(rolEsperado: UserRole): EstadoGuard {
       if (destino) {
         router.replace(destino);
       } else {
-        await supabase.auth.signOut();
+        await signOut();
         if (vivo) router.replace('/(auth)/login');
       }
     })();

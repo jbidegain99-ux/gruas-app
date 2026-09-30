@@ -5,13 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Car, Trash2, Star, Plus } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { confirmAction } from '@/lib/confirm';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { Button, Card, Input, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -102,26 +102,25 @@ export default function Vehicles() {
   };
 
   const deleteVehicle = (id: string) => {
-    Alert.alert('Eliminar vehículo', '¿Seguro que deseas eliminarlo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          if (mutatingId) return;
-          setMutatingId(id);
-          try {
-            const { error } = await supabase.from('vehicles').delete().eq('id', id);
-            if (error) {
-              toast.error('No se pudo eliminar el vehículo.');
-            }
-            await fetchVehicles();
-          } finally {
-            setMutatingId(null);
+    confirmAction({
+      title: 'Eliminar vehículo',
+      message: '¿Seguro que deseas eliminarlo?',
+      confirmText: 'Eliminar',
+      destructive: true,
+      onConfirm: async () => {
+        if (mutatingId) return;
+        setMutatingId(id);
+        try {
+          const { error } = await supabase.from('vehicles').delete().eq('id', id);
+          if (error) {
+            toast.error('No se pudo eliminar el vehículo.');
           }
-        },
+          await fetchVehicles();
+        } finally {
+          setMutatingId(null);
+        }
       },
-    ]);
+    });
   };
 
   if (loading) return <LoadingSpinner fullScreen />;

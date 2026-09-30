@@ -1,4 +1,4 @@
-import { Alert, Linking, type AlertButton } from 'react-native';
+import { Alert, Linking, Platform, type AlertButton } from 'react-native';
 import { SUPPORT_CONFIG } from '@/config/support';
 import { toast } from '@/shared/components/ui';
 
@@ -21,6 +21,13 @@ export function openSupportMenu() {
 
   if (opciones.length === 0) {
     toast.info('La línea de soporte todavía no está disponible. Si es una emergencia, llama al 911.', 'Ayuda y soporte');
+    return;
+  }
+
+  // En web Alert.alert con botones no hace nada: se abre directo el primer
+  // canal disponible (WhatsApp si está configurado, si no la llamada).
+  if (Platform.OS === 'web') {
+    opciones[0].onPress?.();
     return;
   }
 

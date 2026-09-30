@@ -20,7 +20,7 @@ import { ChatScreen } from '@/features/chat/components/ChatScreen';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { useServiceTrail } from '@/features/tracking/hooks/useServiceTrail';
 import { AddressText } from '@/shared/components/AddressText';
-import { isLateCancellation } from '@/lib/cancellation';
+import { isLateCancellation, lateCancellationWarning } from '@/lib/cancellation';
 import { friendlyError } from '@/lib/errorMessages';
 import { getAllPins } from '@/features/pin/lib/pinStorage';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
@@ -705,7 +705,7 @@ export default function History() {
           <Text style={styles.cancelModalTitle}>Cancelar Solicitud</Text>
           {selectedRequest && isLateCancellation(selectedRequest.status) && (
             <Text style={styles.cancelModalWarning}>
-              El socio operador ya fue despachado. Cancelar ahora puede generar un cargo por el desplazamiento.
+              {lateCancellationWarning(selectedRequest.paid_by_mopt)}
             </Text>
           )}
           <Text style={styles.cancelModalSubtitle}>

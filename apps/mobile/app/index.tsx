@@ -1,11 +1,47 @@
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Palette } from 'lucide-react-native';
-import { BudiLogo, Button } from '@/shared/components/ui';
+import type { UserRole } from '@gruas-app/shared';
+import { BudiLogo, Button, LoadingSpinner } from '@/shared/components/ui';
+import { supabase } from '@/lib/supabase';
+import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
 import { colors, typography, spacing } from '@/theme';
 
 export default function Home() {
   const router = useRouter();
+  // Con sesión guardada se entra directo a la app de su rol. Antes esta
+  // pantalla no la miraba: cada vez que se abría la app había que volver a
+  // iniciar sesión (un socio que no lo hacía dejaba de recibir servicios).
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (userId) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const destino = rutaDeInicio((profile as { role: UserRole } | null)?.role);
+        if (alive && destino) {
+          router.replace(destino);
+          return;
+        }
+      }
+      if (alive) setChecking(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [router]);
+
+  if (checking) {
+    return (
+      <View style={styles.container}>
+        <LoadingSpinner />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
