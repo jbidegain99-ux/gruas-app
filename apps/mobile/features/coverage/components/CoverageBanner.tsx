@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { ShieldCheck, ShieldOff, ShieldAlert, ShieldQuestion } from 'lucide-react-native';
 import type { CoverageResult } from '@gruas-app/shared';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
 
 /**
@@ -23,6 +24,9 @@ import { colors, typography, spacing, radii } from '@/theme';
  * tu plan". Por eso entra `serviceCovered`: con el veredicto del servicio en la
  * mano, el banner deja de prometer cobertura y solo declara la afiliacion, que
  * es el unico dato que aporta y que la caja de copago no repite.
+ *
+ * 00153: con las aseguradoras apagadas no se habla de pólizas ni de seguros.
+ * El servidor ya no da cobertura, asi que todo pedido (no MOPT) es particular.
  */
 export function CoverageBanner({
   coverage,
@@ -34,16 +38,32 @@ export function CoverageBanner({
   /** ¿El plan cubre ESTE tipo de servicio? `null`/`undefined` = todavia no se sabe. */
   serviceCovered?: boolean | null;
 }) {
+  const insurersOn = useInsurersEnabled();
+
   if (loading) {
     return (
       <View style={[styles.banner, styles.neutral]}>
         <ActivityIndicator size="small" color={colors.text.secondary} />
-        <Text style={styles.texto}>Verificando tu cobertura…</Text>
+        <Text style={styles.texto}>
+          {insurersOn ? 'Verificando tu cobertura…' : 'Preparando tu resumen…'}
+        </Text>
       </View>
     );
   }
 
   if (!coverage) return null;
+
+  if (!insurersOn) {
+    return (
+      <View style={[styles.banner, styles.neutral]}>
+        <ShieldOff size={18} color={colors.text.secondary} strokeWidth={2} />
+        <View style={styles.cuerpo}>
+          <Text style={[styles.titulo, { color: colors.text.primary }]}>Servicio particular</Text>
+          <Text style={styles.texto}>Pagas el servicio directamente.</Text>
+        </View>
+      </View>
+    );
+  }
 
   const poliza = [coverage.insurer_name, coverage.plan_name, coverage.policy_number]
     .filter(Boolean)

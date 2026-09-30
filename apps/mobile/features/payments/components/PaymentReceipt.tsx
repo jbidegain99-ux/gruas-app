@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Share, Pressable } from 'react-native';
 import { Receipt, Share2 } from 'lucide-react-native';
 import { SERVICE_TYPE_CONFIGS, type ServiceType } from '@gruas-app/shared';
 import { formatDateTime } from '@/lib/dates';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
 import { fetchServicePayment, METHOD_LABEL, receiptText, type ServicePayment } from '../lib/payments';
 
@@ -22,6 +23,7 @@ export function PaymentReceipt({
   audience?: 'user' | 'operator';
 }) {
   const [p, setP] = useState<ServicePayment | null>(null);
+  const insurersOn = useInsurersEnabled();
 
   const load = useCallback(() => {
     fetchServicePayment(requestId).then(setP).catch(() => setP(null));
@@ -45,7 +47,7 @@ export function PaymentReceipt({
   }
 
   const share = () => {
-    Share.share({ message: receiptText(p, serviceName, p.paid_at ? when(p.paid_at) : '') }).catch(() => {});
+    Share.share({ message: receiptText(p, serviceName, p.paid_at ? when(p.paid_at) : '', insurersOn) }).catch(() => {});
   };
 
   return (
@@ -58,7 +60,8 @@ export function PaymentReceipt({
         </Pressable>
       </View>
       {p.total_price != null && <Line label="Precio del servicio" value={p.total_price} />}
-      {p.payer === 'insurer' && p.covered != null && (
+      {/* 00153: con las aseguradoras apagadas no se habla del seguro. */}
+      {insurersOn && p.payer === 'insurer' && p.covered != null && (
         <Line label={audience === 'operator' ? 'Cubrió la aseguradora' : 'Cubrió tu seguro'} value={p.covered} />
       )}
       {p.amount_due != null && (

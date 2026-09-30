@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { colors, typography, spacing, radii } from '@/theme';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import type { CopayPreview } from '../hooks/useCoveragePreview';
 
 /**
@@ -10,6 +11,7 @@ import type { CopayPreview } from '../hooks/useCoveragePreview';
  * Traduce lo que devuelve preview_my_coverage a tres lineas: lo que costaria,
  * lo que asume el seguro y —destacado— lo que le queda a la persona. Si el
  * copago es 0, se dice explicitamente que no paga nada.
+ * Con las aseguradoras apagadas (00153) no se muestra.
  */
 export function CopayBreakdown({
   preview,
@@ -18,6 +20,8 @@ export function CopayBreakdown({
   preview: CopayPreview;
   isEstimate?: boolean;
 }) {
+  const insurersOn = useInsurersEnabled();
+  if (!insurersOn) return null;
   const money = (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`;
   const exceso = preview.excess_km_charge ?? 0;
 

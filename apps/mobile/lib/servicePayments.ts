@@ -63,14 +63,20 @@ export const METHOD_LABEL: Record<PaymentMethod, string> = {
 };
 
 /** Texto del comprobante para compartir (WhatsApp, correo). Sin comisión de Budi. */
-export function receiptText(p: ServicePayment, serviceName: string, when: string): string {
+export function receiptText(
+  p: ServicePayment,
+  serviceName: string,
+  when: string,
+  /** 00153: con las aseguradoras apagadas no se menciona el seguro. */
+  showInsurer = true,
+): string {
   const lines = [
     `Budi · Comprobante de pago ${p.receipt_number ?? ''}`.trim(),
     p.folio ? `Caso ${p.folio}` : null,
     `Servicio: ${serviceName}`,
     p.operator_name ? `Socio operador: ${p.operator_name}` : null,
     p.total_price != null ? `Precio del servicio: $${p.total_price.toFixed(2)}` : null,
-    p.payer === 'insurer' && p.covered != null ? `Cubrió tu seguro: $${p.covered.toFixed(2)}` : null,
+    showInsurer && p.payer === 'insurer' && p.covered != null ? `Cubrió tu seguro: $${p.covered.toFixed(2)}` : null,
     p.amount_due != null ? `Pagaste: $${p.amount_due.toFixed(2)}${p.method ? ` (${METHOD_LABEL[p.method]})` : ''}` : null,
     `Fecha: ${when}`,
     'Este comprobante no es una factura.',

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { Power, BellRing, KeyRound, Banknote, X } from 'lucide-react-native';
 import { Button } from '@/shared/components/ui';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
 
 /**
@@ -18,6 +19,8 @@ const STEPS = [
     icon: BellRing,
     title: 'Acepta una solicitud',
     body: 'Revisa el servicio, la distancia y quién paga. Si dice "Cortesía MOPT" o "Cubierto por" una aseguradora, no le cobres al Usuario (salvo su copago).',
+    // 00153: con las aseguradoras apagadas solo existe la cortesía MOPT.
+    bodyNoInsurers: 'Revisa el servicio, la distancia y quién paga. Si dice "Cortesía MOPT", no le cobres al Usuario.',
   },
   {
     icon: KeyRound,
@@ -41,6 +44,7 @@ export function PartnerGuide({
   onPractice?: () => void;
 }) {
   const [i, setI] = useState(0);
+  const insurersOn = useInsurersEnabled();
   const step = STEPS[i];
   const Icon = step.icon;
   const last = i === STEPS.length - 1;
@@ -62,7 +66,9 @@ export function PartnerGuide({
             <Icon size={36} color={colors.primary[500]} strokeWidth={2} />
           </View>
           <Text style={styles.title}>{step.title}</Text>
-          <Text style={styles.body}>{step.body}</Text>
+          <Text style={styles.body}>
+            {!insurersOn && 'bodyNoInsurers' in step && step.bodyNoInsurers ? step.bodyNoInsurers : step.body}
+          </Text>
           <View style={styles.dots}>
             {STEPS.map((_, k) => (
               <View key={k} style={[styles.dot, k === i && styles.dotOn]} />

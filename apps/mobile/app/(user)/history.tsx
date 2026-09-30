@@ -29,6 +29,7 @@ import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, E
 import { formatDateTime } from '@/lib/dates';
 import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
 import { fetchRequestOperators } from '@/features/tracking/lib/requestOperators';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -105,6 +106,8 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
 export default function History() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // 00153: con las aseguradoras apagadas no se muestra el desglose del seguro.
+  const insurersOn = useInsurersEnabled();
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -588,7 +591,7 @@ export default function History() {
                       servicio estaba excluido del plan, `amount_covered` es 0 y
                       las dos lineas dirian "$35.00" y "−$0.00" — ruido: ahi el
                       monto de arriba ya es toda la historia. */}
-                  {pago.cubierto && (selectedRequest.amount_covered ?? 0) > 0 && (
+                  {insurersOn && pago.cubierto && (selectedRequest.amount_covered ?? 0) > 0 && (
                     <View style={styles.coverageBreakdown}>
                       <View style={styles.coverageRow}>
                         <Text style={styles.coverageLabel}>Precio del servicio</Text>

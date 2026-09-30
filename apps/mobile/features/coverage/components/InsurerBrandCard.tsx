@@ -4,23 +4,29 @@ import { useFocusEffect } from 'expo-router';
 import { ShieldCheck } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { brandLogoUrl, brandTextColor, parseBrand, type InsurerBrand } from '@/lib/brand';
+import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
 
 /**
  * ASE-05 (00135): "Asistencia Vial XYZ, con tecnología Budi". Solo para el
  * afiliado con póliza vigente cuya aseguradora activó su marca; para todos los
- * demás no se muestra nada.
+ * demás no se muestra nada. Con las aseguradoras apagadas (00153) tampoco.
  */
 export function InsurerBrandCard() {
   const [brand, setBrand] = useState<InsurerBrand | null>(null);
+  const insurersOn = useInsurersEnabled();
 
   useFocusEffect(
     useCallback(() => {
+      if (!insurersOn) {
+        setBrand(null);
+        return;
+      }
       supabase.rpc('my_insurer_branding').then(({ data, error }) => setBrand(error ? null : parseBrand(data)));
-    }, []),
+    }, [insurersOn]),
   );
 
-  if (!brand) return null;
+  if (!insurersOn || !brand) return null;
   const accent = brand.color ?? colors.primary[500];
   const logo = brandLogoUrl(process.env.EXPO_PUBLIC_SUPABASE_URL ?? '', brand.logo_path);
 

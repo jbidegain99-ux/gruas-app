@@ -26,6 +26,12 @@ describe('servicePayments', () => {
     expect(t.toLowerCase()).not.toContain('comisi');
   });
 
+  it('con las aseguradoras apagadas (00153) el comprobante no menciona el seguro', () => {
+    const t = receiptText(parseServicePayment(raw)!, 'Grúa', '29 sept 2026', false);
+    expect(t.toLowerCase()).not.toContain('seguro');
+    expect(t).toContain('Pagaste: $20.00 (Efectivo)');
+  });
+
   it('un saldo negativo es comisión que el socio le debe a Budi', () => {
     expect(balanceLabel(-15)).toEqual({ label: 'Le debes a Budi (comisión del efectivo)', amount: 15, owes: true });
     expect(balanceLabel(40).owes).toBe(false);
