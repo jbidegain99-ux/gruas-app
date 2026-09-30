@@ -16,6 +16,9 @@
 \set ON_ERROR_STOP 1
 BEGIN;
 
+-- 00153: el interruptor de aseguradoras viene apagado; estas pruebas las ejercitan.
+UPDATE platform_features SET insurers_enabled = true;
+
 -- Este test prueba la regla de producción, aunque la base local permita
 -- destinos locales.
 SELECT set_config('app.webhooks_allow_local', 'off', true);

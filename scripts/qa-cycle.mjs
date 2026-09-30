@@ -195,6 +195,18 @@ for (const [k, email, meta] of [
   ids[k] = await ensureUser(email, meta);
 }
 
+// 00153: el interruptor de aseguradoras viene apagado y el ciclo las ejercita.
+// Se prende para la corrida y se deja como estaba al salir (pase lo que pase).
+const aseguradorasAntes = sql(`select insurers_enabled from platform_features where id = 1`);
+sql(`update platform_features set insurers_enabled = true where id = 1`);
+process.on('exit', () => {
+  try {
+    sql(`update platform_features set insurers_enabled = ${aseguradorasAntes === 't' ? 'true' : 'false'} where id = 1`);
+  } catch {
+    console.error('No se pudo restaurar el interruptor de aseguradoras; revisa platform_features.');
+  }
+});
+
 // Roles, empresas, verificación, afiliación, programa MOPT, zona, unidades y ubicaciones.
 const setup = sqlJson(`
   do $$ begin

@@ -1903,6 +1903,42 @@ export type Database = {
           },
         ]
       }
+      platform_features: {
+        Row: {
+          id: number
+          insurers_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          insurers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          insurers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "platform_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policies: {
         Row: {
           created_at: string
@@ -4079,6 +4115,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_insurers_enabled: {
+        Args: { p_enabled: boolean }
+        Returns: undefined
+      }
       admin_set_mopt_fee: {
         Args: { p_provider_id: string; p_rate: number }
         Returns: undefined
@@ -4511,6 +4551,7 @@ export type Database = {
         Returns: boolean
       }
       insurer_portal_role: { Args: never; Returns: string }
+      insurers_enabled: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_my_insurer: { Args: { p_insurer_id: string }; Returns: boolean }
       is_my_plan: { Args: { p_plan_id: string }; Returns: boolean }
@@ -4908,6 +4949,7 @@ export type Database = {
         Returns: boolean
       }
       platform_commission_at: { Args: { p_at: string }; Returns: number }
+      platform_features: { Args: never; Returns: Json }
       point_in_polygon: {
         Args: { p_lat: number; p_lng: number; p_polygon: Json }
         Returns: boolean

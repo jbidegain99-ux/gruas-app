@@ -7,6 +7,9 @@
 \set ON_ERROR_STOP 1
 BEGIN;
 
+-- 00153: el interruptor de aseguradoras viene apagado; estas pruebas las ejercitan.
+UPDATE platform_features SET insurers_enabled = true;
+
 -- ---------------------------------------------------------------
 -- A. Km de un recorrido conocido: +-5 % (criterio de VID-04)
 -- ---------------------------------------------------------------

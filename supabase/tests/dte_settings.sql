@@ -11,6 +11,9 @@
 \set ON_ERROR_STOP 1
 BEGIN;
 
+-- 00153: el interruptor de aseguradoras viene apagado; estas pruebas las ejercitan.
+UPDATE platform_features SET insurers_enabled = true;
+
 CREATE OR REPLACE FUNCTION pg_temp.como(p UUID) RETURNS VOID LANGUAGE sql AS $$
   SELECT set_config('request.jwt.claims', json_build_object('sub', p, 'role', 'authenticated', 'aal', 'aal2')::text, true);
 $$;
