@@ -4506,6 +4506,10 @@ export type Database = {
         Args: { p_members: Json; p_policy_id: string }
         Returns: Json
       }
+      insurer_pays_for: {
+        Args: { p_coverage: Json; p_service_type: string }
+        Returns: boolean
+      }
       insurer_portal_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_my_insurer: { Args: { p_insurer_id: string }; Returns: boolean }
@@ -4703,6 +4707,10 @@ export type Database = {
           p_service_type: string
         }
         Returns: string
+      }
+      mopt_program_capped: {
+        Args: { p_mopt_provider: string }
+        Returns: boolean
       }
       mopt_program_for: {
         Args: { p_lat: number; p_lng: number; p_service_type: string }

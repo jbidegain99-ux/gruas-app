@@ -266,10 +266,15 @@ BEGIN
   SELECT usuario, 'assigned', 'tow', 'light', 'x', 11.05, -80.95, 'Zona auditoría', 11.06, -80.96, 'Destino',
          'Vehículo varado', prov FROM t;
   ASSERT mopt_program_for(11.05, -80.95, 'tow') IS NULL, 'E2: los servicios en curso no cuentan contra el tope';
+  -- 00151: la vista previa explica que es por el tope (y a quién).
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', (SELECT lector FROM t), 'role', 'authenticated')::text, true);
+  ASSERT (preview_mopt_program(11.05, -80.95, 'tow')->>'capped')::boolean, 'E2b: la vista previa no avisa que el programa llego al tope';
+  ASSERT preview_mopt_program(11.05, -80.95, 'tow')->>'program_name' = 'MOPT de prueba (auditoría)', 'E2b: no nombra al programa';
   DELETE FROM organization_contracts WHERE organization_id = (SELECT org FROM t);
   ASSERT mopt_program_for(11.05, -80.95, 'tow') = (SELECT prov FROM t), 'E3: sin contrato se perdio la cortesia';
   UPDATE organizations SET status = 'suspended' WHERE id = (SELECT org FROM t);
   ASSERT mopt_program_for(11.05, -80.95, 'tow') IS NULL, 'E4: un programa suspendido sigue dando cortesia';
+  ASSERT NOT (preview_mopt_program(11.05, -80.95, 'tow')->>'capped')::boolean, 'E4b: suspendido no es "llego al tope"';
   UPDATE organizations SET status = 'active' WHERE id = (SELECT org FROM t);
   RAISE NOTICE 'E. tope con servicios en curso y programa suspendido: OK';
 END $$;
@@ -314,6 +319,14 @@ BEGIN
 END $$;
 
 RESET ROLE;
+
+-- F5 (00150): sin un punto de GPS, el km del caso queda sin dato (no 0).
+DO $$
+BEGIN
+  PERFORM compute_case_km((SELECT caso FROM t));
+  ASSERT (SELECT tow_km IS NULL AND approach_km IS NULL FROM cases WHERE request_id = (SELECT caso FROM t)),
+    'F5: un caso sin recorrido GPS guarda 0 km en vez de sin dato';
+END $$;
 
 -- G. Un servicio abierto pedido hace dos meses.
 INSERT INTO service_requests (user_id, operator_id, status, service_type, tow_type, pin_hash, pickup_lat, pickup_lng,
