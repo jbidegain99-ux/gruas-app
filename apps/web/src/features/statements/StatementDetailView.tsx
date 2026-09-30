@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle2, Download, FileText, MessageSquareWarning, Prin
 import { createClient } from '@/shared/lib/supabase/client';
 import { useConfirm, useToast } from '@/shared/components/FeedbackProvider';
 import { BudiLogo } from '@/shared/components/BudiLogo';
+import { svToday } from '@/shared/components/LedgerPaymentModals';
 import { serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
 import { exportTable, type ExportColumn } from '@/shared/lib/export/table-export';
 import { formatDate, formatDateTime, money } from '@/shared/lib/format';
@@ -426,7 +427,8 @@ function ObservationThread({ d, line, run }: { d: StatementDetail; line: Stateme
 
 function BudiActions({ d, run }: { d: StatementDetail; run: Run }) {
   const [reason, setReason] = useState('');
-  const [paidOn, setPaidOn] = useState('');
+  // Por defecto hoy (hora de El Salvador): casi siempre se marca el mismo día.
+  const [paidOn, setPaidOn] = useState(() => svToday());
   const [ref, setRef] = useState('');
   const confirm = useConfirm();
   const cls = 'rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white';
