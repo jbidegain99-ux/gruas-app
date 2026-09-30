@@ -1,0 +1,364 @@
+<title>Kit de ventas Budi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: hoja de trabajo con pestañas por pieza; cada pieza es una sola columna de lectura (~68ch) con un bloque lateral de datos que baja en móvil. */
+:root {
+  --noche: #132B45;          /* Azul noche Budi (DS v2) */
+  --naranja: #FF7A1F;        /* Naranja Budi: nunca texto blanco encima */
+  --bg: #F6F7F9;
+  --surface: #FFFFFF;
+  --fg: #172233;
+  --muted: #5B6778;
+  --line: #DDE2E9;
+  --accent-fg: #B8520C;      /* naranja legible como texto sobre claro */
+  --chip: #FFF1E6;
+  --draft-bg: #FFF7E0;
+  --draft-fg: #7A5300;
+  --ok: #1E7A4F;
+  --display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1624; --surface: #13233A; --fg: #E6ECF4; --muted: #9AA8BA; --line: #243852;
+    --noche: #9CC2EA; --accent-fg: #FFA566; --chip: #2A2118; --draft-bg: #2B2410; --draft-fg: #F2CC6B; --ok: #6FD3A2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1624; --surface: #13233A; --fg: #E6ECF4; --muted: #9AA8BA; --line: #243852;
+  --noche: #9CC2EA; --accent-fg: #FFA566; --chip: #2A2118; --draft-bg: #2B2410; --draft-fg: #F2CC6B; --ok: #6FD3A2;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.6; margin: 0; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.mark { width: 40px; height: 40px; border-radius: 10px; background: var(--naranja); color: #132B45; font: 800 22px/40px var(--display); text-align: center; }
+h1 { font: 800 clamp(1.6rem, 3.5vw, 2.2rem)/1.15 var(--display); margin: 0; color: var(--noche); text-wrap: balance; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.draft { background: var(--draft-bg); color: var(--draft-fg); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; margin-top: 18px; }
+.draft b { font-weight: 600; }
+nav.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 22px 0 26px; border-bottom: 1px solid var(--line); }
+nav.tabs button { font: 600 14px var(--body); color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 12px; cursor: pointer; margin-bottom: -1px; }
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--naranja); }
+nav.tabs button:focus-visible, .copy:focus-visible { outline: 2px solid var(--naranja); outline-offset: 2px; border-radius: 4px; }
+.panel { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 32px; }
+@media (max-width: 820px) { .panel { grid-template-columns: minmax(0, 1fr); } }
+.eyebrow { font: 600 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-fg); margin: 0 0 6px; }
+h2 { font: 800 clamp(1.35rem, 2.8vw, 1.8rem)/1.2 var(--display); margin: 0 0 12px; color: var(--noche); text-wrap: balance; max-width: 30ch; }
+h3 { font: 700 1.05rem/1.3 var(--display); margin: 26px 0 8px; color: var(--fg); }
+p, li { max-width: 68ch; }
+.lead { font-size: 1.08rem; color: var(--fg); }
+ul { padding-left: 1.1em; margin: 6px 0; display: grid; gap: 6px; }
+ol.steps { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 10px; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 10px; align-items: start; }
+ol.steps li::before { content: counter(s); font: 700 13px/26px var(--display); width: 26px; height: 26px; text-align: center; border-radius: 50%; background: var(--chip); color: var(--accent-fg); }
+aside.facts { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; align-self: start; display: grid; gap: 14px; }
+aside.facts h4 { font: 600 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+aside dl { margin: 0; display: grid; gap: 10px; }
+aside dt { font-size: 12.5px; color: var(--muted); }
+aside dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tbd { color: var(--draft-fg); background: var(--draft-bg); border-radius: 4px; padding: 0 4px; font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--chip); color: var(--accent-fg); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 600; }
+.copy { font: 600 13px var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; justify-self: start; }
+.copy[data-done] { color: var(--ok); border-color: var(--ok); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tablewrap { overflow-x: auto; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.clause { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.clause h3 { margin-top: 0; }
+footer { color: var(--muted); font-size: 13px; margin-top: 40px; }
+@media (prefers-reduced-motion: no-preference) { .panel { animation: in .18s ease-out; } @keyframes in { from { opacity: .6; } to { opacity: 1; } } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">B</div>
+      <div>
+        <h1>Kit de ventas Budi</h1>
+        <p class="sub">Asistencia vial en El Salvador · material por segmento para reuniones y correos</p>
+      </div>
+    </div>
+  </header>
+  <p class="draft"><b>Borrador para revisión de Jose (VEN-02).</b> Todo lo que describe el producto está construido y probado. Lo marcado <span class="tbd">[así]</span> es una decisión comercial o legal pendiente: precios, contactos, razón social, DPO, plan de respaldos. El contrato necesita revisión de un abogado antes de usarse.</p>
+
+  <nav class="tabs" role="tablist" aria-label="Piezas del kit">
+    <button role="tab" id="t-mopt" aria-controls="mopt" aria-selected="true">MOPT</button>
+    <button role="tab" id="t-aseguradoras" aria-controls="aseguradoras" aria-selected="false">Aseguradoras</button>
+    <button role="tab" id="t-reaseguradoras" aria-controls="reaseguradoras" aria-selected="false">Reaseguradoras</button>
+    <button role="tab" id="t-socios" aria-controls="socios" aria-selected="false">Socios operadores</button>
+    <button role="tab" id="t-seguridad" aria-controls="seguridad" aria-selected="false">Seguridad y datos</button>
+    <button role="tab" id="t-contrato" aria-controls="contrato" aria-selected="false">Contrato B2B</button>
+  </nav>
+
+  <!-- MOPT -->
+  <section class="panel" id="mopt" role="tabpanel" aria-labelledby="t-mopt">
+    <div class="doc">
+      <p class="eyebrow">One-pager · Ministerio de Obras Públicas y de Transporte</p>
+      <h2>Asistencia vial sin costo para el Usuario, con cada servicio medido</h2>
+      <p class="lead">Budi atiende a quien queda varado en las carreteras del programa y le da al MOPT control completo: dónde, cuándo, cuánto tardó la grúa y cuánto costó, contra un presupuesto que no se pasa.</p>
+      <h3>Cómo funciona</h3>
+      <ol class="steps">
+        <li><span>El Usuario pide ayuda desde la app. Si está dentro de una zona y horario del programa, el servicio sale como <b>Cortesía MOPT</b> y no paga nada.</span></li>
+        <li><span>Budi asigna al socio operador más cercano: de la flota del MOPT o de la red Budi.</span></li>
+        <li><span>El socio llega y confirma con el PIN de 4 dígitos del Usuario. Sin PIN, el servicio no empieza.</span></li>
+        <li><span>Al cerrar, el costo entra al estado de cuenta del mes, con el recorrido real en km.</span></li>
+      </ol>
+      <h3>Lo que ve el MOPT en su portal</h3>
+      <ul>
+        <li>Servicios en vivo, mapa de la flota y detalle de cada caso con su folio.</li>
+        <li>Cumplimiento de SLA: asignación y llegada contra el objetivo pactado, por tipo de servicio y por zona.</li>
+        <li>Km recorridos por grúa y por caso.</li>
+        <li>Contrato con tope mensual: aviso al 80 % y al 100 %, y regla definida para cuando se llega al tope.</li>
+        <li>Estado de cuenta mensual con observaciones por caso antes de aprobarlo.</li>
+        <li>Reporte mensual oficial en PDF el día 1, enviado a los responsables del programa.</li>
+        <li>Equipo con roles y verificación en dos pasos para dueños y administradores.</li>
+      </ul>
+      <h3>Siguiente paso</h3>
+      <p>Una demo de 5 minutos con un servicio en vivo en el mapa, y un piloto en un tramo carretero. Contacto: <span class="tbd">[nombre, teléfono y correo de ventas]</span>.</p>
+    </div>
+    <aside class="facts" aria-label="Datos para el MOPT">
+      <h4>En números</h4>
+      <dl>
+        <div><dt>Objetivo de asignación por defecto</dt><dd>10 min</dd></div>
+        <div><dt>Objetivo de llegada por defecto</dt><dd>45 min</dd></div>
+        <div><dt>Servicios del programa</dt><dd>Grúa, batería, llanta, combustible, cerrajería, mecánico, winche y pipa de agua</dd></div>
+        <div><dt>Modelo de cobro</dt><dd>Por servicio + tarifa de plataforma <span class="tbd">[% por definir]</span></dd></div>
+      </dl>
+      <button class="copy" type="button" data-copy="mopt">Copiar texto</button>
+    </aside>
+  </section>
+
+  <!-- Aseguradoras -->
+  <section class="panel" id="aseguradoras" role="tabpanel" aria-labelledby="t-aseguradoras" hidden>
+    <div class="doc">
+      <p class="eyebrow">One-pager · Aseguradoras</p>
+      <h2>Tu asistencia vial, operada por Budi y medida caso por caso</h2>
+      <p class="lead">Tus afiliados piden ayuda desde una app; Budi valida su póliza al instante, aplica tu plan y te entrega cada caso con folio, tiempos y costo. Tú no operas grúas.</p>
+      <h3>Cómo funciona</h3>
+      <ol class="steps">
+        <li><span>Cargas tu padrón por archivo o por API. Una baja corta la cobertura al instante.</span></li>
+        <li><span>El afiliado pide el servicio. Antes de confirmar ve cuánto cubre su seguro y cuánto le toca pagar.</span></li>
+        <li><span>Budi despacha, el socio confirma con PIN y el caso queda con su línea de tiempo completa.</span></li>
+        <li><span>A fin de mes recibes el estado de cuenta solo con la porción que cubre tu póliza. Puedes observar casos antes de aprobarlo.</span></li>
+      </ol>
+      <h3>Lo que obtienes</h3>
+      <ul>
+        <li>Portal con tus casos en vivo, filtros por fecha, estado, servicio y zona, y exportación a Excel.</li>
+        <li>SLA medido con tus propios objetivos de asignación y llegada.</li>
+        <li>Autoservicio de planes, pólizas y afiliados. Cargas de 10 000 afiliados con reporte de errores por fila.</li>
+        <li>API de afiliados y webhooks firmados con los eventos de cada caso: creado, asignado, llegó, completado y cancelado.</li>
+        <li>Marca blanca: tu logo y tu nombre en tu portal y en la app de tus afiliados («con tecnología Budi»).</li>
+        <li>Permiso explícito, y revocable, para que tu reaseguradora vea solo cifras agregadas.</li>
+      </ul>
+      <h3>Siguiente paso</h3>
+      <p>Alta en menos de un día: organización, contrato, dueño del portal, padrón y un caso de prueba. Contacto: <span class="tbd">[ventas]</span>.</p>
+    </div>
+    <aside class="facts" aria-label="Datos para aseguradoras">
+      <h4>Para tu equipo técnico</h4>
+      <dl>
+        <div><dt>Integración</dt><dd>API REST de padrón + webhooks HMAC-SHA256 con reintentos</dd></div>
+        <div><dt>Folio de cada caso</dt><dd style="font-family: var(--mono)">BUDI-000123</dd></div>
+        <div><dt>Acceso al portal</dt><dd>Roles dueño, administrador, analista y lector. 2FA obligatorio para dueño y administrador</dd></div>
+        <div><dt>Precio</dt><dd><span class="tbd">[por servicio / por afiliado: por definir]</span></dd></div>
+      </dl>
+      <button class="copy" type="button" data-copy="aseguradoras">Copiar texto</button>
+    </aside>
+  </section>
+
+  <!-- Reaseguradoras -->
+  <section class="panel" id="reaseguradoras" role="tabpanel" aria-labelledby="t-reaseguradoras" hidden>
+    <div class="doc">
+      <p class="eyebrow">One-pager · Reaseguradoras</p>
+      <h2>La siniestralidad de asistencia vial de tus cedentes, sin datos personales</h2>
+      <p class="lead">Con el permiso de cada aseguradora cedente, Budi te muestra cuánto se usa la asistencia vial, cuánto cuesta y qué tan rápido se atiende. Solo cifras agregadas.</p>
+      <h3>Qué ves</h3>
+      <ul>
+        <li>Tablero por aseguradora, tipo de servicio y mes: servicios, costo, costo promedio, frecuencia por cada 1 000 afiliados y SLA.</li>
+        <li>Reporte trimestral de siniestralidad: exposición, frecuencia, severidad y costo por afiliado, contra el trimestre anterior.</li>
+        <li>Exportación a Excel de todo lo anterior.</li>
+      </ul>
+      <h3>Cómo se protege la información</h3>
+      <ul>
+        <li>Cada aseguradora autoriza desde su portal (dueño con 2FA) y puede revocar cuando quiera. La autorización queda registrada.</li>
+        <li>Una cifra con menos de 5 casos no se publica, y los totales no permiten deducirla.</li>
+        <li>No hay forma técnica de pedir un caso individual.</li>
+      </ul>
+      <h3>Siguiente paso</h3>
+      <p>Queremos validar el formato del reporte trimestral con tu equipo antes de fijarlo. Contacto: <span class="tbd">[ventas]</span>.</p>
+    </div>
+    <aside class="facts" aria-label="Datos para reaseguradoras">
+      <h4>Reglas del dato</h4>
+      <dl>
+        <div><dt>Mínimo por celda</dt><dd>5 servicios</dd></div>
+        <div><dt>Vigencia</dt><dd>Solo casos dentro del periodo del vínculo con cada cedente</dd></div>
+        <div><dt>Costo</dt><dd>Sin costo para la reaseguradora <span class="tbd">[confirmar decisión D3]</span></dd></div>
+      </dl>
+      <button class="copy" type="button" data-copy="reaseguradoras">Copiar texto</button>
+    </aside>
+  </section>
+
+  <!-- Socios -->
+  <section class="panel" id="socios" role="tabpanel" aria-labelledby="t-socios" hidden>
+    <div class="doc">
+      <p class="eyebrow">One-pager · Socios operadores</p>
+      <h2>Más servicios para tu grúa, pagos claros y cero llamadas perdidas</h2>
+      <p class="lead">Budi te manda solicitudes cercanas de Usuarios, aseguradoras y del programa MOPT. Tú decides cuáles aceptas y siempre sabes cuánto vas a recibir.</p>
+      <h3>Cómo empiezas</h3>
+      <ol class="steps">
+        <li><span>Te registras en la app con tus datos, tu unidad y tus documentos, y aceptas el contrato digital.</span></li>
+        <li><span>Budi revisa tus documentos y aprueba tu cuenta.</span></li>
+        <li><span>Haces la guía y un servicio de práctica en la app. Los Usuarios te ven como <b>Socio verificado</b>.</span></li>
+        <li><span>Te pones en línea y recibes solicitudes.</span></li>
+      </ol>
+      <h3>Lo que ganas</h3>
+      <ul>
+        <li>Antes de aceptar ves el servicio, la distancia y quién paga: Cortesía MOPT, aseguradora o particular.</li>
+        <li>Ves tu ganancia de hoy y de la semana ya con la comisión descontada. Sin sorpresas en la liquidación.</li>
+        <li>Si el Usuario te paga en efectivo, lo confirmas en la app y él recibe su comprobante.</li>
+        <li>Pagos de Budi con comprobante bancario y el detalle de qué servicios cubre cada uno.</li>
+      </ul>
+    </div>
+    <aside class="facts" aria-label="Datos para socios">
+      <h4>Servicios</h4>
+      <div class="chips"><span class="chip">Grúa</span><span class="chip">Batería</span><span class="chip">Llanta</span><span class="chip">Combustible</span><span class="chip">Cerrajería</span><span class="chip">Mecánico</span><span class="chip">Winche</span><span class="chip">Pipa de agua</span></div>
+      <dl>
+        <div><dt>Comisión de Budi</dt><dd><span class="tbd">[% por definir]</span></dd></div>
+        <div><dt>Frecuencia de pago</dt><dd><span class="tbd">[semanal / quincenal]</span></dd></div>
+        <div><dt>Requisitos</dt><dd>DUI, licencia, tarjeta de circulación y seguro de la unidad <span class="tbd">[confirmar]</span></dd></div>
+      </dl>
+      <button class="copy" type="button" data-copy="socios">Copiar texto</button>
+    </aside>
+  </section>
+
+  <!-- Seguridad -->
+  <section class="panel" id="seguridad" role="tabpanel" aria-labelledby="t-seguridad" hidden>
+    <div class="doc">
+      <p class="eyebrow">Hoja técnica · Seguridad y protección de datos</p>
+      <h2>Cómo cuida Budi los datos de tus Usuarios</h2>
+      <p class="lead">Budi cumple la Ley para la Protección de Datos Personales (Decreto 144, vigente desde el 24 de noviembre de 2024) y aísla la información de cada cliente en la base de datos misma, no solo en la aplicación.</p>
+      <h3>Aislamiento y acceso</h3>
+      <ul>
+        <li>Cada organización (MOPT, aseguradora, reaseguradora) ve solo lo suyo. Lo impone la base de datos con reglas por fila y por columna, y lo verifican pruebas automáticas en cada cambio.</li>
+        <li>Verificación en dos pasos obligatoria para dueños y administradores de los portales.</li>
+        <li>Bitácora de auditoría de los cambios de configuración y de quién los hizo.</li>
+        <li>El PIN de confirmación se guarda cifrado y ningún rol puede leerlo.</li>
+        <li>Límites de uso en las funciones públicas, webhooks firmados y claves de API que se guardan solo como huella.</li>
+      </ul>
+      <h3>Derechos de las personas</h3>
+      <ul>
+        <li>Cada persona descarga una copia de sus datos y borra su cuenta desde la app o la web.</li>
+        <li>Borrado automático: recorridos detallados a los 90 días y mensajes del chat a los 12 meses.</li>
+        <li>Reportes a clientes institucionales sin datos personales del Usuario.</li>
+        <li>Brechas de seguridad: aviso a la Agencia de Ciberseguridad del Estado, a la Fiscalía y a los afectados en un máximo de 72 horas.</li>
+      </ul>
+      <h3>Infraestructura</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Componente</th><th>Dónde corre</th><th>Notas</th></tr></thead>
+          <tbody>
+            <tr><td>Base de datos, autenticación y tiempo real</td><td>Supabase (PostgreSQL gestionado)</td><td>Región <span class="tbd">[confirmar]</span></td></tr>
+            <tr><td>Portal web</td><td>Servidor dedicado con Docker</td><td>HTTPS con certificados automáticos</td></tr>
+            <tr><td>Apps móviles</td><td>Android y iOS</td><td>Se publican en Google Play y App Store con Expo <span class="tbd">[en preparación]</span></td></tr>
+            <tr><td>Monitoreo de errores</td><td>Sentry</td><td>Sin datos personales en los reportes</td></tr>
+            <tr><td>Respaldos</td><td>Supabase</td><td><span class="tbd">[plan contratado: frecuencia y retención]</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="facts" aria-label="Responsables">
+      <h4>Responsables</h4>
+      <dl>
+        <div><dt>Responsable del tratamiento</dt><dd><span class="tbd">[razón social y NIT]</span></dd></div>
+        <div><dt>Delegado de protección de datos</dt><dd><span class="tbd">[por designar]</span></dd></div>
+        <div><dt>Contacto de privacidad</dt><dd><span class="tbd">[privacidad@dominio]</span></dd></div>
+        <div><dt>Plazo de respuesta a solicitudes</dt><dd>20 días hábiles</dd></div>
+      </dl>
+      <button class="copy" type="button" data-copy="seguridad">Copiar texto</button>
+    </aside>
+  </section>
+
+  <!-- Contrato -->
+  <section class="panel" id="contrato" role="tabpanel" aria-labelledby="t-contrato" hidden>
+    <div class="doc">
+      <p class="eyebrow">Modelo · Contrato de servicios B2B</p>
+      <h2>Contrato de prestación de servicios de asistencia vial</h2>
+      <p class="draft"><b>Modelo para revisión legal.</b> No se firma sin que lo revise un abogado salvadoreño. Las cláusulas describen cómo funciona hoy la plataforma para que el contrato no prometa algo distinto.</p>
+      <div class="clause"><h3>1. Partes</h3><p><span class="tbd">[Razón social de Budi]</span>, en adelante «Budi», y <span class="tbd">[razón social del Cliente]</span>, en adelante «el Cliente», con sus representantes legales y domicilios.</p></div>
+      <div class="clause"><h3>2. Objeto</h3><p>Budi presta, a través de su plataforma y de su red de socios operadores, servicios de asistencia vial (grúa, batería, llanta, combustible, cerrajería, mecánico, winche y pipa de agua) a los beneficiarios que el Cliente defina: afiliados de sus pólizas o usuarios dentro de las zonas del programa.</p></div>
+      <div class="clause"><h3>3. Beneficiarios y elegibilidad</h3><p>La elegibilidad se determina con el padrón que el Cliente mantiene en la plataforma (aseguradoras) o con las zonas, horarios y servicios del programa (MOPT). El Cliente es responsable de mantener su padrón actualizado; una baja corta la cobertura al registrarse.</p></div>
+      <div class="clause"><h3>4. Niveles de servicio</h3><p>Objetivos de asignación de <span class="tbd">[10]</span> minutos y de llegada de <span class="tbd">[45]</span> minutos, medidos desde los registros de la plataforma y visibles para el Cliente en su portal. Consecuencias del incumplimiento: <span class="tbd">[por definir]</span>.</p></div>
+      <div class="clause"><h3>5. Tarifas, tope y facturación</h3><p>Tarifas según el Anexo A. Para programas con tope mensual, al alcanzarlo aplica la regla pactada: continuar sin costo para el usuario y facturar aparte, o cobrarle al usuario hasta el mes siguiente. La facturación se emite como documento tributario electrónico ante el Ministerio de Hacienda <span class="tbd">[tipo de DTE a confirmar con el contador]</span>.</p></div>
+      <div class="clause"><h3>6. Estado de cuenta y observaciones</h3><p>Budi emite un estado de cuenta mensual por el portal. El Cliente tiene <span class="tbd">[10]</span> días hábiles para observar casos específicos; Budi responde confirmando o ajustando. Transcurrido el plazo sin observaciones, el estado de cuenta se considera aprobado.</p></div>
+      <div class="clause"><h3>7. Protección de datos</h3><p>Respecto de los datos de los beneficiarios, Budi actúa como <span class="tbd">[encargado / responsable: definir]</span> conforme al Decreto 144. Budi no usa los datos para fines distintos del servicio, aplica medidas técnicas de seguridad (Anexo B), notifica brechas en un máximo de 72 horas y utiliza como subencargados a sus proveedores de infraestructura (Supabase, hosting del portal, Sentry y Expo).</p></div>
+      <div class="clause"><h3>8. Integraciones y marca</h3><p>El Cliente puede usar la API de padrón y los webhooks de eventos con sus credenciales, que puede rotar y revocar. Si activa la marca blanca, autoriza a Budi a mostrar su logo y nombre comercial ante sus beneficiarios durante la vigencia del contrato.</p></div>
+      <div class="clause"><h3>9. Vigencia y terminación</h3><p>Vigencia de <span class="tbd">[12 meses]</span> con renovación <span class="tbd">[automática / expresa]</span>. Terminación anticipada con aviso de <span class="tbd">[30]</span> días. Al terminar, Budi entrega la información del Cliente en formato exportable y la conserva solo lo que la ley exija.</p></div>
+      <div class="clause"><h3>10. Responsabilidad y ley aplicable</h3><p>Límite de responsabilidad <span class="tbd">[por definir]</span>. Ley de la República de El Salvador; tribunales de <span class="tbd">[San Salvador]</span>.</p></div>
+      <div class="clause"><h3>Anexos</h3><ul><li>A. Tarifas y tope mensual.</li><li>B. Hoja técnica de seguridad y protección de datos.</li><li>C. Objetivos de SLA y forma de medirlos.</li></ul></div>
+    </div>
+    <aside class="facts" aria-label="Pendientes del contrato">
+      <h4>Pendientes para cerrarlo</h4>
+      <ul>
+        <li>Razón social y NIT de Budi.</li>
+        <li>Rol de Budi ante los datos (encargado o responsable).</li>
+        <li>Tarifas, tope y consecuencias de SLA.</li>
+        <li>Tipo de DTE con el contador.</li>
+        <li>Revisión de un abogado.</li>
+      </ul>
+      <button class="copy" type="button" data-copy="contrato">Copiar texto</button>
+    </aside>
+  </section>
+
+  <footer>Budi · kit de ventas, borrador del 29 de septiembre de 2026. Las funciones descritas están construidas y probadas en el entorno de desarrollo (migraciones hasta la 00139); todavía no están en producción.</footer>
+</div>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('nav.tabs button'));
+  function show(id, focus) {
+    tabs.forEach(function (t) {
+      var on = t.getAttribute('aria-controls') === id;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      if (on && focus) t.focus();
+    });
+    try { localStorage.setItem('kit-tab', id); } catch (e) {}
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { show(t.getAttribute('aria-controls')); history.replaceState(null, '', '#' + t.getAttribute('aria-controls')); });
+    t.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        var n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        show(n.getAttribute('aria-controls'), true);
+      }
+    });
+  });
+  var start = (location.hash || '').slice(1);
+  if (!document.getElementById(start)) { try { start = localStorage.getItem('kit-tab') || ''; } catch (e) { start = ''; } }
+  show(document.getElementById(start) && tabs.some(function (t) { return t.getAttribute('aria-controls') === start; }) ? start : 'mopt');
+
+  document.querySelectorAll('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var doc = document.getElementById(b.getAttribute('data-copy')).querySelector('.doc');
+      var text = doc.innerText;
+      var done = function () { b.setAttribute('data-done', ''); b.textContent = 'Copiado'; setTimeout(function () { b.removeAttribute('data-done'); b.textContent = 'Copiar texto'; }, 1800); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { selectDoc(doc); });
+      } else { selectDoc(doc); }
+    });
+  });
+  function selectDoc(el) {
+    var r = document.createRange(); r.selectNodeContents(el);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+})();
+</script>
