@@ -436,7 +436,10 @@ export default function ActiveService() {
   const handleComplete = () => {
     Alert.alert(
       'Completar servicio',
-      '¿Confirmas que el vehículo ha sido entregado en el destino?',
+      // Batería, llanta, cerrajería…: se atiende en el sitio, no hay destino.
+      requiresDropoff(service?.service_type)
+        ? '¿Confirmas que el vehículo ha sido entregado en el destino?'
+        : '¿Confirmas que el servicio quedó terminado en el lugar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Completar', onPress: () => updateStatus('completed') },

@@ -996,7 +996,7 @@ export default function UserHome() {
               </View>
               <Text style={styles.ctaTitle}>Solicitar Servicio</Text>
               <Text style={styles.ctaDescription}>
-                Estamos listos para ayudarte las 24 horas del dia, los 7 dias de la semana.
+                Estamos listos para ayudarte las 24 horas del día, los 7 días de la semana.
               </Text>
               <Button
                 title="Solicitar Ahora"
@@ -1009,7 +1009,7 @@ export default function UserHome() {
             <Card padding="m">
               <View style={styles.infoCardContent}>
                 <Clock size={24} color={colors.primary[500]} strokeWidth={2} />
-                <Text style={styles.infoTitle}>Rapido</Text>
+                <Text style={styles.infoTitle}>Rápido</Text>
                 <Text style={styles.infoText}>Respuesta en minutos</Text>
               </View>
             </Card>
