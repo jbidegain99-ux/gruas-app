@@ -187,7 +187,19 @@ DO $$
 BEGIN
   ASSERT (SELECT a_pagar FROM my_operator_earnings(sv_today() - 1, sv_today() + 1)) = 20,
     'C6: la app del socio muestra el monto original y no el aprobado por el MOPT';
-  RAISE NOTICE 'C. se aprueba sin observaciones abiertas, cerrado no se mueve y libro y socio siguen al ajuste: OK';
+END $$;
+
+-- C7 (00147): el portal MOPT (detalle y lista) muestra el monto aprobado.
+SELECT pg_temp.como((SELECT dueno FROM t), 'aal2');
+DO $$
+BEGIN
+  ASSERT (mopt_service_detail((SELECT caso FROM t))->>'amount_due')::numeric = 20,
+    'C7: el detalle del portal MOPT muestra el monto original';
+  ASSERT (mopt_service_detail((SELECT caso FROM t))->>'adjusted_in') IS NOT NULL,
+    'C7: el detalle no dice en qué estado de cuenta se ajustó';
+  ASSERT (SELECT total_price FROM mopt_list_services(sv_today() - 1, sv_today() + 1) WHERE id = (SELECT caso FROM t)) = 20,
+    'C7: la lista de Servicios suma el monto original';
+  RAISE NOTICE 'C. se aprueba sin observaciones abiertas, cerrado no se mueve y libro, socio y portal siguen al ajuste: OK';
 END $$;
 RESET ROLE;
 

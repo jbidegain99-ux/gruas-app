@@ -5159,6 +5159,13 @@ export type Database = {
         Returns: number
       }
       statement_access: { Args: { p_id: string }; Returns: string }
+      statement_adjustment: {
+        Args: { p_request_id: string }
+        Returns: {
+          amount: number
+          statement_number: string
+        }[]
+      }
       statement_candidate_lines: {
         Args: { p_exclude: string; p_from: string; p_org: string; p_to: string }
         Returns: {
