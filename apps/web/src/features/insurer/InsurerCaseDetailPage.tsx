@@ -143,7 +143,7 @@ export default function InsurerCaseDetailPage({ folio }: { folio: string }) {
         </div>
 
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-          <CaseTimeline folio={folio} />
+          <CaseTimeline folio={folio} bare />
         </div>
       </div>
     </div>

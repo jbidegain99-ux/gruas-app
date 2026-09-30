@@ -44,7 +44,16 @@ const detailText = (d: string | null) => (d ? DETAIL_LABEL[d] ?? d : null);
  * JSON con el folio y los eventos — la base de lo que la aseguradora recibirá
  * por el portal (B-17).
  */
-export function CaseTimeline({ folio, refreshKey = 0 }: { folio: string | null; refreshKey?: number }) {
+export function CaseTimeline({
+  folio,
+  refreshKey = 0,
+  bare = false,
+}: {
+  folio: string | null;
+  refreshKey?: number;
+  /** Sin separador superior: cuando va solo dentro de su propia tarjeta. */
+  bare?: boolean;
+}) {
   const [rows, setRows] = useState<TimelineRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   // `loadedFolio` = el folio para el que ya hay datos. `loading` se DERIVA de
@@ -112,7 +121,7 @@ export function CaseTimeline({ folio, refreshKey = 0 }: { folio: string | null; 
   };
 
   return (
-    <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+    <div className={bare ? '' : 'border-t border-zinc-200 pt-4 dark:border-zinc-800'}>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-zinc-400" />

@@ -212,7 +212,7 @@ export default function AdminPricingPage() {
               {loading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-sm text-zinc-500">
-                    Cargando...
+                    Cargando…
                   </td>
                 </tr>
               ) : rules.length === 0 ? (

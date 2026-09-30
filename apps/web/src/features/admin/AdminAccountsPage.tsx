@@ -197,7 +197,7 @@ export default function AdminAccountsPage() {
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {payments.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">{loading ? 'Cargando...' : 'Todavía no hay pagos registrados.'}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">{loading ? 'Cargando…' : 'Todavía no hay pagos registrados.'}</td></tr>
               ) : (
                 payments.map((p) => (
                   <tr key={p.id} className={p.voided_at ? 'text-zinc-400' : 'text-zinc-700 dark:text-zinc-300'}>
@@ -295,7 +295,7 @@ function BalanceTable({
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-zinc-500">{loading ? 'Cargando...' : empty}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-zinc-500">{loading ? 'Cargando…' : empty}</td></tr>
             ) : (
               rows.map((b) => {
                 const cp = counterparty(b);

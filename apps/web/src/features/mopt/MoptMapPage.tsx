@@ -184,7 +184,9 @@ export default function MoptMapPage() {
       )}
 
       <div className="flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-400">
-        {(['on_service', 'available', 'stale'] as State[]).map((s) => (
+        {/* "Nunca se conectó" solo si hay alguno: no sale en el mapa (no tiene
+            posición) y sin contarlo la flota no sumaba. */}
+        {(['on_service', 'available', 'stale', ...(counts.no_location ? ['no_location'] : [])] as State[]).map((s) => (
           <span key={s} className="flex items-center gap-1.5">
             <span className={`h-2.5 w-2.5 rounded-full ${STATE[s].dot}`} /> {STATE[s].label} ({counts[s] ?? 0})
           </span>

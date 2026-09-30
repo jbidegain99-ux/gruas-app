@@ -265,7 +265,7 @@ export default function AdminVerificationsPage() {
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-zinc-500">Cargando...</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-zinc-500">Cargando…</td></tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center">

@@ -316,7 +316,7 @@ export default function AdminUsersPage() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-zinc-500">
-                    Cargando...
+                    Cargando…
                   </td>
                 </tr>
               ) : loadError ? (

@@ -469,7 +469,7 @@ export default function AdminRequestsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-sm text-zinc-500">
-                    Cargando...
+                    Cargando…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (

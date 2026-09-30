@@ -42,6 +42,9 @@ type Detail = {
   completed_at: string | null;
   distance_km: number | null;
   total_price: number | null;
+  // 00147: lo aprobado por el MOPT (ajustado en su estado de cuenta, si hubo ajuste).
+  amount_due: number | null;
+  adjusted_in: string | null;
   trail: LatLng[];
 };
 
@@ -120,12 +123,17 @@ export default function MoptServiceDetailPage({ id }: { id: string }) {
             <Field label="Completado">{fecha(detail.completed_at)}</Field>
             {detail.distance_km != null && conDestino && <Field label="Distancia del traslado">{Number(detail.distance_km).toFixed(1)} km</Field>}
             <Field label="Monto a pagar al socio operador">
-              <span className="font-semibold">{detail.total_price == null ? '—' : money(Number(detail.total_price))}</span>
+              <span className="font-semibold">{detail.amount_due == null ? '—' : money(Number(detail.amount_due))}</span>
+              {detail.adjusted_in && detail.total_price != null && (
+                <span className="block text-xs text-zinc-500">
+                  Ajustado de {money(Number(detail.total_price))} en {detail.adjusted_in}
+                </span>
+              )}
             </Field>
           </section>
 
           <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <CaseSla folio={detail.folio} refreshKey={tick} />
+            <CaseSla folio={detail.folio} refreshKey={tick} bare />
           </section>
         </div>
 
@@ -141,7 +149,7 @@ export default function MoptServiceDetailPage({ id }: { id: string }) {
           </section>
 
           <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <CaseTimeline folio={detail.folio} refreshKey={tick} />
+            <CaseTimeline folio={detail.folio} refreshKey={tick} bare />
           </section>
         </div>
       </div>

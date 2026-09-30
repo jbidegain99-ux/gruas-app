@@ -103,7 +103,7 @@ export default function MoptOperatorsPage() {
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Cargando…</td></tr>
             ) : error ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-red-600 dark:text-red-400">No se pudieron cargar los socios operadores: {error}</td></tr>
             ) : rows.length === 0 ? (

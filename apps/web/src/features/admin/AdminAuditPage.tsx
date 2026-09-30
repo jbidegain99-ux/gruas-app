@@ -164,7 +164,7 @@ export default function AdminAuditPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-zinc-500">Cargando...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-zinc-500">Cargando…</td>
                 </tr>
               ) : loadError ? (
                 <tr>

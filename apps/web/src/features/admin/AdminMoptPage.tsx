@@ -180,7 +180,7 @@ export default function AdminMoptPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Cargando...</p>
+        <p className="text-sm text-zinc-500">Cargando…</p>
       ) : loadError ? (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           No se pudieron cargar los programas MOPT: {loadError}

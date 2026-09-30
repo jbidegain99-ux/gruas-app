@@ -35,7 +35,7 @@ export default function MoptOverviewPage() {
   }, []);
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">No se pudo cargar el resumen: {error}</p>;
-  if (!data) return <p className="text-sm text-zinc-500">Cargando...</p>;
+  if (!data) return <p className="text-sm text-zinc-500">Cargando…</p>;
 
   return (
     <div className="space-y-8">

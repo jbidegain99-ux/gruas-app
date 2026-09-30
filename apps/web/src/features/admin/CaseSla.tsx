@@ -54,7 +54,16 @@ function Chip({ met }: { met: boolean | null }) {
  * La duración del servicio se muestra como dato, sin objetivo — el SLA que se
  * pacta es el de respuesta (asignar y llegar).
  */
-export function CaseSla({ folio, refreshKey = 0 }: { folio: string | null; refreshKey?: number }) {
+export function CaseSla({
+  folio,
+  refreshKey = 0,
+  bare = false,
+}: {
+  folio: string | null;
+  refreshKey?: number;
+  /** Sin separador superior: cuando va solo dentro de su propia tarjeta. */
+  bare?: boolean;
+}) {
   const [sla, setSla] = useState<Sla | null>(null);
   const [loadedFolio, setLoadedFolio] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -80,7 +89,7 @@ export function CaseSla({ folio, refreshKey = 0 }: { folio: string | null; refre
   if (!folio) return null;
 
   return (
-    <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+    <div className={bare ? '' : 'border-t border-zinc-200 pt-4 dark:border-zinc-800'}>
       <div className="mb-3 flex items-center gap-2">
         <Gauge className="h-4 w-4 text-zinc-400" />
         <p className="text-sm font-semibold text-zinc-900 dark:text-white">Cumplimiento de SLA</p>

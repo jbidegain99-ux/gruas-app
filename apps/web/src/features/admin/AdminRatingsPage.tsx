@@ -287,7 +287,7 @@ export default function AdminRatingsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-sm text-zinc-500">
-                    Cargando...
+                    Cargando…
                   </td>
                 </tr>
               ) : filteredRatings.length === 0 ? (

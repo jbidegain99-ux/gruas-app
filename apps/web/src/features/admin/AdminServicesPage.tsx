@@ -150,7 +150,7 @@ export default function AdminServicesPage() {
               {loading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-sm text-zinc-500">
-                    Cargando...
+                    Cargando…
                   </td>
                 </tr>
               ) : services.length === 0 ? (
