@@ -60,6 +60,26 @@ export function MoptBreakdown({ price }: { price: number }) {
   );
 }
 
+/**
+ * La recogida está en una zona MOPT, pero el programa llegó a su tope del mes
+ * y el contrato corta la cortesía (00151). Sin esto la persona veía "Servicio
+ * particular" sin saber por qué esta vez no era gratis.
+ */
+export function MoptCappedNotice({ programName }: { programName?: string }) {
+  return (
+    <View style={[styles.banner, styles.bannerAviso]}>
+      <Landmark size={18} color={colors.warning.dark} strokeWidth={2} />
+      <View style={styles.cuerpo}>
+        <Text style={[styles.titulo, styles.tituloAviso]}>Cortesía del MOPT agotada este mes</Text>
+        <Text style={styles.texto}>
+          {programName ?? 'El programa del MOPT'} llegó a su tope de este mes. Este servicio lo pagas tú; la cortesía
+          vuelve el próximo mes.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
@@ -72,6 +92,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success.light,
     borderColor: colors.success.main,
   },
+  bannerAviso: { backgroundColor: colors.warning.light, borderColor: colors.warning.main },
+  tituloAviso: { color: colors.warning.dark },
   cuerpo: { flex: 1, gap: 2 },
   titulo: {
     fontFamily: typography.fonts.bodySemiBold,

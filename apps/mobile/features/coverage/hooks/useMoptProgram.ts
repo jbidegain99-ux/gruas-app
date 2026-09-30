@@ -11,7 +11,9 @@ import { supabase } from '@/lib/supabase';
  * ANTES de confirmar que no va a pagar. Si falla, deja `null` y la pantalla
  * sigue como un pedido particular; el veredicto real llega al crear.
  */
-export type MoptProgram = { applies: boolean; program_name?: string };
+// `capped` (00151): la zona lo cubriría, pero el programa ya llegó a su tope
+// del mes y el contrato corta la cortesía; la pantalla lo explica.
+export type MoptProgram = { applies: boolean; program_name?: string; capped?: boolean };
 
 export function useMoptProgram(params: {
   enabled: boolean;
