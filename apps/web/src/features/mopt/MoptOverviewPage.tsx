@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/shared/lib/supabase/client';
 import { money } from '@/shared/lib/format';
-import { Stat } from './MoptShell';
+import { Stat, useMoptCanPay } from './MoptShell';
 import { ContractCard } from '@/features/contracts/ContractCard';
 
 type Overview = {
@@ -23,6 +23,7 @@ type Overview = {
 export default function MoptOverviewPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canPay = useMoptCanPay();
 
   useEffect(() => {
     createClient()
@@ -41,7 +42,7 @@ export default function MoptOverviewPage() {
       <div>
         <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">{data.program_name}</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Asistencia vial sin costo para el usuario, atendida por tu flota. Tú les pagas a tus socios operadores.
+          Asistencia vial sin costo para el Usuario, atendida por tu flota. Tú les pagas a tus socios operadores.
         </p>
       </div>
 
@@ -60,7 +61,7 @@ export default function MoptOverviewPage() {
           <p className="text-sm text-zinc-500">Pendiente de pagar a tus socios operadores</p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-zinc-900 dark:text-white">{money(data.owed_to_operators)}</p>
           <Link href="/mopt/operadores" className="mt-3 inline-block text-sm font-medium text-budi-primary-600 hover:text-budi-primary-700 dark:text-budi-primary-400">
-            Ver saldos y registrar pagos →
+            {canPay ? 'Ver saldos y registrar pagos →' : 'Ver saldos →'}
           </Link>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">

@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase';
  * ¿Este pedido lo cubre un programa MOPT? (migr. 00098)
  *
  * El usuario no elige: la base decide con la misma regla que aplica al crear la
- * solicitud —sin seguro vigente, y la recogida dentro de una zona MOPT que cubre
- * este servicio—. Esto solo lo anticipa en el resumen, para que la persona sepa
+ * solicitud (mopt_payer_for) —sin un seguro que pague ESTE servicio (sin póliza,
+ * plan que lo excluye o servicios agotados) y la recogida dentro de una zona
+ * MOPT que lo cubre—. Esto solo lo anticipa en el resumen, para que la persona sepa
  * ANTES de confirmar que no va a pagar. Si falla, deja `null` y la pantalla
  * sigue como un pedido particular; el veredicto real llega al crear.
  */

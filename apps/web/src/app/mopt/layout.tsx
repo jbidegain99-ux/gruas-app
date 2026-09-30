@@ -29,7 +29,7 @@ export default async function MoptLayout({ children }: { children: React.ReactNo
 
   return (
     <FeedbackProvider>
-      <MoptShell programName={programName} userName={profile?.full_name || ''}>
+      <MoptShell programName={programName} userName={profile?.full_name || ''} memberRole={org.member_role}>
         {children}
       </MoptShell>
     </FeedbackProvider>

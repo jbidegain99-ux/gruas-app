@@ -11,12 +11,12 @@ export function PayerBadge({ info }: { info?: PayerInfo }) {
   if (!info || info.payer === 'user' || !info.label) return null;
   const Icon = info.payer === 'mopt' ? Landmark : ShieldCheck;
   return (
-    <View style={styles.badge} accessibilityLabel={`${info.label}. No le cobres al usuario${info.has_copay ? ' salvo el copago' : ''}.`}>
+    <View style={styles.badge} accessibilityLabel={`${info.label}. No le cobres al Usuario${info.has_copay ? ' salvo el copago' : ''}.`}>
       <Icon size={14} color={colors.success.dark} strokeWidth={2} />
       <View style={styles.textos}>
         <Text style={styles.label}>{info.label}</Text>
         <Text style={styles.hint}>
-          {info.has_copay ? 'El usuario solo paga su copago.' : 'No le cobres al usuario.'}
+          {info.has_copay ? 'El Usuario solo paga su copago.' : 'No le cobres al Usuario.'}
         </Text>
       </View>
     </View>

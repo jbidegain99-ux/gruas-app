@@ -8,6 +8,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 type Sla = {
   folio: string;
   insurer_name: string | null;
+  program_name?: string | null; // 00141: servicio de un programa MOPT
   assignment_seconds: number | null;
   arrival_seconds: number | null;
   service_seconds: number | null;
@@ -105,7 +106,9 @@ export function CaseSla({ folio }: { folio: string | null }) {
           <p className="pt-1 text-xs text-zinc-500">
             {sla.insurer_name
               ? `Objetivos de ${sla.insurer_name}`
-              : 'Servicio particular · objetivos de la plataforma'}
+              : sla.program_name
+                ? `Objetivos del contrato · ${sla.program_name}`
+                : 'Servicio particular · objetivos de la plataforma'}
           </p>
         </div>
       )}

@@ -34,10 +34,20 @@ export function useOrgLive(): { tick: number; live: boolean } {
       // Los canales privados necesitan el token de la sesión.
       const { data } = await supabase.auth.getSession();
       if (data.session) await supabase.realtime.setAuth(data.session.access_token);
-      channel = supabase
+      // Entre los await la página pudo desmontarse: un canal creado ahora ya
+      // no lo cerraría nadie.
+      if (!alive) return;
+      const ch = supabase
         .channel(`org:${org.id}`, { config: { private: true } })
         .on('broadcast', { event: 'case_changed' }, bump)
-        .subscribe((status) => alive && setLive(status === 'SUBSCRIBED'));
+        .subscribe((status) => {
+          if (!alive) {
+            supabase.removeChannel(ch);
+            return;
+          }
+          setLive(status === 'SUBSCRIBED');
+        });
+      channel = ch;
     })();
 
     const poll = setInterval(bump, FALLBACK_MS);

@@ -85,8 +85,10 @@ export async function fetchFleet(
     .map((loc) => {
       const profile = nameById.get(loc.operator_id);
       const request = requestByOperator.get(loc.operator_id) || null;
-      const fresh = loc.is_online && now - new Date(loc.updated_at).getTime() < FRESH_MS;
-      const state: OperatorState = request ? 'on_service' : fresh ? 'available' : 'stale';
+      // Sin GPS reciente es "Sin señal" aunque tenga un servicio abierto: "en
+      // servicio" con la última posición de hace días escondía al socio perdido.
+      const recent = now - new Date(loc.updated_at).getTime() < FRESH_MS;
+      const state: OperatorState = !recent ? 'stale' : request ? 'on_service' : loc.is_online ? 'available' : 'stale';
 
       return {
         id: loc.operator_id,

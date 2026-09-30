@@ -36,6 +36,8 @@ export default function MoptCompliancePage() {
   const [hasta, setHasta] = useState(hoy);
   const [data, setData] = useState<Compliance | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Separado de `data`: con un error la pantalla quedaba en "Cargando…" para siempre.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +47,7 @@ export default function MoptCompliancePage() {
         if (!alive) return;
         setError(e?.message ?? null);
         setData((res as unknown as Compliance) ?? null);
+        setLoading(false);
       });
     return () => {
       alive = false;
@@ -63,22 +66,24 @@ export default function MoptCompliancePage() {
             {data?.targets && ` (asignar en ${data.targets.assignment_minutes} min, llegar en ${data.targets.arrival_minutes} min)`}
           </p>
         </div>
-        <div className="flex items-end gap-2 text-sm">
+        <div className="flex flex-wrap items-end gap-2 text-sm">
           <label className="text-zinc-600 dark:text-zinc-400">
             Desde
-            <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={desde} max={hasta} onChange={(e) => e.target.value && setDesde(e.target.value)} className={`${inputClass} ml-2`} />
           </label>
           <label className="text-zinc-600 dark:text-zinc-400">
             Hasta
-            <input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={hasta} min={desde} onChange={(e) => e.target.value && setHasta(e.target.value)} className={`${inputClass} ml-2`} />
           </label>
         </div>
       </div>
 
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
-      {!data ? (
+      {loading ? (
         <p className="text-sm text-zinc-500">Cargando…</p>
+      ) : !data ? (
+        !error && <p className="text-sm text-zinc-500">Sin datos para el período.</p>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

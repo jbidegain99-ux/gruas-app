@@ -405,10 +405,13 @@ export default function RequestService() {
     towType,
   });
 
-  // 00098: sin seguro vigente, ¿lo cubre un programa MOPT en este punto? Mismo
-  // criterio que create_service_request; aca solo se anticipa en el resumen.
+  // 00098: ¿lo cubre un programa MOPT en este punto? Mismo criterio que
+  // create_service_request (mopt_payer_for); aca solo se anticipa en el resumen.
+  // Se pregunta tambien con seguro vigente: si el plan EXCLUYE este servicio (o
+  // ya no le quedan servicios del año), la cortesia MOPT aplica igual. Decide
+  // la base; aqui solo se espera a que termine la verificacion de cobertura.
   const { mopt } = useMoptProgram({
-    enabled: step === 5 && !loadingCoverage && coverage?.status !== 'covered',
+    enabled: step === 5 && !loadingCoverage,
     lat: pickupCoords?.lat,
     lng: pickupCoords?.lng,
     serviceType,
@@ -1226,7 +1229,8 @@ export default function RequestService() {
             Se muestra tambien cuando el afiliado esta cubierto pero ESTE servicio
             esta excluido del plan (copayPreview.covered === false): ahi el desglose
             aclara que paga todo, en vez de dejar solo el banner "cubierto". */}
-        {coverage?.status === 'covered' && copayPreview && (
+        {/* Si lo paga el MOPT no hay copago que mostrar: el desglose diria "pagas". */}
+        {!moptApplies && coverage?.status === 'covered' && copayPreview && (
           <CopayBreakdown preview={copayPreview} isEstimate={requiresDestination} />
         )}
 

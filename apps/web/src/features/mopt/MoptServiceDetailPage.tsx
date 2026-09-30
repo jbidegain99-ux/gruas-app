@@ -45,7 +45,7 @@ type Detail = {
 };
 
 const fecha = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('es-SV', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  iso ? new Date(iso).toLocaleString('es-SV', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/El_Salvador' }) : '—';
 
 export default function MoptServiceDetailPage({ id }: { id: string }) {
   const [detail, setDetail] = useState<Detail | null>(null);

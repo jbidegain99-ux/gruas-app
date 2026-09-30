@@ -29,6 +29,6 @@ export function statementItems(s: Pick<StatementDetail, 'organization' | 'lines'
 }
 
 export const WHAT_IS_BILLED: Record<'MOPT' | 'INSURER', string> = {
-  MOPT: 'Solo la tarifa de plataforma de Budi: el servicio el MOPT se lo paga directo al socio operador.',
+  MOPT: 'Solo la tarifa de plataforma de Budi: el MOPT le paga el servicio directo al socio operador.',
   INSURER: 'Lo que cubre la póliza en cada caso, con los ajustes aceptados en las observaciones.',
 };

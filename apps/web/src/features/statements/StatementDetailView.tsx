@@ -15,7 +15,9 @@ import {
   OBSERVATION_LABEL,
   STATUS_LABEL,
   STATUS_STYLE,
+  countedTotal,
   effectiveAmount,
+  effectiveFee,
   periodLabel,
   type StatementDetail,
   type StatementLine,
@@ -33,6 +35,7 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [openLine, setOpenLine] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
@@ -72,15 +75,18 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
   const covered = budi ? 'A cargo de la aseguradora' : 'A cargo de tus pólizas';
 
   const approve = async () => {
+    // 00141: con casos observados sin respuesta de Budi la base no deja aprobar.
+    if (t.observed_open > 0) return;
     const ok = await confirm({
       title: `¿Aprobar ${money(t.approvable)}?`,
-      message:
-        t.observed_open > 0
-          ? `Quedan ${t.observed_open} caso(s) observados por ${money(t.observed_open_amount)} fuera del total. Se resuelven aparte.`
-          : 'Al aprobar confirmas los servicios y montos de este estado de cuenta.',
+      message: 'Al aprobar confirmas los servicios y montos de este estado de cuenta.',
       confirmLabel: 'Aprobar',
     });
-    if (ok) run('approve_statement', { p_id: d.id }, 'Estado de cuenta aprobado.');
+    if (!ok) return;
+    // Sin doble clic mientras la RPC corre.
+    setApproving(true);
+    await run('approve_statement', { p_id: d.id }, 'Estado de cuenta aprobado.');
+    setApproving(false);
   };
 
   const exportLines = (format: 'csv' | 'xlsx') => {
@@ -95,7 +101,16 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
       ...(isMopt ? [{ header: 'Tarifa de plataforma (USD)', value: (l: StatementLine) => Number(l.fee) }] : []),
       ...(!isMopt ? [{ header: 'Copago del afiliado (USD)', value: (l: StatementLine) => (l.copay == null ? null : Number(l.copay)) }] : []),
       { header: 'Observación', value: (l) => (l.observation ? OBSERVATION_LABEL[l.observation.status] : null) },
-      { header: 'Monto que cuenta (USD)', value: (l) => (l.observation?.status === 'open' ? null : effectiveAmount(l)) },
+      // Lo que cuenta, con la misma regla que statement_totals: la columna
+      // "Total que cuenta" suma exactamente el "Total a aprobar" (incluye la
+      // tarifa de plataforma, recalculada en proporción si hubo ajuste).
+      ...(isMopt
+        ? [
+            { header: 'Monto que cuenta (USD)', value: (l: StatementLine) => (l.observation?.status === 'open' ? null : effectiveAmount(l)) },
+            { header: 'Tarifa que cuenta (USD)', value: (l: StatementLine) => (l.observation?.status === 'open' ? null : effectiveFee(l)) },
+          ]
+        : []),
+      { header: 'Total que cuenta (USD)', value: (l) => (l.observation?.status === 'open' ? null : countedTotal(l)) },
     ];
     exportTable(d.lines, cols, format, `estado_de_cuenta_${d.number ?? 'borrador'}`);
   };
@@ -121,7 +136,7 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             {d.number ?? 'Sin número (borrador)'} · del {formatDate(d.period_from)} al {formatDate(d.period_to)}
-            {d.issued_at && ` · emitido ${formatDate(d.issued_at)}`}
+            {d.issued_at && ` · emitido ${formatDate(d.issued_at, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/El_Salvador' })}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
@@ -170,9 +185,20 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
         {/* LAN-09 (base): borrador del DTE del estado de cuenta aprobado. */}
         <DteDraftPanel d={d} />
         {d.can_approve && (
-          <button onClick={approve} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
-            <CheckCircle2 className="h-4 w-4" /> Aprobar {money(t.approvable)}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={approve}
+              disabled={approving || t.observed_open > 0}
+              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" /> {approving ? 'Aprobando…' : `Aprobar ${money(t.approvable)}`}
+            </button>
+            {t.observed_open > 0 && (
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Hay {t.observed_open} caso(s) observado(s) esperando respuesta de Budi. Podrás aprobar cuando estén resueltos.
+              </p>
+            )}
+          </div>
         )}
         {!budi && d.status === 'issued' && !d.can_approve && (
           <p className="text-sm text-zinc-500">
@@ -199,7 +225,7 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {d.by_provider.map((p) => (
-                  <tr key={p.provider_name}>
+                  <tr key={p.provider_id ?? p.provider_name}>
                     <td className="px-4 py-2 text-zinc-900 dark:text-white">{p.provider_name}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{p.services}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{km(p.tow_km)}</td>
@@ -224,7 +250,7 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
                 <th className="px-4 py-2">Servicio</th>
                 {isMopt && <th className="px-4 py-2">Proveedor</th>}
                 <th className="px-4 py-2 text-right">Km</th>
-                <th className="px-4 py-2 text-right">{isMopt ? 'Servicio' : budi ? 'Aseguradora' : 'A tu cargo'}</th>
+                <th className="px-4 py-2 text-right">{isMopt ? 'Monto' : budi ? 'Aseguradora' : 'A tu cargo'}</th>
                 {isMopt ? <th className="px-4 py-2 text-right">Tarifa</th> : <th className="px-4 py-2 text-right">Copago</th>}
                 <th className="px-4 py-2 print:hidden" />
               </tr>
@@ -252,7 +278,16 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">
-                        {isMopt ? money(Number(l.fee)) : l.copay == null ? '—' : money(Number(l.copay))}
+                        {isMopt ? (
+                          ob?.status === 'adjusted' ? (
+                            <>
+                              <span className="mr-1 text-xs text-zinc-400 line-through">{money(Number(l.fee))}</span>
+                              {money(effectiveFee(l))}
+                            </>
+                          ) : (
+                            money(Number(l.fee))
+                          )
+                        ) : l.copay == null ? '—' : money(Number(l.copay))}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-right print:hidden">
                         {ob || d.can_observe || budi ? (
@@ -304,7 +339,8 @@ function ObservationThread({ d, line, run }: { d: StatementDetail; line: Stateme
   const [adjust, setAdjust] = useState('');
   const ob = line.observation;
   const budi = d.viewer === 'budi';
-  const canAnswer = budi && ob && d.status !== 'void';
+  // 00141: Budi responde observaciones solo mientras el estado de cuenta está emitido.
+  const canAnswer = budi && ob && d.status === 'issued';
   const send = async (fn: string, args: Record<string, unknown>, ok: string) => {
     if (await run(fn, args, ok)) {
       setBody('');

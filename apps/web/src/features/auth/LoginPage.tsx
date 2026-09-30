@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getMyOrganization, PORTAL_BY_ORG_TYPE, securityUrl } from '@/shared/lib/organization';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
+import { safeNext } from '@/features/org/org-links';
 
 function LoginForm() {
   const router = useRouter();
@@ -59,8 +60,13 @@ function LoginForm() {
       } else if (profile?.role === 'ADMIN' || profile?.role === 'SUPPORT') {
         router.push('/admin');
       } else if (portal && redirect !== '/eliminar-cuenta') {
+        // Si venía de un enlace dentro de su propio portal (p. ej. un reporte
+        // mensual), vuelve ahí; cualquier otra ruta cae en la portada del portal.
+        const pedido = safeNext(redirect, '');
+        const destino =
+          pedido === portal || pedido.startsWith(`${portal}/`) || pedido.startsWith(`${portal}?`) ? pedido : portal;
         // 00113: dueño o administrador sin 2FA en esta sesión -> primero el código.
-        router.push(org && !org.mfa_ok ? securityUrl(portal) : portal);
+        router.push(org && !org.mfa_ok ? securityUrl(destino) : destino);
       } else if (profile?.role === 'USER' || profile?.role === 'OPERATOR') {
         // Los roles de la app movil van a la pagina informativa, salvo que
         // hayan venido a eliminar su cuenta (00101): ahi se vuelve a esa pagina.

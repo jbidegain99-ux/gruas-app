@@ -5,6 +5,7 @@ import { Users } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { RegisterPaymentModal } from '@/shared/components/LedgerPaymentModals';
 import { formatDate, money } from '@/shared/lib/format';
+import { useMoptCanPay } from './MoptShell';
 
 type Row = {
   operator_id: string;
@@ -33,6 +34,7 @@ export default function MoptOperatorsPage() {
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<Row | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const canPay = useMoptCanPay();
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +71,7 @@ export default function MoptOperatorsPage() {
         </div>
       </div>
 
-      {paying && programId && (
+      {canPay && paying && programId && (
         <RegisterPaymentModal
           payer={{ kind: 'mopt', id: programId, name: programName }}
           payee={{ kind: 'operator', id: paying.operator_id, name: paying.full_name || 'Socio operador' }}
@@ -131,7 +133,7 @@ export default function MoptOperatorsPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">{money(Number(r.balance))}</td>
                     <td className="px-4 py-3 text-right">
-                      {Number(r.balance) > 0 && (
+                      {canPay && Number(r.balance) > 0 && (
                         <button
                           onClick={() => setPaying(r)}
                           className="whitespace-nowrap rounded-lg bg-budi-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-budi-primary-600"

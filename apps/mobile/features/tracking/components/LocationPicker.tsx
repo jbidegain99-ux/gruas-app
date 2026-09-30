@@ -402,6 +402,8 @@ export function LocationPicker({
             style={styles.currentLocationButton}
             onPress={useCurrentLocation}
             disabled={isLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Usar mi ubicación actual"
           >
             <MapPin size={20} color={colors.text.inverse} strokeWidth={2} />
           </TouchableOpacity>

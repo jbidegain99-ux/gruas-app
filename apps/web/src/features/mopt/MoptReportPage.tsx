@@ -6,11 +6,12 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { duration, formatDateTime, money } from '@/shared/lib/format';
 import { serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
-import { monthLabel } from '@/features/admin/account-360';
+import { svToday } from '@/shared/components/LedgerPaymentModals';
 
 // MOPT-06 (00134): el reporte oficial de un mes, pensado para imprimir o
 // guardar en PDF (el marco del portal se oculta al imprimir). Si el mes ya
-// cerró se muestra la foto enviada; el mes en curso, en vivo.
+// cerró se muestra la foto enviada; el mes en curso, en vivo; un mes pasado
+// sin foto, recalculado.
 
 type Report = {
   program: string;
@@ -37,7 +38,10 @@ type Report = {
   }[];
 };
 
-const pct = (v: number | null | undefined) => (v == null ? '—' : `${Number(v)} %`);
+const pct = (v: number | null | undefined) => (v == null ? '—' : `${Number(v)}%`);
+/** 'YYYY-MM' -> "septiembre 2026" (el encabezado del reporte va con el mes completo). */
+const longMonth = (m: string) =>
+  `${new Intl.DateTimeFormat('es-SV', { timeZone: 'UTC', month: 'long' }).format(new Date(`${m}-01T12:00:00Z`))} ${m.slice(0, 4)}`;
 const mins = (s: number | null) => (s == null ? '—' : duration(Number(s) / 60));
 const yesNo = (v: boolean | null) => (v == null ? '—' : v ? 'Sí' : 'No');
 
@@ -73,9 +77,13 @@ export default function MoptReportPage({ month }: { month: string }) {
         <p className="text-xs uppercase tracking-wide text-zinc-500">Budi · Reporte mensual del programa</p>
         <h1 className="font-heading text-2xl font-bold">{r.program}</h1>
         <p className="text-sm capitalize text-zinc-600 dark:text-zinc-400 print:text-zinc-700">
-          {monthLabel(`${r.month}-01`, true)} ·{' '}
+          {longMonth(r.month)} ·{' '}
           <span className="normal-case">
-            {r.snapshot ? `reporte oficial generado el ${formatDateTime(r.generated_at)}` : 'mes en curso: cifras en vivo, no oficiales'}
+            {r.snapshot
+              ? `reporte oficial generado el ${formatDateTime(r.generated_at)}`
+              : r.month === svToday().slice(0, 7)
+                ? 'mes en curso: cifras en vivo, no oficiales'
+                : 'sin reporte oficial · cifras recalculadas, no oficiales'}
           </span>
         </p>
       </header>
@@ -91,7 +99,7 @@ export default function MoptReportPage({ month }: { month: string }) {
             ['Asignación promedio', mins(c.avg_assignment_seconds)],
             ['Llegada promedio', mins(c.avg_arrival_seconds)],
             ['Costo del mes', money(r.cost.total)],
-            ['Uso del tope', r.contract?.used_pct != null ? `${r.contract.used_pct} %` : 'Sin tope'],
+            ['Uso del tope', r.contract?.used_pct != null ? `${r.contract.used_pct}%` : 'Sin tope'],
           ].map(([k, v]) => (
             <div key={k} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 print:border-zinc-300">
               <dt className="text-xs text-zinc-500">{k}</dt>
@@ -175,7 +183,7 @@ export default function MoptReportPage({ month }: { month: string }) {
           </table>
         </div>
         <p className="mt-3 text-xs text-zinc-500">
-          Sin datos personales de los usuarios (Decreto 144). El detalle de cada caso está en el portal, en Servicios.
+          Sin datos personales de los Usuarios (Decreto 144). El detalle de cada caso está en el portal, en Servicios.
         </p>
       </section>
     </article>

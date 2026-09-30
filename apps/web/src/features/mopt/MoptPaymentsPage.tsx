@@ -5,6 +5,10 @@ import { Receipt } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { VoidPaymentModal } from '@/shared/components/LedgerPaymentModals';
 import { formatDate, money } from '@/shared/lib/format';
+import { useMoptCanPay } from './MoptShell';
+
+// mopt_list_payments (00099) devuelve como mucho los 200 más recientes.
+const PAYMENTS_LIMIT = 200;
 
 type Row = {
   id: string;
@@ -25,6 +29,7 @@ export default function MoptPaymentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [voiding, setVoiding] = useState<Row | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const canPay = useMoptCanPay();
 
   useEffect(() => {
     let alive = true;
@@ -50,7 +55,13 @@ export default function MoptPaymentsPage() {
         </p>
       </div>
 
-      {voiding && (
+      {!loading && !error && rows.length >= PAYMENTS_LIMIT && (
+        <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          Se muestran los {PAYMENTS_LIMIT} pagos más recientes. Los anteriores siguen en los estados de cuenta.
+        </p>
+      )}
+
+      {canPay && voiding && (
         <VoidPaymentModal
           paymentId={voiding.id}
           description={`Pago de ${money(Number(voiding.amount))} a ${voiding.payee_name ?? 'socio operador'} del ${formatDate(voiding.paid_on)}`}
@@ -82,7 +93,7 @@ export default function MoptPaymentsPage() {
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-zinc-500">
                   <Receipt className="mx-auto mb-2 h-6 w-6 text-zinc-400" />
-                  Todavía no registraste pagos. Se registran desde Socios operadores.
+                  {canPay ? 'Todavía no registraste pagos. Se registran desde Socios operadores.' : 'Todavía no hay pagos registrados.'}
                 </td>
               </tr>
             ) : (
@@ -99,7 +110,7 @@ export default function MoptPaymentsPage() {
                     {money(Number(r.amount))}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!r.voided_at && (
+                    {canPay && !r.voided_at && (
                       <button onClick={() => setVoiding(r)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400">
                         Anular
                       </button>

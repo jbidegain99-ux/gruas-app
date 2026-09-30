@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveAmount, monthRange, periodLabel, type StatementLine } from './statement-types';
+import { countedTotal, effectiveAmount, effectiveFee, monthRange, periodLabel, type StatementLine } from './statement-types';
 
 const line: StatementLine = {
   request_id: 'r', folio: 'BUDI-000001', completed_at: '2026-09-02T10:00:00Z', service_type: 'tow',
@@ -25,5 +25,15 @@ describe('statement-types', () => {
     expect(effectiveAmount(line)).toBe(61);
     expect(effectiveAmount({ ...line, observation: { id: 'o', status: 'adjusted', adjusted_amount: 30.5, events: [] } })).toBe(30.5);
     expect(effectiveAmount({ ...line, observation: { id: 'o', status: 'open', adjusted_amount: null, events: [] } })).toBe(61);
+  });
+
+  it('la tarifa ajustada va en proporción y las líneas suman el total a aprobar', () => {
+    const adjusted = { ...line, observation: { id: 'o', status: 'adjusted' as const, adjusted_amount: 30.5, events: [] } };
+    const open = { ...line, observation: { id: 'o', status: 'open' as const, adjusted_amount: null, events: [] } };
+    expect(effectiveFee(line)).toBe(3.05);
+    expect(effectiveFee(adjusted)).toBe(1.53); // 3.05 * 30.5 / 61 = 1.525 -> 1.53, como ROUND de Postgres
+    expect(countedTotal(line)).toBe(64.05);
+    expect(countedTotal(adjusted)).toBe(32.03);
+    expect(countedTotal(open)).toBe(0);
   });
 });

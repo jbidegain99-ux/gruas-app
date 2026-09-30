@@ -20,6 +20,15 @@ const ROLE_LABEL: Record<string, string> = {
   SUPPORT: 'Soporte',
 };
 
+// El detalle de "Cobertura verificada" llega como coverage_status (00047).
+const DETAIL_LABEL: Record<string, string> = {
+  covered: 'con cobertura',
+  none: 'sin póliza',
+  inactive: 'póliza inactiva',
+  error: 'no se pudo verificar',
+};
+const detailText = (d: string | null) => (d ? DETAIL_LABEL[d] ?? d : null);
+
 /**
  * Muestra el folio del caso y su línea de tiempo, y permite exportarla.
  *
@@ -78,7 +87,7 @@ export function CaseTimeline({ folio }: { folio: string | null }) {
         fecha: r.at,
         evento: r.label,
         actor: r.actor_role ? ROLE_LABEL[r.actor_role] ?? r.actor_role : null,
-        detalle: r.detail,
+        detalle: detailText(r.detail),
       })),
     };
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
@@ -127,7 +136,7 @@ export function CaseTimeline({ folio }: { folio: string | null }) {
               <p className="text-xs text-zinc-500">
                 {fmt(r.at)}
                 {r.actor_role ? ` · ${ROLE_LABEL[r.actor_role] ?? r.actor_role}` : ''}
-                {r.detail ? ` · ${r.detail}` : ''}
+                {r.detail ? ` · ${detailText(r.detail)}` : ''}
               </p>
             </li>
           ))}

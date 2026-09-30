@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Inbox } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge, serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
 import { StatusBadge, STATUS_LABELS } from '@/shared/components/StatusBadge';
 import { CaseFilters } from '@/shared/components/portal/CaseFilters';
-import { defaultCaseFilters, exportBasename, filterCases, zoneOptions } from '@/shared/components/portal/case-filters';
+import { defaultCaseFilters, exportBasename, filterCases, PORTAL_MAX_ROWS, zoneOptions } from '@/shared/components/portal/case-filters';
 import { liveLabel, useOrgLive } from '@/shared/components/portal/useOrgLive';
 import { exportTable, type ExportColumn } from '@/shared/lib/export/table-export';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
@@ -46,8 +47,13 @@ export default function MoptServicesPage() {
   const [filters, setFilters] = useState(() => defaultCaseFilters(svToday()));
   const { tick, live } = useOrgLive();
   const [allRows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // El periodo al que corresponden las filas en pantalla. Al cambiar las fechas
+  // se muestra "Cargando" en vez de las filas del periodo anterior; el aviso en
+  // vivo (mismo periodo) recarga sin parpadear.
+  const periodo = `${filters.from}|${filters.to}`;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = loadedFor !== periodo;
 
   useEffect(() => {
     let alive = true;
@@ -56,7 +62,7 @@ export default function MoptServicesPage() {
       if (!alive) return;
       setError(e?.message ?? null);
       setRows((data as Row[]) ?? []);
-      setLoading(false);
+      setLoadedFor(`${filters.from}|${filters.to}`);
     };
     load();
     return () => {
@@ -89,6 +95,12 @@ export default function MoptServicesPage() {
         exportDisabled={rows.length === 0}
         onExport={(f) => exportTable(rows, EXPORT_COLUMNS, f, exportBasename('servicios_mopt', filters))}
       />
+
+      {!loading && !error && allRows.length >= PORTAL_MAX_ROWS && (
+        <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          Se muestran los 1 000 más recientes; acota las fechas para ver el resto.
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <table className="w-full text-sm">
@@ -123,7 +135,16 @@ export default function MoptServicesPage() {
                   onClick={() => router.push(`/mopt/servicios/${r.id}`)}
                   className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">{r.folio ?? '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">
+                    {/* El enlace da acceso con teclado; la fila entera sigue siendo clicable. */}
+                    <Link
+                      href={`/mopt/servicios/${r.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-budi-primary-500"
+                    >
+                      {r.folio ?? 'Ver servicio'}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3"><ServiceTypeBadge serviceType={r.service_type} /></td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3">

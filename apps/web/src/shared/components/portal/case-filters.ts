@@ -2,6 +2,12 @@
 // fechas va a la base (la RPC filtra por día en hora de El Salvador); estado,
 // servicio, zona y folio se aplican sobre lo que la base ya entregó.
 
+/**
+ * Supabase corta cada respuesta en 1 000 filas (max_rows): si una lista llega
+ * con justo esas, faltan casos y hay que avisarlo en vez de mostrar totales cortos.
+ */
+export const PORTAL_MAX_ROWS = 1000;
+
 export type CaseLike = {
   folio: string | null;
   status: string;

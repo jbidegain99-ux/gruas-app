@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/shared/lib/supabase/client';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
 import type { LatLng, MapOperator, MapPoint, MapZone } from './MoptMap';
+import { PORTAL_MAX_ROWS } from '@/shared/components/portal/case-filters';
 
 const MoptMap = dynamic(() => import('./MoptMap'), {
   ssr: false,
@@ -54,9 +55,12 @@ const SERVICE_COLOR = { progress: '#F5A25B', done: '#2D5F8B' };
 
 function operatorState(r: FleetRow, now: number): State {
   if (r.lat == null || r.lng == null || !r.updated_at) return 'no_location';
-  if (r.active_request_id) return 'on_service';
   const fresh = now - new Date(r.updated_at).getTime() < FRESH_MS;
-  return r.is_online && fresh ? 'available' : 'stale';
+  // Sin GPS reciente es "Sin señal" aunque tenga un servicio abierto: un socio
+  // "en servicio" visto hace días es justo lo que el MOPT necesita ver.
+  if (!fresh) return 'stale';
+  if (r.active_request_id) return 'on_service';
+  return r.is_online ? 'available' : 'stale';
 }
 
 function lastSeen(iso: string | null, now: number): string {
@@ -77,22 +81,31 @@ export default function MoptMapPage() {
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [showServices, setShowServices] = useState(true);
+  // Hasta la primera respuesta no se sabe si la flota está vacía.
+  const [loaded, setLoaded] = useState(false);
+  const [truncated, setTruncated] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const supabase = createClient();
-      const [f, s, z] = await Promise.all([
+      const [f, s, abiertos, z] = await Promise.all([
         supabase.rpc('mopt_fleet'),
         supabase.rpc('mopt_list_services', { p_from: desde, p_to: svToday() }),
+        // 00142: lo que está en curso se ve aunque se haya pedido antes de "desde".
+        supabase.rpc('mopt_in_progress_services'),
         supabase.rpc('mopt_zones_mine'),
       ]);
       if (!alive) return;
-      setError(f.error?.message ?? s.error?.message ?? z.error?.message ?? null);
+      setError(f.error?.message ?? s.error?.message ?? abiertos.error?.message ?? z.error?.message ?? null);
       setFleet((f.data as FleetRow[]) ?? []);
-      setServices((s.data as ServiceRow[]) ?? []);
+      const delPeriodo = (s.data as ServiceRow[]) ?? [];
+      const ids = new Set(delPeriodo.map((r) => r.id));
+      setTruncated(delPeriodo.length >= PORTAL_MAX_ROWS);
+      setServices([...((abiertos.data as ServiceRow[]) ?? []).filter((r) => !ids.has(r.id)), ...delPeriodo]);
       setZones((z.data as unknown as ZoneRow[]) ?? []);
       setNow(Date.now());
+      setLoaded(true);
     };
     load();
     // En vivo: la flota se mueve. 30 s es suficiente para ver quién está libre.
@@ -157,13 +170,18 @@ export default function MoptMapPage() {
             type="date"
             value={desde}
             max={hoy}
-            onChange={(e) => setDesde(e.target.value)}
+            onChange={(e) => e.target.value && setDesde(e.target.value)}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
           />
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">No se pudo cargar el mapa: {error}</p>}
+      {showServices && truncated && (
+        <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          Se muestran los 1 000 servicios más recientes; acota las fechas para ver el resto.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-400">
         {(['on_service', 'available', 'stale'] as State[]).map((s) => (
@@ -190,7 +208,9 @@ export default function MoptMapPage() {
         <aside className="space-y-4">
           <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">Tu flota</h2>
-            {rows.length === 0 ? (
+            {!loaded ? (
+              <p className="text-sm text-zinc-500">Cargando…</p>
+            ) : rows.length === 0 ? (
               <p className="text-sm text-zinc-500">Todavía no hay socios operadores en tu programa.</p>
             ) : (
               <ul className="space-y-3">

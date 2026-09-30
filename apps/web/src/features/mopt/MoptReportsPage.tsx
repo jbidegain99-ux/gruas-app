@@ -6,6 +6,7 @@ import { FileText } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { formatDateTime } from '@/shared/lib/format';
 import { monthLabel } from '@/features/admin/account-360';
+import { svToday } from '@/shared/components/LedgerPaymentModals';
 
 // MOPT-06 (00134): reportes mensuales oficiales. El día 1 se genera la foto del
 // mes anterior y se envía por correo a dueño y administradores; aquí están
@@ -16,6 +17,9 @@ type Row = { month: string; services: number; generated_at: string | null; email
 export default function MoptReportsPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Solo el mes en curso (hora de El Salvador) se calcula en vivo; un mes
+  // pasado sin foto es uno cuyo reporte no se generó.
+  const mesActual = svToday().slice(0, 7);
 
   useEffect(() => {
     createClient()
@@ -49,7 +53,9 @@ export default function MoptReportsPage() {
               <span className="text-xs text-zinc-500">
                 {r.generated_at
                   ? `Reporte oficial del ${formatDateTime(r.generated_at)}${r.email_status === 'enviado' ? ' · enviado por correo' : ''}`
-                  : 'En curso (en vivo)'}
+                  : r.month === mesActual
+                    ? 'En curso (en vivo)'
+                    : 'Sin reporte oficial · cifras recalculadas'}
               </span>
             </Link>
           </li>

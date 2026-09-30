@@ -74,7 +74,8 @@ export type StatementDetail = {
   can_observe: boolean;
   totals: StatementTotals;
   lines: StatementLine[];
-  by_provider: { provider_name: string; services: number; amount: number; tow_km: number | null }[];
+  // provider_id / provider_kind llegan desde 00141; antes solo el nombre (que puede repetirse).
+  by_provider: { provider_id?: string | null; provider_kind?: string | null; provider_name: string; services: number; amount: number; tow_km: number | null }[];
 };
 
 export const STATUS_LABEL: Record<StatementStatus, string> = {
@@ -132,4 +133,29 @@ export function effectiveAmount(l: StatementLine): number {
   return l.observation?.status === 'adjusted' && l.observation.adjusted_amount != null
     ? Number(l.observation.adjusted_amount)
     : Number(l.amount);
+}
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * Tarifa que cuenta de una línea. Mismo cálculo que `statement_totals` (00123):
+ * si Budi ajustó el monto, la tarifa se recalcula en proporción, redondeada a
+ * centavos por línea.
+ */
+export function effectiveFee(l: StatementLine): number {
+  const ob = l.observation;
+  if (ob?.status === 'adjusted' && ob.adjusted_amount != null) {
+    const amount = Number(l.amount);
+    return amount > 0 ? round2((Number(l.fee) * Number(ob.adjusted_amount)) / amount) : 0;
+  }
+  return Number(l.fee);
+}
+
+/**
+ * Lo que la línea aporta al "Total a aprobar" (`approvable`): monto + tarifa
+ * que cuentan; 0 mientras está observada. La suma de todas las líneas da el total.
+ */
+export function countedTotal(l: StatementLine): number {
+  if (l.observation?.status === 'open') return 0;
+  return round2(effectiveAmount(l) + effectiveFee(l));
 }

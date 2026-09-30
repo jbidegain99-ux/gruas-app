@@ -12,7 +12,7 @@ import { ContractEditor } from '@/features/contracts/ContractEditor';
 import { MoptReportsAdmin } from './MoptReportsAdmin';
 
 // Programas MOPT (migr. 00098/00099): el MOPT presta asistencia sin costo para el
-// usuario con su propia flota. Acá se da de alta el programa, se fija la tarifa
+// Usuario con su propia flota. Acá se da de alta el programa, se fija la tarifa
 // que le cobra Budi y se dibujan las zonas donde atiende. Las cuentas del portal
 // y los operadores se vinculan desde Usuarios.
 
@@ -65,6 +65,7 @@ export default function AdminMoptPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingZone, setEditingZone] = useState<{ programId: string; zone: Zone | null } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -87,6 +88,9 @@ export default function AdminMoptPage() {
         // 00106: el acceso al portal es la membresía a la organización del programa.
         supabase.from('organizations').select('id, provider_id, sla_assignment_minutes, sla_arrival_minutes').eq('type', 'MOPT'),
       ]);
+      // Un error en cualquiera de las seis consultas se muestra: antes caía en
+      // "Todavía no hay programas MOPT." o en tarifas/zonas vacías sin aviso.
+      setLoadError(p.error?.message ?? z.error?.message ?? f.error?.message ?? pe.error?.message ?? s.error?.message ?? o.error?.message ?? null);
       setPrograms((p.data as Program[]) ?? []);
       setZones((z.data as unknown as Zone[]) ?? []);
       const map: Record<string, number> = {};
@@ -148,8 +152,8 @@ export default function AdminMoptPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Programas MOPT</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-            Asistencia vial sin costo para el usuario, atendida por la flota del MOPT. Un pedido lo cubre el MOPT cuando
-            la recogida cae dentro de una zona del programa y el seguro del usuario no cubre ese servicio (o
+            Asistencia vial sin costo para el Usuario, atendida por la flota del MOPT. Un pedido lo cubre el MOPT cuando
+            la recogida cae dentro de una zona del programa y el seguro del Usuario no cubre ese servicio (o
             no tiene seguro).
           </p>
         </div>
@@ -177,6 +181,10 @@ export default function AdminMoptPage() {
 
       {loading ? (
         <p className="text-sm text-zinc-500">Cargando...</p>
+      ) : loadError ? (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          No se pudieron cargar los programas MOPT: {loadError}
+        </p>
       ) : programs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
           <Landmark className="mx-auto mb-2 h-6 w-6 text-zinc-400" />
@@ -321,7 +329,9 @@ function SlaEditor({ org, onSaved }: { org: Org; onSaved: () => void }) {
 
 function FeeEditor({ initial, onSave }: { initial: number; onSave: (value: string) => void }) {
   const [value, setValue] = useState(String(initial));
-  const dirty = Number(value) !== initial;
+  // Vacío no es 0: Number('') daba 0 y guardaba la tarifa en cero sin querer.
+  const valid = value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100;
+  const dirty = valid && Number(value) !== initial;
   return (
     <div className="flex items-end gap-2">
       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
@@ -455,6 +465,10 @@ function ZoneModal({
     }
     if (Boolean(hoursFrom) !== Boolean(hoursTo)) {
       setError('Indica la hora de inicio y la de fin, o deja las dos vacías para todo el día.');
+      return;
+    }
+    if (hoursFrom && hoursFrom === hoursTo) {
+      setError('La hora de inicio y la de fin no pueden ser iguales. Para todo el día, deja las dos vacías.');
       return;
     }
     setSaving(true);

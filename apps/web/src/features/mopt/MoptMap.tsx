@@ -37,10 +37,14 @@ function pin(color: string, text: string): L.DivIcon {
   });
 }
 
-/** Encuadra todo lo que se dibujó, y solo cuando cambia el conjunto. */
-function FitBounds({ points }: { points: LatLng[] }) {
+/**
+ * Encuadra todo lo que se dibujó, y solo cuando cambia el conjunto de cosas
+ * dibujadas (`fitKey`: sus ids), no cuando se mueven. La página del mapa recarga
+ * cada 30 s y cada operador que se movía reencuadraba y le borraba el zoom a
+ * quien estaba mirando.
+ */
+function FitBounds({ points, fitKey }: { points: LatLng[]; fitKey: string }) {
   const map = useMap();
-  const key = points.map(([a, b]) => `${a.toFixed(4)},${b.toFixed(4)}`).join('|');
   useEffect(() => {
     if (points.length === 0) return;
     if (points.length === 1) {
@@ -49,7 +53,7 @@ function FitBounds({ points }: { points: LatLng[] }) {
     }
     map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, map]);
+  }, [fitKey, map]);
   return null;
 }
 
@@ -78,6 +82,16 @@ export default function MoptMap({
   // Las zonas activas entran al encuadre: son el área que el programa atiende,
   // y sin ellas el mapa se acercaba a los puntos y dejaba la zona fuera de vista.
   const bounds = [...all, ...zones.filter((z) => z.active).flatMap((z) => z.polygon)];
+  // Identidad del conjunto, sin coordenadas. Recorrido, recogida y destino
+  // cuentan solo por si están o no (el recorrido crece mientras avanza).
+  const fitKey = [
+    zones.filter((z) => z.active).map((z) => z.id).sort().join(','),
+    operators.map((o) => o.id).sort().join(','),
+    points.map((p) => p.id).sort().join(','),
+    trail.length > 0 ? 't' : '',
+    pickup ? 'p' : '',
+    dropoff ? 'd' : '',
+  ].join('|');
 
   return (
     <MapContainer center={DEFAULT_CENTER} zoom={11} scrollWheelZoom style={{ height: '100%', width: '100%' }} className="z-0">
@@ -85,7 +99,7 @@ export default function MoptMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds points={bounds} />
+      <FitBounds points={bounds} fitKey={fitKey} />
 
       {zones.map((z) => (
         <Polygon

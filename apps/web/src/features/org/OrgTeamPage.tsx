@@ -105,6 +105,16 @@ export default function OrgTeamPage() {
       });
       if (!ok) return;
     }
+    if (patch.p_role === 'owner' && m.role !== 'owner') {
+      // Dueño es el rol con más poder (asigna administradores y aprueba pagos):
+      // un cambio accidental en el selector no debe aplicarse sin confirmar.
+      const ok = await confirm({
+        title: `¿Hacer a ${m.full_name ?? m.email} dueño de la cuenta?`,
+        message: 'Tendrá los mismos permisos que tú: administrar el equipo, aprobar estados de cuenta y registrar pagos.',
+        confirmLabel: 'Hacer dueño',
+      });
+      if (!ok) return;
+    }
     const { error: e } = await createClient().rpc('org_update_member', { p_profile_id: m.profile_id, ...patch });
     if (e) return toast.error(e.message);
     toast.success('Equipo actualizado.');

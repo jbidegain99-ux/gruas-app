@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
@@ -49,13 +49,22 @@ export default function MoptKmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const [cases, setCases] = useState<CaseRow[]>([]);
+  // Casos de la fila abierta: cargando / error / listos (vacío incluido).
+  const [cases, setCases] = useState<{ loading: boolean; error: string | null; rows: CaseRow[] }>({
+    loading: false,
+    error: null,
+    rows: [],
+  });
+  // La fila abierta "de verdad": una respuesta que llega cuando ya se abrió
+  // otra (o se cerró) se descarta.
+  const openRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       setLoading(true);
       setOpen(null);
+      openRef.current = null;
       const { data, error: e } = await createClient().rpc('mopt_km_by_vehicle', { p_from: desde, p_to: hasta });
       if (!alive) return;
       setError(e?.message ?? null);
@@ -71,16 +80,22 @@ export default function MoptKmPage() {
   const key = (r: Row) => `${r.operator_id}:${r.plate}`;
 
   const toggle = async (r: Row) => {
-    if (open === key(r)) return setOpen(null);
-    setOpen(key(r));
-    setCases([]);
-    const { data } = await createClient().rpc('mopt_vehicle_cases', {
+    const k = key(r);
+    if (open === k) {
+      openRef.current = null;
+      return setOpen(null);
+    }
+    openRef.current = k;
+    setOpen(k);
+    setCases({ loading: true, error: null, rows: [] });
+    const { data, error: e } = await createClient().rpc('mopt_vehicle_cases', {
       p_operator_id: r.operator_id as string,
       p_plate: r.plate,
       p_from: desde,
       p_to: hasta,
     });
-    setCases((data as CaseRow[]) ?? []);
+    if (openRef.current !== k) return;
+    setCases({ loading: false, error: e?.message ?? null, rows: (data as CaseRow[]) ?? [] });
   };
 
   const totals = rows.reduce(
@@ -102,14 +117,14 @@ export default function MoptKmPage() {
             Kilómetros reales por unidad, medidos con el GPS de cada servicio
           </p>
         </div>
-        <div className="flex items-end gap-2 text-sm">
+        <div className="flex flex-wrap items-end gap-2 text-sm">
           <label className="text-zinc-600 dark:text-zinc-400">
             Desde
-            <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={desde} max={hasta} onChange={(e) => e.target.value && setDesde(e.target.value)} className={`${inputClass} ml-2`} />
           </label>
           <label className="text-zinc-600 dark:text-zinc-400">
             Hasta
-            <input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className={`${inputClass} ml-2`} />
+            <input type="date" value={hasta} min={desde} onChange={(e) => e.target.value && setHasta(e.target.value)} className={`${inputClass} ml-2`} />
           </label>
         </div>
       </div>
@@ -132,6 +147,8 @@ export default function MoptKmPage() {
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {loading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Cargando…</td></tr>
+            ) : error ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-red-600 dark:text-red-400">No se pudieron cargar los km: {error}</td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Sin casos completados en el período.</td></tr>
             ) : (
@@ -139,10 +156,19 @@ export default function MoptKmPage() {
                 <Fragment key={key(r)}>
                   <tr className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50" onClick={() => toggle(r)}>
                     <td className="px-4 py-3 font-mono font-medium text-zinc-900 dark:text-white">
-                      <span className="inline-flex items-center gap-1">
+                      {/* Botón para llegar con teclado; la fila entera sigue siendo clicable. */}
+                      <button
+                        type="button"
+                        aria-expanded={open === key(r)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle(r);
+                        }}
+                        className="inline-flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-budi-primary-500"
+                      >
                         {open === key(r) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         {r.plate}
-                      </span>
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">{r.operator}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{r.cases}</td>
@@ -154,8 +180,12 @@ export default function MoptKmPage() {
                   {open === key(r) && (
                     <tr>
                       <td colSpan={7} className="bg-zinc-50 px-4 py-3 dark:bg-zinc-950/40">
-                        {cases.length === 0 ? (
+                        {cases.loading ? (
                           <p className="text-sm text-zinc-500">Cargando casos…</p>
+                        ) : cases.error ? (
+                          <p className="text-sm text-red-600 dark:text-red-400">No se pudieron cargar los casos: {cases.error}</p>
+                        ) : cases.rows.length === 0 ? (
+                          <p className="text-sm text-zinc-500">Sin casos de esta grúa en el período.</p>
                         ) : (
                           <table className="w-full text-xs">
                             <thead className="text-left uppercase tracking-wide text-zinc-500">
@@ -170,7 +200,7 @@ export default function MoptKmPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {cases.map((c) => (
+                              {cases.rows.map((c) => (
                                 <tr key={c.request_id}>
                                   <td className="py-1 pr-3">
                                     <Link href={`/mopt/servicios/${c.request_id}`} className="font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400">
@@ -178,7 +208,7 @@ export default function MoptKmPage() {
                                     </Link>
                                   </td>
                                   <td className="py-1 pr-3"><ServiceTypeBadge serviceType={c.service_type} /></td>
-                                  <td className="py-1 pr-3 text-zinc-600 dark:text-zinc-400">{formatDate(c.completed_at)}</td>
+                                  <td className="py-1 pr-3 text-zinc-600 dark:text-zinc-400">{formatDate(c.completed_at, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/El_Salvador' })}</td>
                                   <td className="py-1 pr-3 text-right tabular-nums">{km(c.approach_km)}</td>
                                   <td className="py-1 pr-3 text-right tabular-nums">{km(c.tow_km)}</td>
                                   <td className="py-1 pr-3 text-right tabular-nums text-zinc-500">{km(c.declared_km)}</td>
