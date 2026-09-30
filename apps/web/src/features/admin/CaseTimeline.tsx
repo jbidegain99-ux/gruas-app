@@ -20,12 +20,19 @@ const ROLE_LABEL: Record<string, string> = {
   SUPPORT: 'Soporte',
 };
 
-// El detalle de "Cobertura verificada" llega como coverage_status (00047).
+// El detalle llega crudo: coverage_status (00047) en "Cobertura verificada" y
+// el estado nuevo del servicio en los cambios de estado.
 const DETAIL_LABEL: Record<string, string> = {
   covered: 'con cobertura',
   none: 'sin póliza',
   inactive: 'póliza inactiva',
   error: 'no se pudo verificar',
+  initiated: 'pendiente',
+  assigned: 'asignado',
+  en_route: 'en camino',
+  active: 'en servicio',
+  completed: 'completado',
+  cancelled: 'cancelado',
 };
 const detailText = (d: string | null) => (d ? DETAIL_LABEL[d] ?? d : null);
 
