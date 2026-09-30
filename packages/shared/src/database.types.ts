@@ -533,6 +533,54 @@ export type Database = {
           },
         ]
       }
+      dte_settings: {
+        Row: {
+          ambiente: string
+          cod_estable: string
+          cod_punto_venta: string
+          emisor: Json
+          id: number
+          prices_include_iva: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ambiente?: string
+          cod_estable?: string
+          cod_punto_venta?: string
+          emisor?: Json
+          id?: number
+          prices_include_iva?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ambiente?: string
+          cod_estable?: string
+          cod_punto_venta?: string
+          emisor?: Json
+          id?: number
+          prices_include_iva?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dte_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "dte_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       insurer_api_keys: {
         Row: {
           created_at: string
@@ -1363,6 +1411,52 @@ export type Database = {
           },
           {
             foreignKeyName: "organization_contracts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_fiscal_data: {
+        Row: {
+          dte_type: string
+          organization_id: string
+          receptor: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          dte_type?: string
+          organization_id: string
+          receptor?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          dte_type?: string
+          organization_id?: string
+          receptor?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_fiscal_data_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_fiscal_data_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operator_stats"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "organization_fiscal_data_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -3675,6 +3769,7 @@ export type Database = {
         Args: { p_cutoff?: string }
         Returns: string
       }
+      admin_dte_settings: { Args: never; Returns: Json }
       admin_finance_by_insurer: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -3922,6 +4017,16 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      admin_save_dte_settings: {
+        Args: {
+          p_ambiente: string
+          p_cod_estable: string
+          p_cod_punto_venta: string
+          p_emisor: Json
+          p_prices_include_iva: boolean
+        }
+        Returns: undefined
+      }
       admin_save_insurer_branding: {
         Args: {
           p_color: string
@@ -3930,6 +4035,10 @@ export type Database = {
           p_logo_path: string
           p_name: string
         }
+        Returns: undefined
+      }
+      admin_save_org_fiscal: {
+        Args: { p_dte_type: string; p_org: string; p_receptor: Json }
         Returns: undefined
       }
       admin_schedule_rate: {

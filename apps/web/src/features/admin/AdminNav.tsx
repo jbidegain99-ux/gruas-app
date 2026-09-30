@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   Network,
   HandCoins,
+  ReceiptText,
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
@@ -58,6 +59,7 @@ const ICONS: Record<string, LucideIcon> = {
   onboarding: ClipboardCheck,
   reinsurers: Network,
   collections: HandCoins,
+  billing: ReceiptText,
 };
 
 export function AdminNav({ role }: { role: PanelRole }) {

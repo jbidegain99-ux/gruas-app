@@ -51,6 +51,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   { href: '/admin/cobros', label: 'Cobros a usuarios', icon: 'collections', roles: ADMIN_ONLY },
   // MOPT-03 / ASE-03 (00123): cierre mensual por cliente institucional.
   { href: '/admin/estados-de-cuenta', label: 'Estados de cuenta', icon: 'statements', roles: ADMIN_ONLY },
+  // LAN-09 (base, 00140): datos fiscales para el DTE.
+  { href: '/admin/facturacion', label: 'Facturación', icon: 'billing', roles: ADMIN_ONLY },
   // La ficha 360 vive bajo Cuentas (/admin/cuentas/[tipo]/[id]) y hereda su acceso.
   // VEN-03 (00130): checklist de alta de aseguradoras y programas MOPT.
   { href: '/admin/altas', label: 'Altas de clientes', icon: 'onboarding', roles: ADMIN_ONLY },

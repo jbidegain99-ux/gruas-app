@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import { DteDraftPanel } from '@/features/billing/DteDraftPanel';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, Download, FileText, MessageSquareWarning, Printer } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
@@ -166,6 +167,8 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
       {/* Acciones */}
       <div className="print:hidden">
         {budi ? <BudiActions d={d} run={run} /> : null}
+        {/* LAN-09 (base): borrador del DTE del estado de cuenta aprobado. */}
+        <DteDraftPanel d={d} />
         {d.can_approve && (
           <button onClick={approve} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
             <CheckCircle2 className="h-4 w-4" /> Aprobar {money(t.approvable)}
