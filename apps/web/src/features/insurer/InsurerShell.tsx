@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { LogoutButton } from '@/shared/components/LogoutButton';
+import { useActiveTabIntoView } from '@/shared/components/portal/useActiveTabIntoView';
 import { logoUrl, type Branding } from './brand';
 
 // B-17: marco del portal de la aseguradora. La aseguradora consulta y, desde la
@@ -36,6 +37,7 @@ export function InsurerShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const navRef = useActiveTabIntoView<HTMLElement>(pathname);
   const logo = brand ? logoUrl(brand.logo_path) : null;
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 print:bg-white">
@@ -68,7 +70,7 @@ export function InsurerShell({
             <LogoutButton />
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
+        <nav ref={navRef} className="scrollbar-none mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
           {TABS.map(({ href, label }) => {
             // "/portal/BUDI-…" (detalle de un caso) sigue siendo "Casos".
             const active =

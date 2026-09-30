@@ -112,7 +112,7 @@ export default function AdminAccountsPage() {
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Cuentas</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
             Quién le debe a quién por los servicios completados, cuánto se pagó y cuánto queda. Lo que paga el
-            usuario (particular o copago) todavía no se registra acá.
+            Usuario (particular o copago) se registra en Cobros a Usuarios.
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">

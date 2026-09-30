@@ -151,7 +151,7 @@ export default async function AdminFinancePage({
       tint: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
     },
     {
-      label: 'Cobrado a usuarios', value: money(alCliente),
+      label: 'Cobrado a Usuarios', value: money(alCliente),
       sub: `${money(Number(r.copagos))} de copagos · ${money(Number(r.particulares))} de particulares`,
       Icon: Wallet,
       tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300',

@@ -49,7 +49,8 @@ export function ContractCard({ organizationId, refreshKey = 0 }: { organizationI
     );
 
   const bar = budgetBar(s);
-  const msg = budgetMessage(s);
+  // Con `organizationId` la ve el admin: el mensaje habla del cliente, no al cliente.
+  const msg = budgetMessage(s, !!organizationId);
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">

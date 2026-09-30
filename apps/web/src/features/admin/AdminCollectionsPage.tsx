@@ -78,7 +78,7 @@ export default function AdminCollectionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Cobros a usuarios</h1>
+        <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Cobros a Usuarios</h1>
         <p className="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
           Lo que pagan los Usuarios por servicios particulares y copagos. El socio confirma el efectivo desde la app y el
           Usuario recibe su comprobante (no es factura). El pago con tarjeta se habilita al conectar la pasarela.

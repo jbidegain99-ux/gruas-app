@@ -22,4 +22,9 @@ describe('contract-types', () => {
     expect(budgetMessage({ ...base, active: false })).toContain('no está vigente');
     expect(budgetMessage({ ...base, has_contract: false })).toBeNull();
   });
+
+  it('en el admin habla del cliente, no al cliente', () => {
+    expect(budgetMessage({ ...base, level: 'reached' }, true)).toMatch(/^Llegó al tope/);
+    expect(budgetMessage({ ...base, level: 'warning', consumed_pct: 85 }, true)).toMatch(/^Va por encima/);
+  });
 });

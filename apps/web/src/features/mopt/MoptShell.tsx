@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { LogoutButton } from '@/shared/components/LogoutButton';
+import { useActiveTabIntoView } from '@/shared/components/portal/useActiveTabIntoView';
 import type { MyOrganization } from '@/shared/lib/organization';
 
 type MemberRole = MyOrganization['member_role'];
@@ -51,6 +52,7 @@ export function MoptShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const navRef = useActiveTabIntoView<HTMLElement>(pathname);
 
   return (
     <MoptRoleContext.Provider value={memberRole}>
@@ -69,7 +71,7 @@ export function MoptShell({
               <LogoutButton />
             </div>
           </div>
-          <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
+          <nav ref={navRef} className="scrollbar-none mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
             {TABS.map(({ href, label }) => {
               const active = href === '/mopt' ? pathname === '/mopt' : pathname.startsWith(href);
               return (

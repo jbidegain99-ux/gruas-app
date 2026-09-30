@@ -44,7 +44,7 @@ const detailText = (d: string | null) => (d ? DETAIL_LABEL[d] ?? d : null);
  * JSON con el folio y los eventos — la base de lo que la aseguradora recibirá
  * por el portal (B-17).
  */
-export function CaseTimeline({ folio }: { folio: string | null }) {
+export function CaseTimeline({ folio, refreshKey = 0 }: { folio: string | null; refreshKey?: number }) {
   const [rows, setRows] = useState<TimelineRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   // `loadedFolio` = el folio para el que ya hay datos. `loading` se DERIVA de
@@ -72,7 +72,7 @@ export function CaseTimeline({ folio }: { folio: string | null }) {
     return () => {
       alive = false;
     };
-  }, [folio]);
+  }, [folio, refreshKey]);
 
   if (!folio) return null;
 
@@ -84,6 +84,9 @@ export function CaseTimeline({ folio }: { folio: string | null }) {
       month: 'short',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: false,
+      // Hora de El Salvador aunque el navegador esté en otra zona.
+      timeZone: 'America/El_Salvador',
     });
 
   const exportar = () => {

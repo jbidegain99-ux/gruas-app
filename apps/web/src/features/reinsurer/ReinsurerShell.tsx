@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { LogoutButton } from '@/shared/components/LogoutButton';
+import { useActiveTabIntoView } from '@/shared/components/portal/useActiveTabIntoView';
 
 // REA-02 (00131): marco del portal de la reaseguradora. Solo agregados.
 const TABS = [
@@ -15,6 +16,7 @@ const TABS = [
 
 export function ReinsurerShell({ orgName, userName, children }: { orgName: string; userName: string; children: React.ReactNode }) {
   const pathname = usePathname();
+  const navRef = useActiveTabIntoView<HTMLElement>(pathname);
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 print:bg-white">
       <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 print:hidden">
@@ -31,7 +33,7 @@ export function ReinsurerShell({ orgName, userName, children }: { orgName: strin
             <LogoutButton />
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
+        <nav ref={navRef} className="scrollbar-none mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4" aria-label="Secciones del portal">
           {TABS.map(({ href, label }) => {
             const active = href === '/reaseguro' ? pathname === '/reaseguro' : pathname.startsWith(href);
             return (

@@ -2,6 +2,10 @@
    hoja externa de Google Fonts que bloqueaba el primer render (LAN-10). */
 @import "tailwindcss";
 
+/* Modo oscuro solo en pantalla: al imprimir (reporte mensual, estado de cuenta en
+   PDF) siempre sale claro, aunque el sistema esté en oscuro. */
+@custom-variant dark (@media screen and (prefers-color-scheme: dark));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -45,7 +49,7 @@
   --color-budi-info: #3b82f6;
 }
 
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
@@ -56,4 +60,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Barras de pestañas con scroll horizontal (portales): se desliza con la rueda,
+   el dedo o el teclado, pero sin la barra visible que Chrome en Windows pinta. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

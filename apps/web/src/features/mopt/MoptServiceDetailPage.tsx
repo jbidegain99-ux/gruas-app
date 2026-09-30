@@ -14,6 +14,7 @@ import { money } from '@/shared/lib/format';
 // entrar al programa dueño del caso desde la 00100.
 import { CaseSla } from '@/features/admin/CaseSla';
 import { CaseTimeline } from '@/features/admin/CaseTimeline';
+import { useOrgLive } from '@/shared/components/portal/useOrgLive';
 import type { LatLng } from './MoptMap';
 
 const MoptMap = dynamic(() => import('./MoptMap'), {
@@ -50,6 +51,9 @@ const fecha = (iso: string | null) =>
 export default function MoptServiceDetailPage({ id }: { id: string }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // En vivo, como la lista: un cambio de estado del caso recarga el detalle,
+  // el SLA y la línea de tiempo sin tener que refrescar la página.
+  const { tick } = useOrgLive();
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +69,7 @@ export default function MoptServiceDetailPage({ id }: { id: string }) {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, tick]);
 
   if (error) {
     return (
@@ -121,7 +125,7 @@ export default function MoptServiceDetailPage({ id }: { id: string }) {
           </section>
 
           <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <CaseSla folio={detail.folio} />
+            <CaseSla folio={detail.folio} refreshKey={tick} />
           </section>
         </div>
 
@@ -137,7 +141,7 @@ export default function MoptServiceDetailPage({ id }: { id: string }) {
           </section>
 
           <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <CaseTimeline folio={detail.folio} />
+            <CaseTimeline folio={detail.folio} refreshKey={tick} />
           </section>
         </div>
       </div>

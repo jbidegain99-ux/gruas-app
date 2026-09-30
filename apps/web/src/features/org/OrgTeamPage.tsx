@@ -254,11 +254,17 @@ export default function OrgTeamPage() {
           {lastLink && (
             <div className="mx-5 mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-3 text-xs dark:bg-zinc-800/60">
               <span className="text-zinc-600 dark:text-zinc-300">Enlace para {lastLink.email}:</span>
-              <code className="min-w-0 flex-1 truncate font-mono text-zinc-500">{lastLink.url}</code>
+              <code className="min-w-0 flex-1 select-all truncate font-mono text-zinc-500">{lastLink.url}</code>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(lastLink.url);
-                  toast.success('Enlace copiado.');
+                onClick={async () => {
+                  // Sin permiso de portapapeles (http, iframe) writeText rechaza:
+                  // antes decía "copiado" igual.
+                  try {
+                    await navigator.clipboard.writeText(lastLink.url);
+                    toast.success('Enlace copiado.');
+                  } catch {
+                    toast.error('No se pudo copiar. Selecciona el enlace a mano.');
+                  }
                 }}
                 className="inline-flex items-center gap-1 font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
               >

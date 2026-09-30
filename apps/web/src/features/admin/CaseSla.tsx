@@ -20,8 +20,10 @@ type Sla = {
 
 function fmtDur(secs: number | null): string {
   if (secs == null) return '—';
-  const m = Math.floor(secs / 60);
-  const s = Math.round(secs % 60);
+  // Redondear antes de partir: 59.6 s daba "0 min 60 s".
+  const total = Math.round(secs);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
   if (m === 0) return `${s} s`;
   if (m < 60) return s > 0 ? `${m} min ${s} s` : `${m} min`;
   const h = Math.floor(m / 60);
@@ -52,9 +54,10 @@ function Chip({ met }: { met: boolean | null }) {
  * La duración del servicio se muestra como dato, sin objetivo — el SLA que se
  * pacta es el de respuesta (asignar y llegar).
  */
-export function CaseSla({ folio }: { folio: string | null }) {
+export function CaseSla({ folio, refreshKey = 0 }: { folio: string | null; refreshKey?: number }) {
   const [sla, setSla] = useState<Sla | null>(null);
   const [loadedFolio, setLoadedFolio] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const loading = folio != null && folio !== loadedFolio;
 
   useEffect(() => {
@@ -62,15 +65,17 @@ export function CaseSla({ folio }: { folio: string | null }) {
     let alive = true;
     createClient()
       .rpc('get_case_sla', { p_folio: folio })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (!alive) return;
+        // Antes un error (caso sin acceso, red) dejaba "Cargando…" para siempre.
+        setFailed(!!error || !data);
         setSla((data as Sla) ?? null);
         setLoadedFolio(folio);
       });
     return () => {
       alive = false;
     };
-  }, [folio]);
+  }, [folio, refreshKey]);
 
   if (!folio) return null;
 
@@ -81,8 +86,10 @@ export function CaseSla({ folio }: { folio: string | null }) {
         <p className="text-sm font-semibold text-zinc-900 dark:text-white">Cumplimiento de SLA</p>
       </div>
 
-      {loading || !sla ? (
+      {loading ? (
         <p className="text-xs text-zinc-500">Cargando…</p>
+      ) : failed || !sla ? (
+        <p className="text-xs text-zinc-500">No se pudo cargar el cumplimiento de este caso.</p>
       ) : (
         <div className="space-y-2">
           <Row

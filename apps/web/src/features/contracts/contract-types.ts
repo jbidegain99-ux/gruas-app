@@ -31,17 +31,21 @@ export function budgetBar(s: Pick<ContractStatus, 'consumed_pct' | 'level'>): { 
   return { width: pct, tone: s.level };
 }
 
-/** Mensaje de estado para el cliente. */
-export function budgetMessage(s: ContractStatus): string | null {
+/**
+ * Mensaje de estado. Por defecto le habla al cliente ("Llegaste al tope");
+ * con `forBudi` (la ficha del contrato en el admin) habla del cliente.
+ */
+export function budgetMessage(s: ContractStatus, forBudi = false): string | null {
   if (!s.has_contract) return null;
   if (!s.active)
     return s.organization?.type === 'INSURER'
       ? 'El contrato no está vigente hoy.'
       : 'El contrato no está vigente hoy: los servicios nuevos no tienen cortesía MOPT.';
+  const reached = forBudi ? 'Llegó al tope del mes' : 'Llegaste al tope del mes';
   if (s.level === 'reached')
     return s.on_cap === 'charge_user'
-      ? 'Llegaste al tope del mes: los servicios nuevos los paga el Usuario hasta el mes siguiente.'
-      : 'Llegaste al tope del mes: los servicios siguen sin costo para el Usuario y se facturan aparte.';
-  if (s.level === 'warning') return 'Vas por encima del 80 % del tope de este mes.';
+      ? `${reached}: los servicios nuevos los paga el Usuario hasta el mes siguiente.`
+      : `${reached}: los servicios siguen sin costo para el Usuario y se facturan aparte.`;
+  if (s.level === 'warning') return forBudi ? 'Va por encima del 80 % del tope de este mes.' : 'Vas por encima del 80 % del tope de este mes.';
   return null;
 }

@@ -48,7 +48,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   // LAN-08 (00125): lotes de pago a socios y empresas, con archivo para el banco.
   { href: '/admin/pagos', label: 'Pagos a socios', icon: 'payouts', roles: ADMIN_ONLY },
   // LAN-07 (00133): lo que pagan los Usuarios (efectivo al socio o tarjeta).
-  { href: '/admin/cobros', label: 'Cobros a usuarios', icon: 'collections', roles: ADMIN_ONLY },
+  { href: '/admin/cobros', label: 'Cobros a Usuarios', icon: 'collections', roles: ADMIN_ONLY },
   // MOPT-03 / ASE-03 (00123): cierre mensual por cliente institucional.
   { href: '/admin/estados-de-cuenta', label: 'Estados de cuenta', icon: 'statements', roles: ADMIN_ONLY },
   // LAN-09 (base, 00140): datos fiscales para el DTE.

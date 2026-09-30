@@ -416,7 +416,7 @@ export default function AdminRequestsPage() {
             setSearch(e.target.value);
             setPage(0);
           }}
-          placeholder="Buscar por usuario, teléfono o dirección..."
+          placeholder="Buscar por Usuario, teléfono o dirección..."
           className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
         />
       </div>
@@ -698,7 +698,7 @@ export default function AdminRequestsPage() {
                       if (!c.covered) {
                         return (
                           <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                            No cubierto{c.reason ? `: ${c.reason}` : ''}. Paga el usuario:{' '}
+                            No cubierto{c.reason ? `: ${c.reason}` : ''}. Paga el Usuario:{' '}
                             <strong>{money(c.amount_copay ?? 0)}</strong>
                           </p>
                         );
@@ -740,7 +740,7 @@ export default function AdminRequestsPage() {
                     <p className="mt-1 text-sm text-red-800 dark:text-red-200">
                       Cancelada por{' '}
                       {selectedRequest.cancelled_by === selectedRequest.user_id
-                        ? 'el usuario'
+                        ? 'el Usuario'
                         : selectedRequest.cancelled_by === selectedRequest.operator_id
                         ? 'el socio operador'
                         : selectedRequest.cancelled_by
@@ -822,7 +822,7 @@ export default function AdminRequestsPage() {
                       type="text"
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      placeholder="Ej: duplicada, el usuario ya no la necesita…"
+                      placeholder="Ej: duplicada, el Usuario ya no la necesita…"
                       className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
                     />
                     <button

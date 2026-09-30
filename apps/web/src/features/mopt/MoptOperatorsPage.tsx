@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Users } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { RegisterPaymentModal } from '@/shared/components/LedgerPaymentModals';
@@ -62,12 +63,15 @@ export default function MoptOperatorsPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Socios operadores</h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Tu flota y lo que le debes a cada uno. El alta y la verificación de identidad las hace Budi.
+            Tu flota y lo que le debes a cada uno. El alta y la verificación de identidad las hace Budi.{' '}
+            <Link href="/mopt/pagos" className="font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400">
+              Ver pagos registrados →
+            </Link>
           </p>
         </div>
         <div className="text-right">
           <p className="text-xs text-zinc-500">Pendiente total</p>
-          <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{money(totalPendiente)}</p>
+          <p className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">{loading || error ? '—' : money(totalPendiente)}</p>
         </div>
       </div>
 

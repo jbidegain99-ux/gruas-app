@@ -241,8 +241,10 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
       {/* Servicios */}
       <section>
         <h2 className="mb-2 font-semibold text-zinc-900 dark:text-white">Servicios</h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <table className="w-full min-w-[720px] text-sm">
+        {/* Al imprimir, sin ancho mínimo ni scroll: 720 px no caben en una hoja
+            vertical y la tabla salía cortada a la derecha. */}
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 print:overflow-visible">
+          <table className="w-full min-w-[720px] text-sm print:min-w-0 print:text-xs">
             <thead className="text-left text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-2">Folio</th>
@@ -290,7 +292,9 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
                         ) : l.copay == null ? '—' : money(Number(l.copay))}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-right print:hidden">
-                        {ob || d.can_observe || budi ? (
+                        {/* Sin observación, el admin no tiene nada que responder: antes veía un
+                            ícono suelto que abría un hilo vacío. */}
+                        {ob || d.can_observe ? (
                           <button
                             onClick={() => setOpenLine(expanded ? null : l.request_id)}
                             className={`inline-flex items-center gap-1 text-xs font-medium ${ob?.status === 'open' ? 'text-amber-700 dark:text-amber-300' : 'text-budi-primary-600 dark:text-budi-primary-400'} hover:underline`}
@@ -405,7 +409,7 @@ function ObservationThread({ d, line, run }: { d: StatementDetail; line: Stateme
                 <button
                   disabled={!body.trim() || !adjust.trim()}
                   onClick={() =>
-                    send('admin_answer_observation', { p_observation: ob.id, p_body: body, p_resolution: 'adjusted', p_adjusted_amount: Number(adjust) }, 'Monto ajustado.')
+                    send('admin_answer_observation', { p_observation: ob.id, p_body: body, p_resolution: 'adjusted', p_adjusted_amount: Number(adjust.trim().replace(',', '.')) }, 'Monto ajustado.')
                   }
                   className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                 >
@@ -426,6 +430,9 @@ function BudiActions({ d, run }: { d: StatementDetail; run: Run }) {
   const [ref, setRef] = useState('');
   const confirm = useConfirm();
   const cls = 'rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white';
+
+  // Pagado o anulado ya no tiene acciones: sin esto quedaba una caja vacía.
+  if (d.status === 'paid' || d.status === 'void') return null;
 
   return (
     <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">

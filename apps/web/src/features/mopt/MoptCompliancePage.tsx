@@ -37,7 +37,11 @@ export default function MoptCompliancePage() {
   const [data, setData] = useState<Compliance | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Separado de `data`: con un error la pantalla quedaba en "Cargando…" para siempre.
-  const [loading, setLoading] = useState(true);
+  // Derivado del período cargado: al cambiar las fechas se veían los números
+  // del período anterior bajo las fechas nuevas hasta que llegaba la respuesta.
+  const periodo = `${desde}|${hasta}`;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = loadedFor !== periodo;
 
   useEffect(() => {
     let alive = true;
@@ -47,7 +51,7 @@ export default function MoptCompliancePage() {
         if (!alive) return;
         setError(e?.message ?? null);
         setData((res as unknown as Compliance) ?? null);
-        setLoading(false);
+        setLoadedFor(`${desde}|${hasta}`);
       });
     return () => {
       alive = false;
@@ -78,7 +82,7 @@ export default function MoptCompliancePage() {
         </div>
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
+      {error && !loading && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
 
       {loading ? (
         <p className="text-sm text-zinc-500">Cargando…</p>
