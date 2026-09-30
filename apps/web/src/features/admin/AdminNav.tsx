@@ -32,6 +32,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { adminNavFor } from '@/shared/lib/admin-routes';
 import type { PanelRole } from './AdminRoleContext';
+import { usePlatformFeatures } from '@/shared/lib/use-platform-features';
 
 // Las rutas y quién entra viven en shared/lib/admin-routes.ts (las usa también
 // el guard del proxy). Acá solo se les pone ícono.
@@ -64,10 +65,11 @@ const ICONS: Record<string, LucideIcon> = {
 
 export function AdminNav({ role }: { role: PanelRole }) {
   const pathname = usePathname();
+  const features = usePlatformFeatures();
 
   return (
     <nav className="space-y-1 p-4">
-      {adminNavFor(role).map(({ href, label, icon }) => {
+      {adminNavFor(role, features).map(({ href, label, icon }) => {
         const Icon = ICONS[icon] ?? LayoutDashboard;
         const active = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
         return (

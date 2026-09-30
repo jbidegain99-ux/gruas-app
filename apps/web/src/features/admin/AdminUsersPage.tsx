@@ -7,6 +7,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
 import { useCanConfigure } from './AdminRoleContext';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import type { UserRole } from '@gruas-app/shared';
 
 const PAGE_SIZE = 15;
@@ -58,7 +59,19 @@ const ROLE_COLORS: Record<UserRole, string> = {
 };
 
 export default function AdminUsersPage() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loadedProfiles, setProfiles] = useState<Profile[]>([]);
+  // Aseguradoras en pausa (00153): la membresía a una aseguradora o
+  // reaseguradora no da portal, así que no se muestra como tal.
+  const insurers = useInsurersEnabled();
+  const profiles = useMemo(
+    () =>
+      insurers
+        ? loadedProfiles
+        : loadedProfiles.map((p) =>
+            p.org_type === 'INSURER' || p.org_type === 'REINSURER' ? { ...p, org_name: null, org_type: null } : p,
+          ),
+    [loadedProfiles, insurers],
+  );
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -425,6 +438,7 @@ function EditUserModal({
   onSave: () => void;
 }) {
   const [role, setRole] = useState<UserRole>(user.role);
+  const insurers = useInsurersEnabled();
   const [providerId, setProviderId] = useState<string>(user.provider_id || '');
   // 00107: unidad del socio (placa, tipo y capacidad si es pipa).
   const [plate, setPlate] = useState(user.vehicle?.plate ?? '');
@@ -547,7 +561,9 @@ function EditUserModal({
             <p className="mt-1 text-xs text-zinc-500">
               {user.org_name
                 ? `Tiene acceso al portal de ${user.org_name}. Eso se administra en el equipo de esa organización, no con el rol.`
-                : 'El acceso al portal de una aseguradora o del MOPT se da en el equipo de cada organización (Aseguradoras / Programas MOPT), no con el rol.'}
+                : insurers
+                  ? 'El acceso al portal de una aseguradora o del MOPT se da en el equipo de cada organización (Aseguradoras / Programas MOPT), no con el rol.'
+                  : 'El acceso al portal del MOPT se da en el equipo de cada programa (Programas MOPT), no con el rol.'}
             </p>
           </div>
 

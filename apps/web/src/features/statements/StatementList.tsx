@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { FileText } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { money } from '@/shared/lib/format';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import { STATUS_LABEL, STATUS_STYLE, periodLabel, type StatementSummary } from './statement-types';
 
 /** Lista de estados de cuenta. El cliente ve los suyos (sin borradores); el admin, todos. */
 export function StatementList({ basePath, showOrg = false, refreshKey = 0 }: { basePath: string; showOrg?: boolean; refreshKey?: number }) {
   const [rows, setRows] = useState<StatementSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     let alive = true;
@@ -26,9 +28,12 @@ export function StatementList({ basePath, showOrg = false, refreshKey = 0 }: { b
     };
   }, [refreshKey]);
 
+  // Vista del admin con aseguradoras en pausa (00153): solo los del MOPT.
+  const visible = showOrg && !insurers ? rows?.filter((s) => s.organization_type !== 'INSURER') : rows;
+
   if (error) return <p className="text-sm text-red-600">No se pudieron cargar: {error}</p>;
-  if (!rows) return <p className="text-sm text-zinc-500">Cargando…</p>;
-  if (rows.length === 0)
+  if (!visible) return <p className="text-sm text-zinc-500">Cargando…</p>;
+  if (visible.length === 0)
     return (
       <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
         <FileText className="mx-auto mb-2 h-6 w-6 text-zinc-400" />
@@ -50,7 +55,7 @@ export function StatementList({ basePath, showOrg = false, refreshKey = 0 }: { b
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {rows.map((s) => (
+          {visible.map((s) => (
             <tr key={s.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
               <td className="px-4 py-3">
                 <Link href={`${basePath}/${s.id}`} className="font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400">

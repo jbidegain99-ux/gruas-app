@@ -7,6 +7,7 @@ import { useToast } from '@/shared/components/FeedbackProvider';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
 import { StatementList } from './StatementList';
 import { monthRange } from './statement-types';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Estados de cuenta del lado de Budi (migr. 00123): generar el borrador de un
 // mes para el MOPT o una aseguradora, emitirlo, responder observaciones y
@@ -26,16 +27,20 @@ export default function AdminStatementsPage() {
   const [org, setOrg] = useState('');
   const [month, setMonth] = useState(() => previousMonth(svToday()));
   const [busy, setBusy] = useState(false);
+  // Aseguradoras en pausa (00153): solo se generan estados de cuenta del MOPT.
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     createClient()
       .rpc('admin_list_organizations')
       .then(({ data }) => {
-        const list = ((data as Org[]) ?? []).filter((o) => (o.type === 'MOPT' || o.type === 'INSURER') && o.status === 'active');
+        const list = ((data as Org[]) ?? []).filter(
+          (o) => (o.type === 'MOPT' || (insurers && o.type === 'INSURER')) && o.status === 'active',
+        );
         setOrgs(list);
-        if (list[0]) setOrg(list[0].id);
+        setOrg(list[0]?.id ?? '');
       });
-  }, []);
+  }, [insurers]);
 
   const generate = async () => {
     const { from, to } = monthRange(month);
@@ -54,7 +59,7 @@ export default function AdminStatementsPage() {
       <div>
         <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Estados de cuenta</h1>
         <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-          El cierre de cada mes para el MOPT y las aseguradoras. Al emitirlo, el cliente lo ve en su portal y los montos quedan
+          El cierre de cada mes para el MOPT{insurers ? ' y las aseguradoras' : ''}. Al emitirlo, el cliente lo ve en su portal y los montos quedan
           congelados; ahí puede observar casos y aprobarlo.
         </p>
       </div>

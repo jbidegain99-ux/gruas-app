@@ -18,6 +18,7 @@
  * no datos.
  */
 import type { Database } from '@gruas-app/shared';
+import type { PlatformFeature, PlatformFeatures } from './platform-features';
 
 type UserRole = Database['public']['Enums']['user_role'];
 
@@ -35,6 +36,11 @@ export type AdminRoute = {
   roles: readonly UserRole[];
   /** false = protegida pero fuera del menú (páginas de detalle). */
   inNav?: boolean;
+  /**
+   * Interruptor de la plataforma del que depende (migr. 00153). Apagado, la
+   * ruta sale del menú y su layout manda de vuelta a /admin.
+   */
+  feature?: PlatformFeature;
 };
 
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
@@ -56,12 +62,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   // La ficha 360 vive bajo Cuentas (/admin/cuentas/[tipo]/[id]) y hereda su acceso.
   // VEN-03 (00130): checklist de alta de aseguradoras y programas MOPT.
   { href: '/admin/altas', label: 'Altas de clientes', icon: 'onboarding', roles: ADMIN_ONLY },
-  { href: '/admin/insurers', label: 'Aseguradoras', icon: 'insurers', roles: ADMIN_ONLY },
-  { href: '/admin/policies', label: 'Pólizas', icon: 'insurers', roles: ADMIN_ONLY, inNav: false },
+  { href: '/admin/insurers', label: 'Aseguradoras', icon: 'insurers', roles: ADMIN_ONLY, feature: 'insurers' },
+  { href: '/admin/policies', label: 'Pólizas', icon: 'insurers', roles: ADMIN_ONLY, inNav: false, feature: 'insurers' },
   { href: '/admin/providers', label: 'Proveedores', icon: 'providers', roles: STAFF },
   { href: '/admin/mopt', label: 'Programas MOPT', icon: 'mopt', roles: ADMIN_ONLY },
   // REA-01 (00131): reaseguradoras y sus aseguradoras cedentes.
-  { href: '/admin/reaseguradoras', label: 'Reaseguradoras', icon: 'reinsurers', roles: ADMIN_ONLY },
+  { href: '/admin/reaseguradoras', label: 'Reaseguradoras', icon: 'reinsurers', roles: ADMIN_ONLY, feature: 'insurers' },
   { href: '/admin/services', label: 'Servicios', icon: 'services', roles: ADMIN_ONLY },
   { href: '/admin/pricing', label: 'Precios', icon: 'pricing', roles: ADMIN_ONLY },
   { href: '/admin/tarifas', label: 'Tarifas', icon: 'rates', roles: ADMIN_ONLY },
@@ -81,6 +87,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
  * exacto, no todo lo que empieza con él.
  */
 export function adminRouteRoles(pathname: string): readonly UserRole[] | null {
+  return findAdminRoute(pathname)?.roles ?? null;
+}
+
+function findAdminRoute(pathname: string): AdminRoute | null {
   const path = pathname.replace(/\/+$/, '') || '/';
   let best: AdminRoute | null = null;
   for (const route of ADMIN_ROUTES) {
@@ -90,7 +100,12 @@ export function adminRouteRoles(pathname: string): readonly UserRole[] | null {
         : path === route.href || path.startsWith(route.href + '/');
     if (match && (!best || route.href.length > best.href.length)) best = route;
   }
-  return best ? best.roles : null;
+  return best;
+}
+
+/** El interruptor del que depende `pathname` (incluye sus páginas de detalle), o null. */
+export function adminRouteFeature(pathname: string): PlatformFeature | null {
+  return findAdminRoute(pathname)?.feature ?? null;
 }
 
 export function canEnterAdminRoute(pathname: string, role: UserRole | null | undefined): boolean {
@@ -98,7 +113,12 @@ export function canEnterAdminRoute(pathname: string, role: UserRole | null | und
   return !!role && !!roles && roles.includes(role);
 }
 
-/** Las entradas del menú que ve un rol. */
-export function adminNavFor(role: UserRole | null | undefined): AdminRoute[] {
-  return ADMIN_ROUTES.filter((r) => r.inNav !== false && !!role && r.roles.includes(role));
+/**
+ * Las entradas del menú que ve un rol. Sin `features`, se ocultan las rutas
+ * que dependen de un interruptor (apagado es el lado seguro).
+ */
+export function adminNavFor(role: UserRole | null | undefined, features?: PlatformFeatures): AdminRoute[] {
+  return ADMIN_ROUTES.filter(
+    (r) => r.inNav !== false && !!role && r.roles.includes(role) && (!r.feature || !!features?.[r.feature]),
+  );
 }

@@ -3,7 +3,8 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getMyOrganization, PORTAL_BY_ORG_TYPE, securityUrl } from '@/shared/lib/organization';
+import { getMyOrganization, portalFor, securityUrl } from '@/shared/lib/organization';
+import { getPlatformFeatures } from '@/shared/lib/platform-features';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { safeNext } from '@/features/org/org-links';
@@ -49,10 +50,15 @@ function LoginForm() {
         }
         return null;
       };
-      const [profile, org] = await Promise.all([readProfile(), getMyOrganization(supabase)]);
+      const [profile, org, features] = await Promise.all([
+        readProfile(),
+        getMyOrganization(supabase),
+        getPlatformFeatures(supabase),
+      ]);
       // 00106 (POR-01): quien trabaja en un cliente institucional entra a su
       // portal por su membresía, no por un rol.
-      const portal = org ? PORTAL_BY_ORG_TYPE[org.type] : null;
+      // Aseguradoras en pausa (00153): nadie va a /portal ni a /reaseguro.
+      const portal = org ? portalFor(org.type, features) : null;
 
       // 00113: vuelve a aceptar la invitación al equipo de un portal.
       if (redirect.startsWith('/invitacion?') || redirect === '/socios/registro') {

@@ -26,7 +26,7 @@ type Fila = {
  * `admin_finance_detail` que alimenta los totales de la pantalla, asi que el
  * archivo y lo que se ve en pantalla no pueden discrepar.
  */
-export function FinanceExportButton({ desde, hasta }: { desde: string; hasta: string }) {
+export function FinanceExportButton({ desde, hasta, insurers = true }: { desde: string; hasta: string; insurers?: boolean }) {
   const [bajando, setBajando] = useState(false);
   const toast = useToast();
 
@@ -48,10 +48,10 @@ export function FinanceExportButton({ desde, hasta }: { desde: string; hasta: st
       return;
     }
 
-    const cabeceras = [
-      'Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor',
-      'Aseguradora', 'Bruto', 'Cubre la aseguradora', 'Paga el Usuario',
-    ];
+    // Aseguradoras en pausa (00153): el archivo sale sin sus columnas.
+    const cabeceras = insurers
+      ? ['Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor', 'Aseguradora', 'Bruto', 'Cubre la aseguradora', 'Paga el Usuario']
+      : ['Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor', 'Bruto', 'Paga el Usuario'];
     // Escapa cada celda: comillas alrededor y comillas internas duplicadas, para
     // que un nombre con comas no corra las columnas.
     const celda = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -64,10 +64,7 @@ export function FinanceExportButton({ desde, hasta }: { desde: string; hasta: st
         f.cliente ?? '',
         f.operador ?? '',
         f.proveedor ?? '',
-        f.aseguradora ?? 'Particular',
-        f.bruto,
-        f.cubierto,
-        f.copago,
+        ...(insurers ? [f.aseguradora ?? 'Particular', f.bruto, f.cubierto, f.copago] : [f.bruto, f.copago]),
       ]),
     ]
       .map((r) => r.map(celda).join(','))

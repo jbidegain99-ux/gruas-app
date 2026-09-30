@@ -5,6 +5,7 @@
  * portal de su aseguradora o del MOPT.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PlatformFeatures } from './platform-features';
 
 export type OrganizationType = 'MOPT' | 'INSURER' | 'REINSURER' | 'PROVIDER';
 
@@ -32,6 +33,15 @@ export const PORTAL_BY_ORG_TYPE: Record<OrganizationType, string | null> = {
   REINSURER: '/reaseguro',
   PROVIDER: null,
 };
+
+/**
+ * El portal al que va alguien de ese tipo de organización HOY: con las
+ * aseguradoras en pausa (migr. 00153), aseguradora y reaseguradora no tienen.
+ */
+export function portalFor(type: OrganizationType, features: PlatformFeatures): string | null {
+  if ((type === 'INSURER' || type === 'REINSURER') && !features.insurers) return null;
+  return PORTAL_BY_ORG_TYPE[type];
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getMyOrganization(supabase: SupabaseClient<any>): Promise<MyOrganization | null> {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, ClipboardList, DollarSign, Moon, Timer, Truck, type LucideIcon } from 'lucide-react';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import { createClient } from '@/shared/lib/supabase/client';
 import { duration, formatDate, money } from '@/shared/lib/format';
 import { MonthBars } from './MonthBars';
@@ -57,6 +58,9 @@ const card = 'rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-z
 export default function AdminBusinessPage() {
   const [data, setData] = useState<Business | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Aseguradoras en pausa (00153): sin cobertura ni cuentas de aseguradoras.
+  const insurers = useInsurersEnabled();
+  const accountGroups = ACCOUNT_GROUPS.filter((g) => insurers || g.kind !== 'insurer');
 
   useEffect(() => {
     createClient()
@@ -101,7 +105,7 @@ export default function AdminBusinessPage() {
           label={`Facturado (bruto) · ${monthLabel(cur.month)}`}
           value={money(cur.gross)}
           change={prev ? pctChange(Number(cur.gross), Number(prev.gross)) : null}
-          sub={`cobertura a aseguradoras ${money(cur.coverage)}`}
+          sub={insurers ? `cobertura a aseguradoras ${money(cur.coverage)}` : `${cur.completed} servicios completados`}
           Icon={ClipboardList}
         />
         <Kpi
@@ -137,8 +141,8 @@ export default function AdminBusinessPage() {
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
             <Building2 className="h-4 w-4 text-zinc-400" /> Cuentas activas
           </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {ACCOUNT_GROUPS.map(({ kind, label }) => {
+          <div className={`grid gap-4 ${accountGroups.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+            {accountGroups.map(({ kind, label }) => {
               const g = data.accounts[kind] ?? { active: 0, engaged: 0, dormant: [] };
               return (
                 <div key={kind}>
@@ -218,9 +222,11 @@ export default function AdminBusinessPage() {
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Meses de El Salvador. Creados cuentan por fecha de creación; completados y todo el dinero por fecha de cierre (igual que la liquidación); cancelados por fecha de cancelación.</li>
           <li><strong>Ingreso de Budi</strong> = comisión retenida a empresas y socios operadores + tarifa de plataforma de los programas MOPT, con la tasa vigente cuando se completó cada servicio. Sale del mismo libro que Cuentas y Finanzas.</li>
-          <li><strong>Cobertura a aseguradoras</strong> no es ingreso de Budi: se cobra a la aseguradora y se le paga al proveedor. Se muestra aparte.</li>
+          {insurers && (
+            <li><strong>Cobertura a aseguradoras</strong> no es ingreso de Budi: se cobra a la aseguradora y se le paga al proveedor. Se muestra aparte.</li>
+          )}
           <li><strong>Con actividad</strong> = cuenta activa con al menos un servicio completado en los últimos 30 días. <strong>Dormida</strong> = activa sin ninguno. Las dos suman el total de activas.</li>
-          <li><strong>SLA</strong>: objetivo de la aseguradora que cubrió el servicio, si no 10 min para asignar y 45 para llegar. Mismo cálculo que el panel de cada caso.</li>
+          <li><strong>SLA</strong>: {insurers ? 'objetivo de la aseguradora que cubrió el servicio, si no ' : ''}10 min para asignar y 45 para llegar. Mismo cálculo que el panel de cada caso.</li>
         </ul>
       </details>
     </div>

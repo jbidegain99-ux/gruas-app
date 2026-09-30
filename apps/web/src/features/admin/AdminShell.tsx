@@ -8,6 +8,8 @@ import { LogoutButton } from '@/shared/components/LogoutButton';
 import { AdminNav } from '@/features/admin/AdminNav';
 import { AdminRoleProvider, type PanelRole } from '@/features/admin/AdminRoleContext';
 import { OpsAlertsBar } from '@/features/admin/OpsAlertsBar';
+import { PlatformFeaturesProvider } from '@/shared/lib/use-platform-features';
+import type { PlatformFeatures } from '@/shared/lib/platform-features';
 
 /**
  * Shell responsive del panel admin. En pantallas grandes (lg+) la barra lateral
@@ -18,16 +20,19 @@ import { OpsAlertsBar } from '@/features/admin/OpsAlertsBar';
 export function AdminShell({
   userName,
   role,
+  features,
   children,
 }: {
   userName: string;
   role: PanelRole;
+  features: PlatformFeatures;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <AdminRoleProvider role={role}>
+    <PlatformFeaturesProvider value={features}>
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {/* Barra superior (solo móvil) */}
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900 lg:hidden print:hidden">
@@ -111,6 +116,7 @@ export function AdminShell({
         {children}
       </main>
     </div>
+    </PlatformFeaturesProvider>
     </AdminRoleProvider>
   );
 }

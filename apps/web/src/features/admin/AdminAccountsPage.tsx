@@ -11,6 +11,7 @@ import {
 } from '@/shared/components/LedgerPaymentModals';
 import { formatDate, money } from '@/shared/lib/format';
 import { ledgerPartyUrl } from './account-360';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Libro de movimientos (migr. 00099). Lo que se debe sale de los servicios
 // completados; lo que se paga lo registra una persona. Saldo = debido − pagado.
@@ -61,8 +62,15 @@ const party = (kind: string, id: string | null, name: string | null): LedgerPart
 });
 
 export default function AdminAccountsPage() {
-  const [balances, setBalances] = useState<Balance[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [allBalances, setBalances] = useState<Balance[]>([]);
+  const [allPayments, setPayments] = useState<Payment[]>([]);
+  // Aseguradoras en pausa (00153): sus cuentas y pagos no se muestran.
+  const insurers = useInsurersEnabled();
+  const balances = useMemo(
+    () => (insurers ? allBalances : allBalances.filter((b) => b.debtor_kind !== 'insurer' && b.creditor_kind !== 'insurer')),
+    [allBalances, insurers],
+  );
+  const payments = insurers ? allPayments : allPayments.filter((p) => p.payer_kind !== 'insurer' && p.payee_kind !== 'insurer');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<Balance | null>(null);
@@ -112,7 +120,7 @@ export default function AdminAccountsPage() {
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Cuentas</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
             Quién le debe a quién por los servicios completados, cuánto se pagó y cuánto queda. Lo que paga el
-            Usuario (particular o copago) se registra en Cobros a Usuarios.
+            Usuario ({insurers ? 'particular o copago' : 'particular'}) se registra en Cobros a Usuarios.
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -123,7 +131,7 @@ export default function AdminAccountsPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Kpi Icon={ArrowUpRight} tint="bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300" label="Budi debe pagar" value={money(totals.budiOwes)} sub="a empresas y socios operadores independientes" />
-        <Kpi Icon={ArrowDownLeft} tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300" label="Le deben a Budi" value={money(totals.owedToBudi)} sub="aseguradoras y tarifa de programas MOPT" />
+        <Kpi Icon={ArrowDownLeft} tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300" label="Le deben a Budi" value={money(totals.owedToBudi)} sub={insurers ? 'aseguradoras y tarifa de programas MOPT' : 'tarifa de programas MOPT'} />
         <Kpi Icon={Landmark} tint="bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300" label="MOPT debe a sus socios operadores" value={money(totals.moptToOperators)} sub="lo paga el MOPT directo, Budi no media" />
       </div>
 

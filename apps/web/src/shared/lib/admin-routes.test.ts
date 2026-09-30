@@ -1,7 +1,8 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { adminNavFor, adminRouteRoles, canEnterAdminRoute, ADMIN_ROUTES } from './admin-routes';
+import { adminNavFor, adminRouteFeature, adminRouteRoles, canEnterAdminRoute, ADMIN_ROUTES } from './admin-routes';
+import { parsePlatformFeatures } from './platform-features';
 
 // Todas las páginas reales bajo app/admin, como rutas (`[id]` -> un segmento cualquiera).
 function adminPages(): string[] {
@@ -61,5 +62,32 @@ describe('admin-routes', () => {
     expect(labels).not.toContain('Finanzas');
     expect(labels).not.toContain('Pólizas');
     expect(adminNavFor('ADMIN').some((r) => r.href === '/admin/policies')).toBe(false);
+  });
+
+  it('aseguradoras en pausa (00153): fuera del menú y atadas al interruptor, detalles incluidos', () => {
+    const off = adminNavFor('ADMIN', { insurers: false }).map((r) => r.href);
+    const on = adminNavFor('ADMIN', { insurers: true }).map((r) => r.href);
+    for (const href of ['/admin/insurers', '/admin/reaseguradoras']) {
+      expect(off).not.toContain(href);
+      expect(on).toContain(href);
+    }
+    // Sin interruptores conocidos, lo seguro: apagado.
+    expect(adminNavFor('ADMIN').map((r) => r.href)).not.toContain('/admin/insurers');
+    // El MOPT no depende del interruptor.
+    expect(off).toContain('/admin/mopt');
+    expect(off).toContain('/admin/estados-de-cuenta');
+    for (const p of ['/admin/insurers', '/admin/insurers/abc', '/admin/policies/abc', '/admin/reaseguradoras']) {
+      expect(adminRouteFeature(p), p).toBe('insurers');
+    }
+    for (const p of ['/admin', '/admin/mopt', '/admin/cuentas/insurer/abc', '/admin/finance']) {
+      expect(adminRouteFeature(p), p).toBeNull();
+    }
+  });
+
+  it('platform_features: solo `true` prende; cualquier otra cosa es apagado', () => {
+    expect(parsePlatformFeatures({ insurers: true })).toEqual({ insurers: true });
+    expect(parsePlatformFeatures({ insurers: false })).toEqual({ insurers: false });
+    expect(parsePlatformFeatures({ insurers: 'true' })).toEqual({ insurers: false });
+    expect(parsePlatformFeatures(null)).toEqual({ insurers: false });
   });
 });

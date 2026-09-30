@@ -19,6 +19,8 @@ import {
   type OnboardingStep,
   type PreviewResult,
 } from './onboarding';
+import { InsurersPaused } from './InsurersPaused';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Checklist del alta de un cliente institucional (migr. 00130, VEN-03). Cada
 // paso dice si está hecho y se completa aquí mismo o en la página que enlaza.
@@ -36,6 +38,7 @@ export default function AdminOnboardingDetailPage({ organizationId }: { organiza
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     createClient()
@@ -50,6 +53,7 @@ export default function AdminOnboardingDetailPage({ organizationId }: { organiza
   if (!s) return <p className="text-sm text-zinc-500">Cargando…</p>;
 
   const org = s.organization;
+  if (!insurers && org.type !== 'MOPT') return <InsurersPaused backHref="/admin/altas" backLabel="Volver a Altas de clientes" />;
   const done = s.steps.filter((x) => x.done).length;
 
   const complete = async () => {

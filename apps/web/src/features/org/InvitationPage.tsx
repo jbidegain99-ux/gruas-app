@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { MailCheck } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
-import { PORTAL_BY_ORG_TYPE, securityUrl, type OrganizationType } from '@/shared/lib/organization';
+import { portalFor, securityUrl, type OrganizationType } from '@/shared/lib/organization';
+import { usePlatformFeatures } from '@/shared/lib/use-platform-features';
 import { MEMBER_ROLE_LABELS, type MemberRole } from './org-links';
 
 // Aceptar una invitación al equipo de un portal (migr. 00113, POR-02).
@@ -26,6 +27,7 @@ function InvitationFlow() {
   const [state, setState] = useState<'loading' | 'needs-login' | 'accepted' | 'error'>('loading');
   const [accepted, setAccepted] = useState<Accepted | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const features = usePlatformFeatures();
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
@@ -81,7 +83,7 @@ function InvitationFlow() {
     setMessage(null);
   };
 
-  const portal = accepted ? PORTAL_BY_ORG_TYPE[accepted.type] ?? '/' : '/';
+  const portal = accepted ? portalFor(accepted.type, features) ?? '/' : '/';
   const continueTo = accepted?.mfa_required ? securityUrl(portal) : portal;
   const back = `/invitacion?token=${encodeURIComponent(token)}`;
 

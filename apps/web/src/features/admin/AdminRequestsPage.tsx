@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Inbox, Search } from 'lucide-react';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
 import { requiresDropoff, SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import { createClient } from '@/shared/lib/supabase/client';
 import { cargarCatalogoDestinos } from '@/shared/lib/dropoff-catalog';
 import { StatusBadge } from '@/shared/components/StatusBadge';
@@ -136,6 +137,8 @@ export default function AdminRequestsPage() {
   const deepLinkedRef = useRef(false);
   const toast = useToast();
   const confirm = useConfirm();
+  // Aseguradoras en pausa (00153): sin cobertura ni reparto con la aseguradora.
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -525,7 +528,7 @@ export default function AdminRequestsPage() {
                               Urgente
                             </span>
                           )}
-                          {request.coverage_status === 'error' && (
+                          {insurers && request.coverage_status === 'error' && (
                             <span
                               className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-950 dark:text-red-300"
                               title="La verificación de cobertura falló; hay que revisar la póliza a mano"
@@ -662,6 +665,7 @@ export default function AdminRequestsPage() {
 
                 {/* B-11: cobertura. Se muestra tambien cuando es NULL para no dejar
                     la duda de si se verificó y salió vacío o nunca se verificó. */}
+                {insurers && (
                 <div>
                   <p className="text-xs text-zinc-500">Cobertura</p>
                   {selectedRequest.coverage_status ? (
@@ -685,10 +689,11 @@ export default function AdminRequestsPage() {
                     </p>
                   )}
                 </div>
+                )}
 
                 {/* B-12: cómo se repartió el total. Solo existe una vez cerrado el
                     servicio, que es cuando hay precio final y km reales. */}
-                {coberturaDe(selectedRequest) && (
+                {insurers && coberturaDe(selectedRequest) && (
                   <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900">
                     <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                       Reparto de la cobertura

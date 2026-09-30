@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { CookieOptions } from '@supabase/ssr';
 import type { Database } from '@gruas-app/shared';
-import { ADMIN_PANEL_ROLES, canEnterAdminRoute } from '@/shared/lib/admin-routes';
+import { ADMIN_PANEL_ROLES, adminRouteFeature, canEnterAdminRoute } from '@/shared/lib/admin-routes';
+import { getPlatformFeatures, type PlatformFeature } from '@/shared/lib/platform-features';
 import { getMyOrganization, securityUrl, type OrganizationType } from '@/shared/lib/organization';
 
 type CookieToSet = {
@@ -18,14 +19,21 @@ type UserRole = Database['public']['Enums']['user_role'];
 // `null` = basta con estar autenticado (cualquier rol).
 // `orgType` = no se entra por rol sino por MEMBRESÍA a una organización de ese
 // tipo (00106, backlog POR-01).
-const ROUTE_GUARDS: { prefix: string; allowedRoles: UserRole[] | null; orgType?: OrganizationType }[] = [
+// `feature` = además depende de un interruptor de la plataforma (migr. 00153):
+// apagado, nadie entra (la base igual ya no le da organización activa).
+const ROUTE_GUARDS: {
+  prefix: string;
+  allowedRoles: UserRole[] | null;
+  orgType?: OrganizationType;
+  feature?: PlatformFeature;
+}[] = [
   // Admin y soporte entran al panel; QUÉ página abre cada uno lo decide
   // admin-routes.ts (abajo). Una página no declarada ahí no la abre nadie.
   { prefix: '/admin', allowedRoles: [...ADMIN_PANEL_ROLES] },
   // Portales de clientes: por membresía. Sus layouts además exigen la entidad real.
   { prefix: '/mopt', allowedRoles: null, orgType: 'MOPT' },
-  { prefix: '/portal', allowedRoles: null, orgType: 'INSURER' },
-  { prefix: '/reaseguro', allowedRoles: null, orgType: 'REINSURER' },
+  { prefix: '/portal', allowedRoles: null, orgType: 'INSURER', feature: 'insurers' },
+  { prefix: '/reaseguro', allowedRoles: null, orgType: 'REINSURER', feature: 'insurers' },
   { prefix: '/dashboard', allowedRoles: null },
 ];
 
@@ -94,6 +102,19 @@ export async function updateSession(request: NextRequest) {
     if (denied) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // 2b. Rutas atadas a un interruptor apagado (aseguradoras, 00153): las del
+  // panel vuelven al dashboard; los portales, al inicio.
+  const feature = guard.feature ?? (guard.prefix === '/admin' ? adminRouteFeature(pathname) : null);
+  if (feature) {
+    const features = await getPlatformFeatures(supabase);
+    if (!features[feature]) {
+      const url = request.nextUrl.clone();
+      url.pathname = guard.prefix === '/admin' ? '/admin' : '/';
       url.search = '';
       return NextResponse.redirect(url);
     }

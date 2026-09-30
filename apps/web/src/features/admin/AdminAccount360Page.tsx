@@ -26,6 +26,7 @@ import {
   type PeriodKey,
 } from './account-360';
 import { auditTableLabel } from './audit-format';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Ficha 360 de una cuenta (migr. 00105): todo lo de una empresa, aseguradora o
 // programa MOPT en una sola respuesta. El dinero sale del libro de movimientos,
@@ -125,6 +126,7 @@ export default function AdminAccount360Page({ kind, accountId }: { kind: Account
   const [data, setData] = useState<Account360 | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     const load = async () => {
@@ -290,7 +292,7 @@ export default function AdminAccount360Page({ kind, accountId }: { kind: Account
             />
           </dl>
           <p className="mt-4 text-xs text-zinc-500">
-            {sla.n} servicio{sla.n === 1 ? '' : 's'} medido{sla.n === 1 ? '' : 's'}. Objetivo: el de la aseguradora que lo cubrió, si no 10 min
+            {sla.n} servicio{sla.n === 1 ? '' : 's'} medido{sla.n === 1 ? '' : 's'}. Objetivo: {insurers ? 'el de la aseguradora que lo cubrió, si no ' : ''}10 min
             para asignar y 45 para llegar.
           </p>
         </section>

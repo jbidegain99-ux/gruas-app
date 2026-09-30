@@ -8,6 +8,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { formatDate } from '@/shared/lib/format';
 import { ORG_TYPE_LABEL, type OrgType } from './onboarding';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Altas de clientes institucionales (migr. 00130, VEN-03): aseguradoras y
 // programas MOPT con el avance de su checklist. Un alta nueva empieza aquí.
@@ -26,6 +27,9 @@ export default function AdminOnboardingPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [form, setForm] = useState<{ type: OrgType; name: string; tax: string; contact: string; email: string; phone: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  // Aseguradoras en pausa (00153): solo se dan de alta (y se listan) programas MOPT.
+  const insurers = useInsurersEnabled();
+  const types: OrgType[] = insurers ? ['INSURER', 'MOPT', 'REINSURER'] : ['MOPT'];
 
   useEffect(() => {
     createClient()
@@ -49,7 +53,7 @@ export default function AdminOnboardingPage() {
   };
 
   // Primero lo pendiente (menos avanzado arriba), luego lo terminado.
-  const sorted = [...(rows ?? [])].sort(
+  const sorted = [...(rows ?? [])].filter((r) => insurers || r.type === 'MOPT').sort(
     (a, b) => Number(!!a.completed_at) - Number(!!b.completed_at) || a.steps_done - b.steps_done || a.name.localeCompare(b.name),
   );
 
@@ -59,13 +63,13 @@ export default function AdminOnboardingPage() {
         <div>
           <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Altas de clientes</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-            Aseguradoras, programas MOPT y reaseguradoras, con los pasos que les faltan para operar. La meta es dejar un cliente
+            {insurers ? 'Aseguradoras, programas MOPT y reaseguradoras' : 'Programas MOPT'}, con los pasos que les faltan para operar. La meta es dejar un cliente
             listo en menos de un día.
           </p>
         </div>
         {!form && (
           <button
-            onClick={() => setForm({ type: 'INSURER', name: '', tax: '', contact: '', email: '', phone: '' })}
+            onClick={() => setForm({ type: types[0], name: '', tax: '', contact: '', email: '', phone: '' })}
             className="inline-flex items-center gap-1.5 rounded-lg bg-budi-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-budi-primary-700"
           >
             <Plus className="h-4 w-4" /> Nuevo cliente
@@ -78,7 +82,7 @@ export default function AdminOnboardingPage() {
           <fieldset className="sm:col-span-2">
             <legend className="text-sm">Tipo de cliente</legend>
             <div className="mt-1 flex gap-4">
-              {(['INSURER', 'MOPT', 'REINSURER'] as OrgType[]).map((t) => (
+              {types.map((t) => (
                 <label key={t} className="flex items-center gap-2 text-sm">
                   <input type="radio" name="tipo" checked={form.type === t} onChange={() => setForm({ ...form, type: t })} />
                   {ORG_TYPE_LABEL[t]}

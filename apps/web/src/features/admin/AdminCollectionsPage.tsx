@@ -5,6 +5,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { useConfirm, useToast } from '@/shared/components/FeedbackProvider';
 import { formatDateTime, money } from '@/shared/lib/format';
 import { serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // Cobros a Usuarios (migr. 00133, LAN-07): servicios particulares y copagos.
 // El socio confirma el efectivo desde la app; aquí se revisa, se registra un
@@ -31,6 +32,8 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function AdminCollectionsPage() {
   const toast = useToast();
+  // Aseguradoras en pausa (00153): no se habla de copagos.
+  const insurers = useInsurersEnabled();
   const confirm = useConfirm();
   const [range, setRange] = useState(() => {
     const to = new Date();
@@ -80,7 +83,7 @@ export default function AdminCollectionsPage() {
       <div>
         <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Cobros a Usuarios</h1>
         <p className="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
-          Lo que pagan los Usuarios por servicios particulares y copagos. El socio confirma el efectivo desde la app y el
+          Lo que pagan los Usuarios por servicios particulares{insurers ? ' y copagos' : ''}. El socio confirma el efectivo desde la app y el
           Usuario recibe su comprobante (no es factura). El pago con tarjeta se habilita al conectar la pasarela.
         </p>
       </div>

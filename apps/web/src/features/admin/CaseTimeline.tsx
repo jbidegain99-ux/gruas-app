@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Download } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 
 // B-14: la línea de tiempo del caso, tal como la devuelve get_case_timeline().
 type TimelineRow = {
@@ -54,7 +55,10 @@ export function CaseTimeline({
   /** Sin separador superior: cuando va solo dentro de su propia tarjeta. */
   bare?: boolean;
 }) {
-  const [rows, setRows] = useState<TimelineRow[]>([]);
+  const [allRows, setRows] = useState<TimelineRow[]>([]);
+  // Aseguradoras en pausa (00153): el paso "Cobertura verificada" no se muestra.
+  const insurers = useInsurersEnabled();
+  const rows = insurers ? allRows : allRows.filter((r) => r.event_type !== 'COVERAGE_CHECKED');
   const [error, setError] = useState<string | null>(null);
   // `loadedFolio` = el folio para el que ya hay datos. `loading` se DERIVA de
   // comparar con el folio pedido, así el effect no setea estado sincrónicamente

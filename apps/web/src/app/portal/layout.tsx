@@ -3,6 +3,7 @@ import { createClient } from '@/shared/lib/supabase/server';
 import { FeedbackProvider } from '@/shared/components/FeedbackProvider';
 import { InsurerShell } from '@/features/insurer/InsurerShell';
 import { getMyOrganization } from '@/shared/lib/organization';
+import { getPlatformFeatures } from '@/shared/lib/platform-features';
 import type { Branding } from '@/features/insurer/brand';
 
 // B-17: portal de la aseguradora. Guard server-side: membresía activa en una
@@ -15,11 +16,14 @@ export default async function PortalLayout({ children }: { children: React.React
 
   if (!user) redirect('/login?redirect=/portal');
 
-  const [{ data: profile }, org] = await Promise.all([
+  const [{ data: profile }, org, features] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', user.id).single(),
     getMyOrganization(supabase),
+    getPlatformFeatures(supabase),
   ]);
 
+  // Aseguradoras en pausa (migr. 00153): el portal no existe por ahora.
+  if (!features.insurers) redirect('/');
   if (org?.type !== 'INSURER') redirect('/');
 
   const insurerName = org.name;

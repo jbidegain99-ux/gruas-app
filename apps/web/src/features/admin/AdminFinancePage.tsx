@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { DollarSign, ShieldCheck, Wallet, Receipt, AlertTriangle } from 'lucide-react';
+import { DollarSign, ShieldCheck, Wallet, Receipt, AlertTriangle, Landmark } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/server';
+import { getPlatformFeatures } from '@/shared/lib/platform-features';
 import { money } from '@/shared/lib/format';
 import { FinanceExportButton } from './FinanceExportButton';
 import { SettlementExportButton } from './SettlementExportButton';
@@ -87,10 +88,14 @@ export default async function AdminFinancePage({
   const hasta = sp.hasta || rangos[0].hasta;
 
   const supabase = await createClient();
+  // Aseguradoras en pausa (00153): sin KPI, tabla ni columnas de aseguradoras.
+  const { insurers } = await getPlatformFeatures(supabase);
 
   const [{ data: resumenRaw }, { data: porAseguradoraRaw }, { data: liquidacionRaw }, { data: filasRaw }] = await Promise.all([
     supabase.rpc('admin_finance_summary', { p_from: desde, p_to: hasta }),
-    supabase.rpc('admin_finance_by_insurer', { p_from: desde, p_to: hasta }),
+    insurers
+      ? supabase.rpc('admin_finance_by_insurer', { p_from: desde, p_to: hasta })
+      : Promise.resolve({ data: [] as PorAseguradora[] }),
     supabase.rpc('admin_settlement_by_provider', { p_from: desde, p_to: hasta }),
     // El desglose por operador y por proveedor sigue saliendo de la tabla: son
     // agregados simples y no necesitan una RPC propia. Pero el corte tiene que
@@ -142,17 +147,24 @@ export default async function AdminFinancePage({
       Icon: DollarSign,
       tint: 'bg-budi-accent-50 text-budi-accent-600 dark:bg-budi-accent-900/40 dark:text-budi-accent-300',
     },
-    {
+    insurers ? {
       label: 'A facturar a aseguradoras', value: money(Number(r.aseguradoras)),
       sub: Number(r.mopt) > 0
         ? `lo que asumen las pólizas · ${money(Number(r.mopt))} más los paga el MOPT a su flota`
         : 'lo que asumen las pólizas',
       Icon: ShieldCheck,
       tint: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+    } : {
+      label: 'Programas MOPT', value: money(Number(r.mopt)),
+      sub: 'lo paga el MOPT a su flota',
+      Icon: Landmark,
+      tint: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
     },
     {
       label: 'Cobrado a Usuarios', value: money(alCliente),
-      sub: `${money(Number(r.copagos))} de copagos · ${money(Number(r.particulares))} de particulares`,
+      sub: insurers
+        ? `${money(Number(r.copagos))} de copagos · ${money(Number(r.particulares))} de particulares`
+        : 'lo pagaron los Usuarios',
       Icon: Wallet,
       tint: 'bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300',
     },
@@ -173,7 +185,7 @@ export default async function AdminFinancePage({
             Servicios completados entre el {desde} y el {hasta}, y cómo se reparte lo facturado.
           </p>
         </div>
-        <FinanceExportButton desde={desde} hasta={hasta} />
+        <FinanceExportButton desde={desde} hasta={hasta} insurers={insurers} />
       </div>
 
       {/* Periodo. Es un form GET a propósito: el rango queda en la URL, así que
@@ -253,6 +265,7 @@ export default async function AdminFinancePage({
       )}
 
       {/* Por aseguradora */}
+      {insurers && (
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">A facturar por aseguradora</h2>
@@ -293,6 +306,7 @@ export default async function AdminFinancePage({
           </table>
         </div>
       </div>
+      )}
 
       {/* Liquidación (B-23, parcial: el cálculo; el registro de pagos depende del
           procesador que decida B-20). */}

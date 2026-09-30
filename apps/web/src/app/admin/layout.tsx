@@ -3,6 +3,7 @@ import { createClient } from '@/shared/lib/supabase/server';
 import { FeedbackProvider } from '@/shared/components/FeedbackProvider';
 import { AdminShell } from '@/features/admin/AdminShell';
 import { ADMIN_PANEL_ROLES } from '@/shared/lib/admin-routes';
+import { getPlatformFeatures } from '@/shared/lib/platform-features';
 
 export default async function AdminLayout({
   children,
@@ -31,9 +32,12 @@ export default async function AdminLayout({
     redirect('/');
   }
 
+  // Interruptores (00153): el menú y las pantallas ocultan lo que está apagado.
+  const features = await getPlatformFeatures(supabase);
+
   return (
     <FeedbackProvider>
-      <AdminShell userName={profile.full_name || 'Admin'} role={profile.role}>
+      <AdminShell userName={profile.full_name || 'Admin'} role={profile.role} features={features}>
         {children}
       </AdminShell>
     </FeedbackProvider>

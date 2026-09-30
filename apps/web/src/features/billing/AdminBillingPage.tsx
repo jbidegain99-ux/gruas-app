@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
+import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import { missingFields, type DteType, type Emisor, type Receptor } from './dte';
 
 // LAN-09 (base, migr. 00140): datos fiscales para la factura electrónica.
@@ -47,6 +48,8 @@ export default function AdminBillingPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
+  // Aseguradoras en pausa (00153): solo los receptores del MOPT.
+  const insurers = useInsurersEnabled();
 
   useEffect(() => {
     createClient()
@@ -134,7 +137,7 @@ export default function AdminBillingPage() {
       <section>
         <h2 className="mb-2 font-semibold text-zinc-900 dark:text-white">Clientes</h2>
         <div className={`${card} divide-y divide-zinc-100 p-0 dark:divide-zinc-800`}>
-          {data.clients.map((c) => {
+          {data.clients.filter((c) => insurers || c.type !== 'INSURER').map((c) => {
             const missing = missingFields(c.dte_type, { ...e, nit: 'x', nrc: 'x', nombre: 'x', codActividad: 'x', descActividad: 'x', telefono: 'x', correo: 'x', direccion: { departamento: '01', municipio: '01', complemento: 'x' } }, { nombre: c.name, ...c.receptor });
             const r = c.receptor;
             const setR = (patch: Partial<Receptor>) => setClient(c.organization_id, { receptor: { ...r, ...patch } });
