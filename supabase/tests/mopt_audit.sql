@@ -156,6 +156,12 @@ DECLARE v NUMERIC;
 BEGIN
   v := approve_statement((SELECT ec FROM t));
   ASSERT v = 20, 'C2: no aprobo el monto ajustado';
+  -- 00149: el desglose (servicios + tarifa) suma lo aprobado, y por socio también.
+  ASSERT (SELECT (x->>'approvable_amount')::numeric + (x->>'approvable_fee')::numeric
+            FROM (SELECT statement_detail((SELECT ec FROM t))->'totals' AS x) q) = v,
+    'C2: el desglose del estado de cuenta no suma el total aprobado';
+  ASSERT (SELECT (p->>'approved_amount')::numeric FROM jsonb_array_elements(statement_detail((SELECT ec FROM t))->'by_provider') p) = 20,
+    'C2: por proveedor muestra el original y no lo aprobado';
   ASSERT (SELECT (x->>'provider_id')::uuid FROM jsonb_array_elements(statement_detail((SELECT ec FROM t))->'by_provider') x)
          = (SELECT socio FROM t), 'C3: by_provider sin el id del socio';
 END $$;
@@ -189,6 +195,14 @@ BEGIN
     'C6: la app del socio muestra el monto original y no el aprobado por el MOPT';
 END $$;
 
+-- C8 (00148): la línea del historial del socio también.
+SELECT pg_temp.como((SELECT socio FROM t), 'aal1');
+DO $$
+BEGIN
+  ASSERT (SELECT a_cobrar FROM my_operator_service_earnings(ARRAY[(SELECT caso FROM t)])) = 20,
+    'C8: el historial del socio muestra el monto original del caso ajustado';
+END $$;
+
 -- C7 (00147): el portal MOPT (detalle y lista) muestra el monto aprobado.
 SELECT pg_temp.como((SELECT dueno FROM t), 'aal2');
 DO $$
@@ -199,6 +213,9 @@ BEGIN
     'C7: el detalle no dice en qué estado de cuenta se ajustó';
   ASSERT (SELECT total_price FROM mopt_list_services(sv_today() - 1, sv_today() + 1) WHERE id = (SELECT caso FROM t)) = 20,
     'C7: la lista de Servicios suma el monto original';
+  -- C8 (00148): resumen del portal con lo aprobado.
+  ASSERT (mopt_overview()->>'amount_month')::numeric = 20,
+    'C8: el resumen del portal suma el monto original';
   RAISE NOTICE 'C. se aprueba sin observaciones abiertas, cerrado no se mueve y libro, socio y portal siguen al ajuste: OK';
 END $$;
 RESET ROLE;
