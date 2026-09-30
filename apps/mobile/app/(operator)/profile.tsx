@@ -146,7 +146,7 @@ export default function OperatorProfile() {
   const handleLogout = () => {
     Alert.alert(
       'Cerrar sesión',
-      'Estas seguro que deseas cerrar sesion?',
+      '¿Estás seguro de que deseas cerrar sesión?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -457,14 +457,14 @@ export default function OperatorProfile() {
 
             <Input
               label="Teléfono"
-              placeholder="Tu numero de teléfono"
+              placeholder="Tu número de teléfono"
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
             />
 
             <Text style={styles.inputHint}>
-              El correo electronico y proveedor no pueden ser modificados aqui.
+              El correo electrónico y proveedor no pueden ser modificados aquí.
             </Text>
           </View>
         </View>

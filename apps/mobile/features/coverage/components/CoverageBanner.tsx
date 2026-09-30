@@ -86,11 +86,11 @@ export function CoverageBanner({
           <ShieldAlert size={18} color={colors.warning.dark} strokeWidth={2} />
           <View style={styles.cuerpo}>
             <Text style={[styles.titulo, { color: colors.warning.dark }]}>
-              Tu cobertura no esta vigente
+              Tu cobertura no está vigente
             </Text>
             <Text style={styles.texto}>
-              {coverage.reason ?? 'La poliza no esta activa'}. Puedes solicitar el servicio y
-              pagarlo como usuario particular.
+              {coverage.reason ?? 'La póliza no está activa'}. Puedes solicitar el servicio y
+              pagarlo como particular.
             </Text>
           </View>
         </View>
@@ -108,7 +108,7 @@ export function CoverageBanner({
             </Text>
             <Text style={styles.texto}>
               Puedes solicitar el servicio igual y lo atendemos, pero puede cobrarse como
-              particular hasta que revisemos tu poliza.
+              particular hasta que revisemos tu póliza.
             </Text>
           </View>
         </View>
@@ -124,7 +124,7 @@ export function CoverageBanner({
               Servicio particular
             </Text>
             <Text style={styles.texto}>
-              No encontramos una poliza asociada a tu cuenta. Pagas el servicio directamente.
+              No encontramos una póliza asociada a tu cuenta. Pagas el servicio directamente.
             </Text>
           </View>
         </View>

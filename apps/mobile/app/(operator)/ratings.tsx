@@ -156,7 +156,7 @@ export default function OperatorRatings() {
             </Text>
             {renderStars(Math.round(stats.averageRating), 24)}
             <Text style={styles.totalRatings}>
-              {stats.totalRatings} calificacion{stats.totalRatings !== 1 ? 'es' : ''}
+              {stats.totalRatings} {stats.totalRatings !== 1 ? 'calificaciones' : 'calificación'}
             </Text>
           </View>
 
@@ -209,7 +209,7 @@ export default function OperatorRatings() {
             <Award size={56} color={colors.text.tertiary} strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>Sin calificaciones aún</Text>
             <Text style={styles.emptyText}>
-              Las calificaciones de los usuarios aparecerán aquí
+              Las calificaciones de los Usuarios aparecerán aquí
             </Text>
           </View>
         </Card>

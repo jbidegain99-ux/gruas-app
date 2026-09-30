@@ -6,7 +6,6 @@ import {
   FlatList,
   ScrollView,
   RefreshControl,
-  Alert,
   Image,
   Switch,
 } from 'react-native';
@@ -26,7 +25,8 @@ import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } fr
 import { OperatorCashCard } from '@/features/payments/components/OperatorCashCard';
 import { PartnerTrainingCard } from '@/features/partners/components/PartnerTrainingCard';
 import { osrmLegs } from '@/lib/osrm';
-import { SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { confirmAction } from '@/lib/confirm';
+import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
 import { formatTime as formatAppTime } from '@/lib/dates';
@@ -200,8 +200,8 @@ export default function OperatorRequests() {
     (async () => {
       const entries = await Promise.all(
         requests.map(async (item) => {
-          const isTow = !item.service_type || item.service_type === 'tow';
-          const hasDropoff = isTow && !!item.dropoff_lat && !!item.dropoff_lng;
+          // Winche también lleva destino: se pregunta al catálogo, no a 'tow'.
+          const hasDropoff = requiresDropoff(item.service_type) && !!item.dropoff_lat && !!item.dropoff_lng;
           const points: { lat: number; lng: number }[] = [];
           if (operatorLoc) points.push(operatorLoc);
           points.push({ lat: item.pickup_lat, lng: item.pickup_lng });
@@ -279,14 +279,12 @@ export default function OperatorRequests() {
     if (metrics.toPickupKm !== null) lines.push(`Recogida a ${formatKm(metrics.toPickupKm)} de ti`);
     if (metrics.tripKm !== null) lines.push(`Viaje: ${formatKm(metrics.tripKm)}${metrics.tripMin !== null ? ` (~${metrics.tripMin} min)` : ''}`);
 
-    Alert.alert(
-      '¿Aceptar este servicio?',
-      lines.join('\n'),
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Aceptar', onPress: () => handleAcceptRequest(item.id) },
-      ]
-    );
+    confirmAction({
+      title: '¿Aceptar este servicio?',
+      message: lines.join('\n'),
+      confirmText: 'Aceptar',
+      onConfirm: () => handleAcceptRequest(item.id),
+    });
   };
 
   const handleAcceptRequest = async (requestId: string) => {
@@ -396,7 +394,8 @@ export default function OperatorRequests() {
 
     // Preferimos ruta real (OSRM); mientras carga usamos haversine (instantaneo).
     const info = routeInfo[item.id];
-    const hasTrip = isTow && item.dropoff_lat && item.dropoff_lng;
+    const withDropoff = requiresDropoff(item.service_type);
+    const hasTrip = withDropoff && item.dropoff_lat && item.dropoff_lng;
     const tripKm =
       info?.tripKm ??
       (hasTrip ? haversineKm(item.pickup_lat, item.pickup_lng, item.dropoff_lat, item.dropoff_lng) : null);
@@ -437,7 +436,7 @@ export default function OperatorRequests() {
               />
             </View>
           </View>
-          {isTow && (
+          {withDropoff && (
             <>
               <View style={styles.addressLine} />
               <View style={styles.addressRow}>
@@ -455,8 +454,8 @@ export default function OperatorRequests() {
               </View>
             </>
           )}
-          {!isTow && (
-            <Text style={styles.pickupOnlyText}>Solo recogida</Text>
+          {!withDropoff && (
+            <Text style={styles.pickupOnlyText}>Se atiende en el lugar, sin destino</Text>
           )}
         </View>
 
@@ -490,7 +489,7 @@ export default function OperatorRequests() {
           <Text style={styles.userName}>Usuario: {item.user_name}</Text>
         )}
 
-        {/* LAN-06: antes de aceptar, si no se le cobra al usuario. */}
+        {/* LAN-06: antes de aceptar, si no se le cobra al Usuario. */}
         <PayerBadge info={payerInfo[item.id]} />
 
         {/* Vehicle Photo */}
@@ -570,10 +569,15 @@ export default function OperatorRequests() {
             que le cobro al cliente y no tiene como cuadrarla. */}
         {earnings.semana.bruto > 0 && (
           <Text style={styles.earningsNote}>
-            Facturado esta semana {money(earnings.semana.bruto)} · Budi retiene{' '}
-            {earnings.semana.comisionPct == null
-              ? money(earnings.semana.comision)
-              : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`}
+            Facturado esta semana {money(earnings.semana.bruto)} ·{' '}
+            {/* Servicios MOPT (00098) no pagan comisión: "Budi retiene 0% ($0.00)" no decía nada. */}
+            {earnings.semana.comision <= 0
+              ? 'sin comisión de Budi'
+              : `Budi retiene ${
+                  earnings.semana.comisionPct == null
+                    ? money(earnings.semana.comision)
+                    : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`
+                }`}
             {/* LAN-07 (00133): lo que ya tiene en mano no se lo transfiere Budi. */}
             {earnings.semana.efectivo > 0 &&
               `\nYa recibiste ${money(earnings.semana.efectivo)} en efectivo · ` +
@@ -688,7 +692,7 @@ export default function OperatorRequests() {
           <PowerOff size={56} color={colors.text.tertiary} strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Fuera de línea</Text>
           <Text style={styles.emptyText}>
-            Ponte en línea para recibir solicitudes y que los usuarios vean tu ubicación.
+            Ponte en línea para recibir solicitudes y que los Usuarios vean tu ubicación.
           </Text>
         </View>
       ) : loadError ? (

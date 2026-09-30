@@ -32,6 +32,7 @@ import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperat
 import { haversineKm } from '@/lib/distance';
 import { osrmLegs, osrmRoutePath } from '@/lib/osrm';
 import { friendlyError } from '@/lib/errorMessages';
+import { confirmAction } from '@/lib/confirm';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { ChatScreen } from '@/features/chat/components/ChatScreen';
@@ -374,14 +375,12 @@ export default function ActiveService() {
   };
 
   const handleStartEnRoute = () => {
-    Alert.alert(
-      'Iniciar traslado',
-      'Confirma que vas en camino al lugar de recogida.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Confirmar', onPress: () => updateStatus('en_route') },
-      ]
-    );
+    confirmAction({
+      title: 'Voy en camino',
+      message: 'Confirma que vas en camino al lugar de recogida.',
+      confirmText: 'Confirmar',
+      onConfirm: () => updateStatus('en_route'),
+    });
   };
 
   const handleArrived = () => {
@@ -434,17 +433,15 @@ export default function ActiveService() {
   };
 
   const handleComplete = () => {
-    Alert.alert(
-      'Completar servicio',
+    confirmAction({
+      title: 'Completar servicio',
       // Batería, llanta, cerrajería…: se atiende en el sitio, no hay destino.
-      requiresDropoff(service?.service_type)
+      message: requiresDropoff(service?.service_type)
         ? '¿Confirmas que el vehículo ha sido entregado en el destino?'
         : '¿Confirmas que el servicio quedó terminado en el lugar?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Completar', onPress: () => updateStatus('completed') },
-      ]
-    );
+      confirmText: 'Completar',
+      onConfirm: () => updateStatus('completed'),
+    });
   };
 
   const openCancelModal = () => {
@@ -497,6 +494,12 @@ export default function ActiveService() {
 
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       toast.error('Las coordenadas están fuera de rango válido.');
+      return;
+    }
+
+    // En web Alert.alert con botones no hace nada: se abre Google Maps directo.
+    if (Platform.OS === 'web') {
+      await Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`);
       return;
     }
 
@@ -787,7 +790,7 @@ export default function ActiveService() {
         {/* Navigate Button */}
         {['assigned', 'en_route'].includes(service.status) && (
           <Button
-            title="Navegar al usuario"
+            title="Navegar al Usuario"
             onPress={() => openNavigation(service.pickup_lat, service.pickup_lng, 'Punto de Recogida')}
             variant="secondary"
             size="large"
@@ -854,7 +857,7 @@ export default function ActiveService() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Verificar PIN</Text>
             <Text style={styles.modalDescription}>
-              Solicita el PIN de confirmación al usuario para verificar tu llegada.
+              Solicita el PIN de confirmación al Usuario para verificar tu llegada.
             </Text>
 
             <View style={styles.pinInputWrapper}>
@@ -888,7 +891,7 @@ export default function ActiveService() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Cancelar Servicio</Text>
             <Text style={styles.modalDescription}>
-              Por favor indica el motivo de la cancelacion
+              Indica el motivo de la cancelación.
             </Text>
 
             <View style={styles.cancelReasonWrapper}>

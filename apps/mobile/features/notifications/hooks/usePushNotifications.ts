@@ -119,7 +119,7 @@ export function usePushNotifications(): UsePushNotificationsResult {
         // Service updates channel
         await Notifications.setNotificationChannelAsync('service_updates', {
           name: 'Actualizaciones de Servicio',
-          description: 'Notificaciones sobre el estado de tu servicio de grúa',
+          description: 'Notificaciones sobre el estado de tu servicio',
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#FF7B00',

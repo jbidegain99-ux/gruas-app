@@ -13,7 +13,14 @@ const when = (d: string) => formatDateTime(d, { dateStyle: 'medium', timeStyle: 
  * del Usuario y del socio. Muestra lo pagado y, si aplica, lo que cubrió el
  * seguro; nunca la comisión de Budi. No es factura (eso es LAN-09).
  */
-export function PaymentReceipt({ requestId }: { requestId: string }) {
+export function PaymentReceipt({
+  requestId,
+  audience = 'user',
+}: {
+  requestId: string;
+  /** Quién lo lee: al socio no se le habla de "tu seguro" ni se le pide que pague. */
+  audience?: 'user' | 'operator';
+}) {
   const [p, setP] = useState<ServicePayment | null>(null);
 
   const load = useCallback(() => {
@@ -28,7 +35,11 @@ export function PaymentReceipt({ requestId }: { requestId: string }) {
     return (
       <View style={[styles.box, styles.pending]}>
         <Text style={styles.title}>Pago pendiente: ${p.amount_due?.toFixed(2)}</Text>
-        <Text style={styles.meta}>En efectivo al socio operador. El comprobante aparece cuando lo confirme.</Text>
+        <Text style={styles.meta}>
+          {audience === 'operator'
+            ? 'Cóbralo en efectivo al Usuario y confírmalo desde Inicio para que reciba su comprobante.'
+            : 'En efectivo al socio operador. El comprobante aparece cuando lo confirme.'}
+        </Text>
       </View>
     );
   }
@@ -47,9 +58,11 @@ export function PaymentReceipt({ requestId }: { requestId: string }) {
         </Pressable>
       </View>
       {p.total_price != null && <Line label="Precio del servicio" value={p.total_price} />}
-      {p.payer === 'insurer' && p.covered != null && <Line label="Cubrió tu seguro" value={p.covered} />}
+      {p.payer === 'insurer' && p.covered != null && (
+        <Line label={audience === 'operator' ? 'Cubrió la aseguradora' : 'Cubrió tu seguro'} value={p.covered} />
+      )}
       {p.amount_due != null && (
-        <Line label={`Pagado${p.method ? ` · ${METHOD_LABEL[p.method]}` : ''}`} value={p.amount_due} strong />
+        <Line label={`${audience === 'operator' ? 'Pagó el Usuario' : 'Pagado'}${p.method ? ` · ${METHOD_LABEL[p.method]}` : ''}`} value={p.amount_due} strong />
       )}
       {p.paid_at && <Text style={styles.meta}>{when(p.paid_at)}</Text>}
       <Text style={styles.meta}>Este comprobante no es una factura.</Text>

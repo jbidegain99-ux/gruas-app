@@ -10,7 +10,6 @@ import {
   Platform,
   useWindowDimensions,
   Modal,
-  Alert,
   Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -29,6 +28,7 @@ import { useActiveRequest } from '@/features/tracking/hooks/useActiveRequest';
 import { MiniMap } from '@/shared/components/MiniMap';
 import { AddressText } from '@/shared/components/AddressText';
 import { cancellationPolicyMessage } from '@/lib/cancellation';
+import { confirmAction } from '@/lib/confirm';
 import { getPin, savePin } from '@/features/pin/lib/pinStorage';
 import { friendlyError } from '@/lib/errorMessages';
 import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
@@ -176,29 +176,24 @@ export default function UserHome() {
 
   const regeneratePin = () => {
     if (!requestId) return;
-    Alert.alert(
-      'Generar un PIN de confirmación nuevo',
-      'El PIN anterior dejará de servir. Le avisaremos al socio operador que cambió.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Generar',
-          onPress: async () => {
-            setRegenerating(true);
-            const { data, error } = await supabase.rpc('regenerate_my_request_pin', { p_request_id: requestId });
-            setRegenerating(false);
-            if (error) {
-              toast.error(friendlyError(error, 'Intenta de nuevo en un momento.'), 'No se pudo generar');
-              return;
-            }
-            const pin = (data as { pin?: string } | null)?.pin;
-            if (!pin) return;
-            await savePin(requestId, pin).catch(() => {});
-            setActivePin(pin);
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Generar un PIN de confirmación nuevo',
+      message: 'El PIN anterior dejará de servir. Le avisaremos al socio operador que cambió.',
+      confirmText: 'Generar',
+      onConfirm: async () => {
+        setRegenerating(true);
+        const { data, error } = await supabase.rpc('regenerate_my_request_pin', { p_request_id: requestId });
+        setRegenerating(false);
+        if (error) {
+          toast.error(friendlyError(error, 'Intenta de nuevo en un momento.'), 'No se pudo generar');
+          return;
+        }
+        const pin = (data as { pin?: string } | null)?.pin;
+        if (!pin) return;
+        await savePin(requestId, pin).catch(() => {});
+        setActivePin(pin);
+      },
+    });
   };
 
   const copyPin = async (pin: string) => {
@@ -244,7 +239,11 @@ export default function UserHome() {
   // Fase del servicio: en 'active' el operador ya recogio y va camino al
   // DESTINO. Antes de eso (assigned/en_route) va camino a la RECOGIDA. La ruta
   // y el ETA cambian de tramo segun esto.
-  const activePhase = activeRequest?.status === 'active';
+  // Solo si el servicio lleva destino: en batería, llanta, cerrajería… 'active'
+  // significa que el socio ya llegó y trabaja en el lugar. Sin este guard el
+  // Usuario veía "Tiempo estimado al destino" contando hacia su propia ubicación.
+  const hasDestination = requiresDropoff(activeRequest?.service_type);
+  const activePhase = activeRequest?.status === 'active' && hasDestination;
 
   const { location: operatorLocation, lastUpdated } = useOperatorRealtimeTracking(
     showTracking ? operatorId : null
@@ -253,7 +252,7 @@ export default function UserHome() {
   // Show ETA section while the operator is en route to pickup OR towing to
   // the destination (active). Solo cuando hay operador siguiendose.
   const showETASection = activeRequest &&
-    ['assigned', 'en_route', 'active'].includes(activeRequest.status);
+    (['assigned', 'en_route'].includes(activeRequest.status) || activePhase);
 
   // Only calculate ETA when we have operator location
   const canCalculateETA = showETASection &&
@@ -266,10 +265,10 @@ export default function UserHome() {
   );
 
   const dropoffLocation = useMemo(() =>
-    activeRequest && activeRequest.dropoff_lat && activeRequest.dropoff_lng
+    activeRequest && hasDestination && activeRequest.dropoff_lat && activeRequest.dropoff_lng
       ? { lat: activeRequest.dropoff_lat, lng: activeRequest.dropoff_lng }
       : null,
-    [activeRequest?.dropoff_lat, activeRequest?.dropoff_lng]
+    [hasDestination, activeRequest?.dropoff_lat, activeRequest?.dropoff_lng]
   );
 
   // Destino del tramo actual: en 'active' es la entrega; antes, la recogida.
@@ -436,30 +435,26 @@ export default function UserHome() {
 
   const handleCancelActiveRequest = () => {
     if (!activeRequest) return;
-    Alert.alert(
-      'Cancelar solicitud',
-      cancellationPolicyMessage(activeRequest.status),
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Sí, cancelar',
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            const { data, error } = await supabase.rpc('cancel_service_request', {
-              p_request_id: activeRequest.id,
-              p_reason: 'Cancelada por el usuario',
-            });
-            setCancelling(false);
-            if (error || (data && !data.success)) {
-              toast.error(friendlyError(error, 'No se pudo cancelar la solicitud.'));
-              return;
-            }
-            await fetchActiveRequest();
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Cancelar solicitud',
+      message: cancellationPolicyMessage(activeRequest.status),
+      cancelText: 'No',
+      confirmText: 'Sí, cancelar',
+      destructive: true,
+      onConfirm: async () => {
+        setCancelling(true);
+        const { data, error } = await supabase.rpc('cancel_service_request', {
+          p_request_id: activeRequest.id,
+          p_reason: 'Cancelada por el Usuario',
+        });
+        setCancelling(false);
+        if (error || (data && !data.success)) {
+          toast.error(friendlyError(error, 'No se pudo cancelar la solicitud.'));
+          return;
+        }
+        await fetchActiveRequest();
+      },
+    });
   };
 
   // Render map content (shared between inline and fullscreen)
@@ -534,7 +529,7 @@ export default function UserHome() {
         {showOperatorMarker && operatorCoordinate && (
           <OperatorMarkerComponent
             coordinate={operatorCoordinate}
-            title="Tu grúa"
+            title="Tu socio operador"
             description={activeRequest.operator_name || 'Socio operador'}
             anchor={{ x: 0.5, y: 0.5 }}
             flat={true}
@@ -617,7 +612,7 @@ export default function UserHome() {
             <View style={styles.delayCard}>
               <Clock size={18} color={colors.warning.dark} />
               <Text style={styles.delayText}>
-                La búsqueda esta tardando mas de lo normal. Seguimos buscando un
+                La búsqueda está tardando más de lo normal. Seguimos buscando un
                 socio operador disponible; puedes cancelar sin costo si lo prefieres.
               </Text>
             </View>
@@ -698,7 +693,7 @@ export default function UserHome() {
                 <View style={styles.trackingInfo}>
                   <MapPin size={14} color={colors.success.main} />
                   <Text style={styles.trackingText}>
-                    {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
+                    {isDemoMode ? 'Simulación en vivo' : 'Ubicación en vivo'}
                     {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                   </Text>
                 </View>
@@ -795,7 +790,7 @@ export default function UserHome() {
                     <View style={styles.trackingInfo}>
                       <MapPin size={14} color={colors.success.main} />
                       <Text style={styles.trackingText}>
-                        {isDemoMode ? 'Simulacion en vivo' : 'Ubicación en vivo'}
+                        {isDemoMode ? 'Simulación en vivo' : 'Ubicación en vivo'}
                         {!isDemoMode && lastUpdated && ` • ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`}
                       </Text>
                     </View>

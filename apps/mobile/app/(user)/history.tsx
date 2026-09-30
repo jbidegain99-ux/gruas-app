@@ -457,7 +457,7 @@ export default function History() {
                 <Text style={styles.cancelInfoReason}>
                   {selectedRequest.cancellation_reason?.trim()
                     ? selectedRequest.cancellation_reason
-                    : 'No se indico un motivo.'}
+                    : 'No se indicó un motivo.'}
                 </Text>
               </View>
             )}

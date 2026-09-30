@@ -38,7 +38,7 @@ export function OperatorCashCard() {
 
   const confirm = (it: PendingItem) => {
     const title = `¿Recibiste $${it.amount.toFixed(2)} en efectivo?`;
-    const body = `${it.user_name ?? 'El usuario'} recibirá su comprobante. Confírmalo solo si ya tienes el dinero.`;
+    const body = `${it.user_name ?? 'El Usuario'} recibirá su comprobante. Confírmalo solo si ya tienes el dinero.`;
     // En web Alert.alert no hace nada (react-native-web); mismo arreglo que verification.tsx.
     if (Platform.OS === 'web') {
       if (window.confirm(`${title}\n\n${body}`)) register(it);

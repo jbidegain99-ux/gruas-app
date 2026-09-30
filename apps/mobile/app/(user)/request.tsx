@@ -179,6 +179,10 @@ export default function RequestService() {
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
 
   const requiresDestination = requiresDropoff(serviceType);
+  // Solo la grúa se cobra por distancia (complete_service_request). El winche
+  // también lleva destino pero cobra tarifa fija del catálogo: tomarlo como
+  // grúa dejaba el resumen en "--" (o con el precio de una grúa elegida antes).
+  const pricedByDistance = serviceType === 'tow';
   const currentPricingType = serviceTypePricing.find(p => p.service_type === serviceType);
 
   // Datos visuales del servicio, tomados de la DB con fallback seguro. Asi un
@@ -396,12 +400,12 @@ export default function RequestService() {
   // resumen (step 5), sobre el precio estimado. La logica vive en la base
   // (preview_my_coverage); si falla, el hook deja el preview en null y el
   // resumen muestra el precio a secas.
-  const previewTotal = requiresDestination ? estimatedPrice : calculateFlatPrice();
+  const previewTotal = pricedByDistance ? estimatedPrice : calculateFlatPrice();
   const { preview: copayPreview } = useCoveragePreview({
     enabled: step === 5 && coverage?.status === 'covered',
     serviceType,
     total: previewTotal,
-    km: requiresDestination ? calculatedDistance : null,
+    km: pricedByDistance ? calculatedDistance : null,
     towType,
   });
 
@@ -944,7 +948,7 @@ export default function RequestService() {
         </View>
         {fuelGallons > 1 && currentPricingType && (
           <Text style={styles.extraFeeNote}>
-            +${(currentPricingType.extra_fee * (fuelGallons - 1)).toFixed(2)} por {fuelGallons - 1} galon(es) extra
+            +${(currentPricingType.extra_fee * (fuelGallons - 1)).toFixed(2)} por {fuelGallons - 1} {fuelGallons - 1 === 1 ? 'galón' : 'galones'} extra
           </Text>
         )}
       </>
@@ -1065,8 +1069,8 @@ export default function RequestService() {
 
   // ─── STEP 5: Summary + Price ───
   const renderStep5 = () => {
-    const flatPrice = !requiresDestination ? calculateFlatPrice() : null;
-    const displayPrice = requiresDestination ? estimatedPrice : flatPrice;
+    const flatPrice = !pricedByDistance ? calculateFlatPrice() : null;
+    const displayPrice = pricedByDistance ? estimatedPrice : flatPrice;
 
     return (
       <View style={styles.stepContainer}>
@@ -1168,7 +1172,7 @@ export default function RequestService() {
         <View style={styles.priceCard}>
           <Text style={styles.priceLabelText}>Precio Estimado</Text>
 
-          {requiresDestination ? (
+          {pricedByDistance ? (
             // Tow: depends on distance calculation
             distanceLoading ? (
               <View style={styles.loadingContainer}>
@@ -1217,7 +1221,7 @@ export default function RequestService() {
           <Text style={styles.priceDisclaimer}>
             {moptApplies
               ? 'Lo paga el MOPT. Tú no pagas nada.'
-              : requiresDestination
+              : pricedByDistance
                 ? 'El precio final puede variar según la distancia real recorrida.'
                 : serviceType === 'water_truck'
                   ? `Precio por viaje más $${(currentPricingType?.extra_fee ?? 0).toFixed(2)} por km que recorre el socio hasta ti.`
@@ -1231,7 +1235,7 @@ export default function RequestService() {
             aclara que paga todo, en vez de dejar solo el banner "cubierto". */}
         {/* Si lo paga el MOPT no hay copago que mostrar: el desglose diria "pagas". */}
         {!moptApplies && coverage?.status === 'covered' && copayPreview && (
-          <CopayBreakdown preview={copayPreview} isEstimate={requiresDestination} />
+          <CopayBreakdown preview={copayPreview} isEstimate={pricedByDistance} />
         )}
 
         <View style={styles.navButtons}>
@@ -1244,7 +1248,7 @@ export default function RequestService() {
               onPress={handleSubmit}
               size="medium"
               loading={submitting}
-              disabled={submitting || (requiresDestination && (distanceLoading || !calculatedDistance))}
+              disabled={submitting || (pricedByDistance && (distanceLoading || !calculatedDistance))}
             />
           </View>
         </View>

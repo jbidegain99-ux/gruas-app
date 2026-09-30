@@ -31,6 +31,7 @@ import { SERVICE_TYPE_CONFIGS, requiresDropoff } from '@gruas-app/shared';
 import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Card, StatusBadge, LoadingSpinner, ErrorState } from '@/shared/components/ui';
 import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
+import { usePayerInfo } from '@/features/coverage/hooks/usePayerInfo';
 import { colors, typography, spacing, radii } from '@/theme';
 
 type ServiceRequest = {
@@ -81,6 +82,8 @@ export default function OperatorHistory() {
   const [lineas, setLineas] = useState<Map<string, LineaServicio>>(new Map());
   // Recorrido real del servicio seleccionado (se carga al abrir el detalle).
   const trail = useServiceTrail(detailModalVisible ? selectedRequest?.id : null);
+  // Quién paga el servicio abierto (MOPT / aseguradora / Usuario).
+  const payerInfo = usePayerInfo(detailModalVisible && selectedRequest ? [selectedRequest.id] : []);
 
   const fetchRequests = useCallback(async () => {
     setLoadError(false);
@@ -252,7 +255,7 @@ export default function OperatorHistory() {
               return <SvcIcon size={14} color={cfg?.color || colors.primary[500]} strokeWidth={2} />;
             })()}
             <Text style={styles.towType}>
-              {`${cfg?.name || 'Grua'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
+              {`${cfg?.name || 'Grúa'}${isTow ? ` - ${item.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}`}
             </Text>
           </View>
           {item.status === 'completed' && lineaDe(item.id) && (
@@ -306,7 +309,7 @@ export default function OperatorHistory() {
                     <>
                       <SvcIcon size={16} color={cfg?.color || colors.primary[500]} strokeWidth={2} />
                       <Text style={styles.detailValue}>
-                        {cfg?.name || 'Grua'}{isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
+                        {cfg?.name || 'Grúa'}{isTow ? ` - ${selectedRequest.tow_type === 'light' ? 'Liviana' : 'Pesada'}` : ''}
                       </Text>
                     </>
                   );
@@ -380,11 +383,15 @@ export default function OperatorHistory() {
                   {money(lineaDe(selectedRequest.id)!.aCobrar)}
                 </Text>
                 <Text style={styles.priceSectionNote}>
-                  Precio del servicio ${selectedRequest.total_price.toFixed(2)} · Budi retiene{' '}
-                  {lineaDe(selectedRequest.id)!.comisionPct}%
+                  Precio del servicio ${selectedRequest.total_price.toFixed(2)} ·{' '}
+                  {/* MOPT (00098): lo paga el programa y Budi no cobra comisión;
+                      "Budi retiene 0%" no le decía al socio quién le paga. */}
+                  {payerInfo[selectedRequest.id]?.payer === 'mopt'
+                    ? 'Lo paga el programa MOPT, sin comisión de Budi'
+                    : `Budi retiene ${lineaDe(selectedRequest.id)!.comisionPct}%`}
                 </Text>
                 {/* LAN-07 (00133): lo que pagó el Usuario y cómo. */}
-                <PaymentReceipt requestId={selectedRequest.id} />
+                <PaymentReceipt requestId={selectedRequest.id} audience="operator" />
               </View>
             )}
 
@@ -518,12 +525,12 @@ export default function OperatorHistory() {
               ? 'Sin servicios completados'
               : filter === 'cancelled'
               ? 'Sin servicios cancelados'
-              : 'Sin servicios aun'}
+              : 'Sin servicios aún'}
           </Text>
           <Text style={styles.emptyText}>
             {filter === 'all'
-              ? 'Los servicios que completes apareceran aqui.'
-              : 'No hay servicios en esta categoria.'}
+              ? 'Los servicios que completes aparecerán aquí.'
+              : 'No hay servicios en esta categoría.'}
           </Text>
         </View>
       ) : (

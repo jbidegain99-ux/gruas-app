@@ -94,7 +94,7 @@ export async function startBackgroundTracking(): Promise<boolean> {
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: 'Budi — transmitiendo ubicación',
-        notificationBody: 'El usuario puede ver dónde está tu grúa.',
+        notificationBody: 'El Usuario puede ver dónde estás.',
         notificationColor: '#2D5F8B',
       },
     });
