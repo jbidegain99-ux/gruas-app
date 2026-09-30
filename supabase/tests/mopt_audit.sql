@@ -14,6 +14,7 @@
 --      Servicios por fecha de cierre; SLA con el nombre del programa.
 --   G. (00142) En curso sin importar la fecha de pedido; turno nocturno con
 --      días; las vistas previas siguen andando con el candado del tope.
+--   H. (00144) Avisos push: sin "grúa" y sin avisarle al socio lo que él hizo.
 -- =====================================================
 \set ON_ERROR_STOP 1
 BEGIN;
@@ -319,6 +320,53 @@ BEGIN
   END;
   ASSERT ok, 'G3: un Usuario vio los servicios en curso del programa';
   RAISE NOTICE 'G. en curso sin fecha, turno nocturno y vistas previas con candado: OK';
+END $$;
+
+RESET ROLE;
+
+-- H. El socio que acepta no recibe "Nuevo servicio asignado"; si asigna el admin, sí.
+CREATE TEMP TABLE h (propio UUID, ajeno UUID) ON COMMIT DROP;
+GRANT SELECT ON h TO PUBLIC;
+WITH a AS (
+  INSERT INTO service_requests (user_id, status, service_type, tow_type, pin_hash, pickup_lat, pickup_lng, pickup_address,
+                                dropoff_lat, dropoff_lng, dropoff_address, incident_type, mopt_provider_id)
+  SELECT lector, 'initiated', 'battery', 'light', 'x', 11.05, -80.95, 'Push A', 11.05, -80.95, 'Push A', 'Batería descargada', prov FROM t
+  RETURNING id
+), b AS (
+  INSERT INTO service_requests (user_id, status, service_type, tow_type, pin_hash, pickup_lat, pickup_lng, pickup_address,
+                                dropoff_lat, dropoff_lng, dropoff_address, incident_type, mopt_provider_id)
+  SELECT admin, 'initiated', 'battery', 'light', 'x', 11.05, -80.95, 'Push B', 11.05, -80.95, 'Push B', 'Batería descargada', prov FROM t
+  RETURNING id
+)
+INSERT INTO h SELECT (SELECT id FROM a), (SELECT id FROM b);
+-- El socio del ciclo E/G tiene servicios abiertos: se usa otro de la misma flota.
+INSERT INTO auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000000', '9a9a9a9a-0000-4000-8000-0000000000b6', 'authenticated', 'authenticated',
+        'au.socio2@budi.invalid', '{"full_name": "Socio dos", "role": "OPERATOR"}', now(), now());
+UPDATE profiles SET provider_id = (SELECT prov FROM t), verification_status = 'approved'
+ WHERE id = '9a9a9a9a-0000-4000-8000-0000000000b6';
+UPDATE t SET socio = '9a9a9a9a-0000-4000-8000-0000000000b6';
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT socio FROM t), 'aal1');
+SELECT accept_service_request((SELECT propio FROM h));
+SELECT pg_temp.como((SELECT admin FROM t));
+SELECT admin_assign_request((SELECT ajeno FROM h), (SELECT socio FROM t));
+RESET ROLE;
+DO $$
+BEGIN
+  ASSERT (SELECT operator_id FROM service_requests WHERE id = (SELECT propio FROM h)) = (SELECT socio FROM t), 'H0: no quedo aceptado';
+  ASSERT NOT EXISTS (SELECT 1 FROM notification_queue WHERE user_id = (SELECT socio FROM t)
+                      AND data->>'service_request_id' = (SELECT propio FROM h)::text AND data->>'type' = 'new_service_request'),
+    'H1: el socio recibio aviso por aceptar el mismo';
+  ASSERT (SELECT title FROM notification_queue WHERE user_id = (SELECT lector FROM t)
+           AND data->>'service_request_id' = (SELECT propio FROM h)::text ORDER BY created_at DESC LIMIT 1) = '¡Socio operador asignado!',
+    'H2: el Usuario recibe un aviso que habla de grua en un servicio de bateria';
+  ASSERT EXISTS (SELECT 1 FROM notification_queue WHERE user_id = (SELECT socio FROM t)
+                  AND data->>'service_request_id' = (SELECT ajeno FROM h)::text AND data->>'type' = 'new_service_request'
+                  AND body NOT ILIKE '%grúa%'),
+    'H3: asignado por el admin, el socio no recibio aviso (o dice grua)';
+  RAISE NOTICE 'H. avisos push sin grua y sin autoaviso al socio: OK';
 END $$;
 
 RESET ROLE;
