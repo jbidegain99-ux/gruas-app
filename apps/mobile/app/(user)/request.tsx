@@ -19,7 +19,7 @@ import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { friendlyError } from '@/lib/errorMessages';
-import { reverseGeocode } from '@/lib/geocoding';
+import { getPositionFast, reverseGeocode, searchPlaces } from '@/lib/geocoding';
 import { useDistanceCalculation } from '@/shared/hooks/useDistanceCalculation';
 import { LocationPicker } from '@/features/tracking/components/LocationPicker';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
@@ -292,10 +292,12 @@ export default function RequestService() {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      // Con límite de tiempo: sin fix en 10 s usa la última posición conocida
+      // (antes la pantalla se quedaba esperando para siempre).
+      const position = await getPositionFast();
       const coords = {
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
+        lat: position.latitude,
+        lng: position.longitude,
       };
       setPickupCoords(coords);
 
@@ -314,10 +316,9 @@ export default function RequestService() {
   const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
     if (!address || address.length < 5) return null;
     try {
-      const results = await Location.geocodeAsync(address);
-      if (results && results.length > 0) {
-        return { lat: results[0].latitude, lng: results[0].longitude };
-      }
+      // Solo El Salvador (el geocoder del teléfono busca en todo el mundo).
+      const [first] = await searchPlaces(address);
+      if (first) return { lat: first.lat, lng: first.lng };
     } catch (err) {
       logger.log('Geocoding error:', err);
     }

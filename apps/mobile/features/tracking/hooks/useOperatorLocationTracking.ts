@@ -23,6 +23,16 @@ interface UseOperatorLocationTrackingOptions {
  * Hook to track and send operator location to Supabase
  * when they have an active service (assigned, en_route, or active status)
  */
+// En web, expo-location no implementa removeSubscription: `remove()` lanzaba y
+// el error dejaba la pantalla del socio tapada justo después de aceptar.
+function safeRemove(sub: { remove: () => void } | null | undefined): void {
+  try {
+    sub?.remove();
+  } catch {
+    // Sin suscripción real que liberar (web).
+  }
+}
+
 export function useOperatorLocationTracking({
   isActive,
   intervalMs = 15000,
@@ -139,7 +149,7 @@ export function useOperatorLocationTracking({
       // If tracking was cancelled while the watcher was being created, tear it
       // down now — otherwise it leaks and keeps the operator "online" forever.
       if (cancelTrackingRef.current) {
-        subscription.remove();
+        safeRemove(subscription);
         isTrackingRef.current = false;
         return;
       }
@@ -168,7 +178,7 @@ export function useOperatorLocationTracking({
     cancelTrackingRef.current = true;
 
     if (watchSubscriptionRef.current) {
-      watchSubscriptionRef.current.remove();
+      safeRemove(watchSubscriptionRef.current);
       watchSubscriptionRef.current = null;
     }
 

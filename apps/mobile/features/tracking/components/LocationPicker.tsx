@@ -14,7 +14,7 @@ import {
 import * as Location from 'expo-location';
 import { X, Search, MapPin } from 'lucide-react-native';
 import { DEFAULT_LOCATION, DEFAULT_MAP_DELTA } from '@/config/location';
-import { reverseGeocode as resolveAddress } from '@/lib/geocoding';
+import { reverseGeocode as resolveAddress, searchPlaces as searchLocal, getPositionFast } from '@/lib/geocoding';
 import { colors } from '@/theme';
 import { ToastHost, toast } from '@/shared/components/ui';
 
@@ -56,6 +56,9 @@ interface LocationPickerProps {
 
 interface PlacePrediction {
   place_id: string;
+  // Sin Google: la búsqueda local ya trae las coordenadas (no se geocodifica dos veces).
+  lat?: number;
+  lng?: number;
   description: string;
   structured_formatting?: {
     main_text: string;
@@ -149,23 +152,19 @@ export function LocationPicker({
   // Search places with Google Places Autocomplete API
   const searchPlaces = async (query: string) => {
     if (!GOOGLE_MAPS_API_KEY) {
-      // Fallback to Expo Location geocoding
+      // Sin Google: geocoder nativo y, si no responde, Nominatim (OSM).
+      setIsSearching(true);
       try {
-        setIsSearching(true);
-        const results = await Location.geocodeAsync(query);
-        if (results && results.length > 0) {
-          const mockPredictions: PlacePrediction[] = results.slice(0, 5).map((_, i) => ({
+        const results = await searchLocal(query);
+        setPredictions(
+          results.map((r, i) => ({
             place_id: `local_${i}`,
-            description: query,
-            structured_formatting: {
-              main_text: query,
-              secondary_text: 'El Salvador',
-            },
-          }));
-          setPredictions(mockPredictions);
-        }
-      } catch (error) {
-        console.log('Local geocoding error:', error);
+            description: r.secondary ? `${r.label}, ${r.secondary}` : r.label,
+            lat: r.lat,
+            lng: r.lng,
+            structured_formatting: { main_text: r.label, secondary_text: r.secondary },
+          }))
+        );
       } finally {
         setIsSearching(false);
       }
@@ -202,14 +201,25 @@ export function LocationPicker({
     autoFilledQuery.current = description;
     setSearchQuery(description);
 
+    // Búsqueda local: el resultado ya trae las coordenadas.
+    const local = predictions.find((p) => p.place_id === placeId);
+    if (local?.lat != null && local?.lng != null) {
+      const newLocation = { latitude: local.lat, longitude: local.lng };
+      setSelectedLocation(newLocation);
+      setAddress(description);
+      mapRef.current?.animateToRegion({ ...newLocation, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 500);
+      setIsLoading(false);
+      return;
+    }
+
     // If using local geocoding (no API key)
     if (placeId.startsWith('local_') || !GOOGLE_MAPS_API_KEY) {
       try {
-        const results = await Location.geocodeAsync(description);
-        if (results && results.length > 0) {
+        const [first] = await searchLocal(description);
+        if (first) {
           const newLocation = {
-            latitude: results[0].latitude,
-            longitude: results[0].longitude,
+            latitude: first.lat,
+            longitude: first.lng,
           };
           setSelectedLocation(newLocation);
           setAddress(description);
@@ -274,11 +284,7 @@ export function LocationPicker({
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const { latitude, longitude } = location.coords;
+      const { latitude, longitude } = await getPositionFast();
       const newLocation = { latitude, longitude };
 
       setSelectedLocation(newLocation);
