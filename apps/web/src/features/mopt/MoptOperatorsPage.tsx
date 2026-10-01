@@ -7,6 +7,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { RegisterPaymentModal } from '@/shared/components/LedgerPaymentModals';
 import { formatDate, money } from '@/shared/lib/format';
 import { useMoptCanPay } from './MoptShell';
+import { ratingLabel } from './mopt-fleet';
 
 type Row = {
   operator_id: string;
@@ -18,6 +19,10 @@ type Row = {
   owed: number;
   paid: number;
   balance: number;
+  // 00155
+  plate: string | null;
+  avg_rating: number | null;
+  ratings_count: number | null;
   last_paid_on: string | null;
 };
 
@@ -55,7 +60,8 @@ export default function MoptOperatorsPage() {
     };
   }, [refreshKey]);
 
-  const totalPendiente = rows.reduce((a, r) => a + Number(r.balance), 0);
+  // Un socio pagado de más (saldo negativo) no le resta a lo que se les debe a los demás.
+  const totalPendiente = rows.reduce((a, r) => a + Math.max(0, Number(r.balance)), 0);
 
   return (
     <div className="space-y-6">
@@ -120,7 +126,11 @@ export default function MoptOperatorsPage() {
                   <tr key={r.operator_id}>
                     <td className="px-4 py-3">
                       <p className="font-medium text-zinc-900 dark:text-white">{r.full_name || 'Sin nombre'}</p>
-                      <p className="text-xs text-zinc-500">{r.phone || '—'}</p>
+                      <p className="text-xs text-zinc-500">
+                        {r.phone || '—'}
+                        {r.in_program && (r.plate ? <span className="ml-2 font-mono">Grúa {r.plate}</span> : <span className="ml-2">Sin grúa registrada</span>)}
+                      </p>
+                      <p className="text-xs text-zinc-500">{ratingLabel(r.avg_rating, r.ratings_count)}</p>
                     </td>
                     <td className="px-4 py-3">
                       {r.in_program ? (
@@ -135,7 +145,16 @@ export default function MoptOperatorsPage() {
                       {money(Number(r.paid))}
                       {r.last_paid_on && <p className="text-xs text-zinc-500">último {formatDate(r.last_paid_on)}</p>}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">{money(Number(r.balance))}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-zinc-900 dark:text-white">
+                      {Number(r.balance) < 0 ? (
+                        <span className="text-amber-700 dark:text-amber-300">
+                          {money(-Number(r.balance))}
+                          <span className="block text-xs font-normal">pagado de más</span>
+                        </span>
+                      ) : (
+                        money(Number(r.balance))
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {canPay && Number(r.balance) > 0 && (
                         <button

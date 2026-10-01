@@ -7,14 +7,14 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
 import type { LatLng, MapOperator, MapPoint, MapZone } from './MoptMap';
 import { PORTAL_MAX_ROWS } from '@/shared/components/portal/case-filters';
+import { FRESH_MS, lastSeen, ratingLabel, staleOnService } from './mopt-fleet';
+import { StaleAlert } from './StaleAlert';
 
 const MoptMap = dynamic(() => import('./MoptMap'), {
   ssr: false,
   loading: () => <div className="flex h-full items-center justify-center text-sm text-zinc-500">Cargando mapa…</div>,
 });
 
-// Misma ventana de "ubicación fresca" que el mapa de flota del admin (5 min).
-const FRESH_MS = 5 * 60 * 1000;
 const REFRESH_MS = 30 * 1000;
 
 type FleetRow = {
@@ -28,6 +28,11 @@ type FleetRow = {
   active_request_id: string | null;
   active_status: string | null;
   active_address: string | null;
+  // 00155
+  active_folio: string | null;
+  plate: string | null;
+  avg_rating: number | null;
+  ratings_count: number | null;
 };
 
 type ServiceRow = {
@@ -61,15 +66,6 @@ function operatorState(r: FleetRow, now: number): State {
   if (!fresh) return 'stale';
   if (r.active_request_id) return 'on_service';
   return r.is_online ? 'available' : 'stale';
-}
-
-function lastSeen(iso: string | null, now: number): string {
-  if (!iso) return 'nunca';
-  const min = Math.round((now - new Date(iso).getTime()) / 60000);
-  if (min < 1) return 'hace un momento';
-  if (min < 60) return `hace ${min} min`;
-  const h = Math.round(min / 60);
-  return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
 }
 
 export default function MoptMapPage() {
@@ -128,6 +124,8 @@ export default function MoptMapPage() {
       color: STATE[r.state].color,
       lines: [
         STATE[r.state].label,
+        ...(r.plate ? [`Grúa ${r.plate}`] : []),
+        ratingLabel(r.avg_rating, r.ratings_count),
         ...(r.active_address ? [`Atendiendo: ${r.active_address}`] : []),
         ...(r.phone ? [r.phone] : []),
         `Visto ${lastSeen(r.updated_at, now)}`,
@@ -150,6 +148,8 @@ export default function MoptMapPage() {
 
   const counts = rows.reduce((acc, r) => ({ ...acc, [r.state]: (acc[r.state] ?? 0) + 1 }), {} as Record<State, number>);
   const enCurso = services.filter((s) => IN_PROGRESS.has(s.status));
+  // 00155: con un servicio abierto y sin GPS reciente: hay que llamarlo.
+  const sinSenal = rows.filter((r) => staleOnService(r, now));
 
   return (
     <div className="space-y-6">
@@ -177,6 +177,7 @@ export default function MoptMapPage() {
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">No se pudo cargar el mapa: {error}</p>}
+      {sinSenal.length > 0 && <StaleAlert rows={sinSenal} now={now} />}
       {showServices && truncated && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
           Se muestran los 1 000 servicios más recientes; acota las fechas para ver el resto.
@@ -220,10 +221,14 @@ export default function MoptMapPage() {
                   <li key={r.operator_id} className="flex items-start gap-2">
                     <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${STATE[r.state].dot}`} />
                     <div className="min-w-0 text-sm">
-                      <p className="font-medium text-zinc-900 dark:text-white">{r.full_name || 'Socio operador'}</p>
+                      <p className="font-medium text-zinc-900 dark:text-white">
+                        {r.full_name || 'Socio operador'}
+                        {r.plate && <span className="ml-1.5 font-mono text-xs font-normal text-zinc-500">{r.plate}</span>}
+                      </p>
                       <p className="text-xs text-zinc-500">
                         {STATE[r.state].label} · visto {lastSeen(r.updated_at, now)}
                       </p>
+                      <p className="text-xs text-zinc-500">{ratingLabel(r.avg_rating, r.ratings_count)}</p>
                       {r.active_request_id && (
                         <Link href={`/mopt/servicios/${r.active_request_id}`} className="text-xs text-budi-primary-600 hover:underline dark:text-budi-primary-400">
                           Atendiendo: {r.active_address ?? 'ver servicio'}

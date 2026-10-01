@@ -4638,14 +4638,18 @@ export type Database = {
         Args: never
         Returns: {
           active_address: string
+          active_folio: string
           active_request_id: string
           active_status: string
+          avg_rating: number
           full_name: string
           is_online: boolean
           lat: number
           lng: number
           operator_id: string
           phone: string
+          plate: string
+          ratings_count: number
           updated_at: string
         }[]
       }
@@ -4684,6 +4688,7 @@ export type Database = {
       mopt_list_operators: {
         Args: never
         Returns: {
+          avg_rating: number
           balance: number
           full_name: string
           in_program: boolean
@@ -4692,6 +4697,8 @@ export type Database = {
           owed: number
           paid: number
           phone: string
+          plate: string
+          ratings_count: number
           services: number
           verification_status: string
         }[]
