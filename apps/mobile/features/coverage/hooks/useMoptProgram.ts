@@ -13,7 +13,9 @@ import { supabase } from '@/lib/supabase';
  */
 // `capped` (00151): la zona lo cubriría, pero el programa ya llegó a su tope
 // del mes y el contrato corta la cortesía; la pantalla lo explica.
-export type MoptProgram = { applies: boolean; program_name?: string; capped?: boolean };
+// `paused` (00156): la zona lo cubriría, pero el contrato venció o el programa
+// está suspendido.
+export type MoptProgram = { applies: boolean; program_name?: string; capped?: boolean; paused?: boolean };
 
 export function useMoptProgram(params: {
   enabled: boolean;

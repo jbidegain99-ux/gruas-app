@@ -36,11 +36,14 @@ export function RegisterPaymentModal({
   balance,
   onClose,
   onSaved,
+  warning,
 }: {
   payer: LedgerParty;
   payee: LedgerParty;
   /** Saldo pendiente del par: el tope del monto. */
   balance: number;
+  /** Aviso antes de pagar (p. ej. casos observados sin resolver); no bloquea. */
+  warning?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -84,6 +87,9 @@ export function RegisterPaymentModal({
         <span className="font-medium text-zinc-900 dark:text-white">{payee.name}</span>. Saldo pendiente:{' '}
         <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">{money(balance)}</span>
       </p>
+      {warning && (
+        <div role="alert" className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">{warning}</div>
+      )}
       {error && (
         <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">{error}</div>
       )}

@@ -23,6 +23,9 @@ type Row = {
   plate: string | null;
   avg_rating: number | null;
   ratings_count: number | null;
+  // 00156: casos observados por el MOPT sin respuesta de Budi.
+  observed_cases: number;
+  observed_amount: number;
   last_paid_on: string | null;
 };
 
@@ -86,6 +89,11 @@ export default function MoptOperatorsPage() {
           payer={{ kind: 'mopt', id: programId, name: programName }}
           payee={{ kind: 'operator', id: paying.operator_id, name: paying.full_name || 'Socio operador' }}
           balance={Number(paying.balance)}
+          warning={
+            Number(paying.observed_cases) > 0
+              ? `${paying.full_name || 'Este socio'} tiene ${paying.observed_cases} caso(s) observado(s) por ${money(Number(paying.observed_amount))} sin respuesta de Budi. Si Budi los ajusta a la baja, podrías pagarle de más.`
+              : null
+          }
           onClose={() => setPaying(null)}
           onSaved={() => {
             setPaying(null);

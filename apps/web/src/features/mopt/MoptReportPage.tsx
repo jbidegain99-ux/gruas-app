@@ -19,6 +19,10 @@ type Report = {
   snapshot: boolean;
   generated_at: string;
   email_status?: string | null;
+  // 00156: la foto se rehace al aprobar el estado de cuenta si las cifras cambiaron.
+  version?: number;
+  corrected_at?: string | null;
+  corrected_statement?: string | null;
   compliance: {
     targets: { assignment_minutes: number; arrival_minutes: number } | null;
     completed: number;
@@ -86,6 +90,12 @@ export default function MoptReportPage({ month }: { month: string }) {
                 : 'sin reporte oficial · cifras recalculadas, no oficiales'}
           </span>
         </p>
+        {r.snapshot && r.corrected_at && (
+          <p className="mt-2 text-sm text-amber-800 dark:text-amber-300 print:text-zinc-800">
+            Versión corregida (v{r.version}): incluye los ajustes aprobados en el estado de cuenta {r.corrected_statement}. Reemplaza al
+            reporte enviado antes.
+          </p>
+        )}
       </header>
 
       <section>

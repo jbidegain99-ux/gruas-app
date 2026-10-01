@@ -80,6 +80,25 @@ export function MoptCappedNotice({ programName }: { programName?: string }) {
   );
 }
 
+/**
+ * La recogida está en una zona MOPT, pero el programa no está dando cortesía:
+ * contrato vencido o programa suspendido (00156). Igual que el tope: sin esto
+ * la persona veía "Servicio particular" sin explicación.
+ */
+export function MoptPausedNotice({ programName }: { programName?: string }) {
+  return (
+    <View style={[styles.banner, styles.bannerAviso]}>
+      <Landmark size={18} color={colors.warning.dark} strokeWidth={2} />
+      <View style={styles.cuerpo}>
+        <Text style={[styles.titulo, styles.tituloAviso]}>Cortesía del MOPT no disponible</Text>
+        <Text style={styles.texto}>
+          {programName ?? 'El programa del MOPT'} no está dando cortesía en este momento. Este servicio lo pagas tú.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',

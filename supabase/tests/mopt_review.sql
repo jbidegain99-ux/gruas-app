@@ -1,5 +1,5 @@
 -- =====================================================
--- Revisión de punta a punta del MOPT (migr. 00154-00155)
+-- Revisión de punta a punta del MOPT (migr. 00154-00156)
 --
 -- Correr contra la base LOCAL:  pnpm db:test
 -- Todo corre en una transacción que se revierte. Con las aseguradoras
@@ -13,6 +13,9 @@
 --   D. El socio de la flota sabe que le paga el programa.
 --   E. (00155) Flota: placa, calificación solo del programa y alerta de
 --      socio sin señal con un servicio en curso.
+--   F. (00156) Aviso de casos observados al pagar; el reporte oficial se
+--      rehace al aprobar el estado de cuenta (solo si cambió).
+--   G. (00156) Programa suspendido: la vista previa lo explica.
 -- =====================================================
 \set ON_ERROR_STOP 1
 BEGIN;
@@ -92,14 +95,42 @@ BEGIN
 END $$;
 SELECT pg_temp.como((SELECT dueno FROM t), 'aal2');
 UPDATE t SET obs = observe_statement_case((SELECT ec FROM t), (SELECT caso_a FROM t), 'Llegó tarde');
+-- F1 (00156): mientras está observado, Socios operadores lo avisa al pagar.
+DO $$
+DECLARE a RECORD;
+BEGIN
+  SELECT * INTO a FROM mopt_list_operators() WHERE operator_id = (SELECT socio_a FROM t);
+  ASSERT a.observed_cases = 1 AND a.observed_amount = 80, 'F1: no cuenta los casos observados del socio';
+  ASSERT (SELECT observed_cases FROM mopt_list_operators() WHERE operator_id = (SELECT socio_b FROM t)) = 0,
+    'F1: el socio B no tiene casos observados';
+END $$;
 SELECT pg_temp.como((SELECT admin FROM t));
 SELECT admin_answer_observation((SELECT obs FROM t), 'Se ajusta', 'adjusted', 60);
+-- F2 (00156): el reporte oficial del mes ya existe (foto con el original).
+RESET ROLE;
+SELECT _generate_mopt_report((SELECT prov FROM t), sv_today(), false);
+SET LOCAL ROLE authenticated;
 SELECT pg_temp.como((SELECT dueno FROM t), 'aal2');
 DO $$
 BEGIN
   -- 60 + 3 de tarifa, 40 + 2.
   ASSERT approve_statement((SELECT ec FROM t)) = 105, 'aprobado distinto de 105';
 END $$;
+RESET ROLE;
+DO $$
+DECLARE r RECORD;
+BEGIN
+  SELECT * INTO r FROM mopt_reports WHERE provider_id = (SELECT prov FROM t);
+  ASSERT r.version = 2, 'F2: aprobar no rehízo el reporte oficial';
+  ASSERT (r.report->'cost'->>'total')::numeric = 105, 'F2: el reporte rehecho no tiene lo aprobado';
+  ASSERT r.corrected_statement = (SELECT number FROM account_statements WHERE id = (SELECT ec FROM t)),
+    'F2: el reporte no dice qué estado de cuenta lo corrigió';
+  -- Sin cambios en las cifras, no se rehace ni se reenvía.
+  ASSERT _mopt_refresh_reports_after_approval((SELECT ec FROM t)) = 0, 'F3: rehízo un reporte que no cambió';
+  ASSERT (SELECT version FROM mopt_reports WHERE id = r.id) = 2, 'F3: subió la versión sin cambios';
+  RAISE NOTICE 'F. aviso de observados al pagar y reporte corregido al aprobar: OK';
+END $$;
+SET LOCAL ROLE authenticated;
 
 -- A. Tope y reporte con lo aprobado.
 RESET ROLE;
@@ -231,6 +262,30 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN ok := SQLERRM LIKE 'Esta cuenta no pertenece%';
   END;
   ASSERT ok, 'E5: un socio leyó la flota del MOPT';
+END $$;
+
+-- G. (00156) Programa suspendido: la vista previa lo explica.
+RESET ROLE;
+INSERT INTO mopt_zones (provider_id, name, polygon, is_active)
+SELECT prov, 'Zona revisión', '[[11.00, -81.00], [11.00, -80.90], [11.10, -80.90], [11.10, -81.00]]'::jsonb, true FROM t;
+UPDATE organizations SET status = 'suspended' WHERE id = (SELECT org FROM t);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT usuario FROM t), 'aal1');
+DO $$
+DECLARE p JSONB := preview_mopt_program(11.05, -80.95, 'tow');
+BEGIN
+  ASSERT NOT (p->>'applies')::boolean, 'G1: suspendido sigue dando cortesía';
+  ASSERT (p->>'paused')::boolean AND NOT (p->>'capped')::boolean, 'G1: no avisa que el programa no está dando cortesía';
+  ASSERT p->>'program_name' = 'MOPT de prueba (revisión)', 'G1: no nombra al programa';
+END $$;
+RESET ROLE;
+UPDATE organizations SET status = 'active' WHERE id = (SELECT org FROM t);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT usuario FROM t), 'aal1');
+DO $$
+BEGIN
+  ASSERT (preview_mopt_program(11.05, -80.95, 'tow')->>'applies')::boolean, 'G2: reactivado no vuelve la cortesía';
+  RAISE NOTICE 'G. programa suspendido: la vista previa lo explica: OK';
 END $$;
 
 DO $$ BEGIN RAISE NOTICE 'TODO VERDE'; END $$;

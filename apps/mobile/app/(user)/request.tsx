@@ -37,7 +37,7 @@ import { CoverageBanner } from '@/features/coverage/components/CoverageBanner';
 import { useCoveragePreview } from '@/features/coverage/hooks/useCoveragePreview';
 import { CopayBreakdown } from '@/features/coverage/components/CopayBreakdown';
 import { useMoptProgram } from '@/features/coverage/hooks/useMoptProgram';
-import { MoptCappedNotice, MoptProgramBanner } from '@/features/coverage/components/MoptProgramBanner';
+import { MoptCappedNotice, MoptPausedNotice, MoptProgramBanner } from '@/features/coverage/components/MoptProgramBanner';
 
 // Pasos del wizard, con etiqueta para el indicador de progreso.
 const STEP_META = [
@@ -1096,6 +1096,7 @@ export default function RequestService() {
           />
         )}
         {!moptApplies && mopt?.capped && <MoptCappedNotice programName={mopt.program_name} />}
+        {!moptApplies && !mopt?.capped && mopt?.paused && <MoptPausedNotice programName={mopt.program_name} />}
 
         {pickupCoords && (
           <View style={styles.summaryMap}>

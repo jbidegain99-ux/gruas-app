@@ -4693,6 +4693,8 @@ export type Database = {
           full_name: string
           in_program: boolean
           last_paid_on: string
+          observed_amount: number
+          observed_cases: number
           operator_id: string
           owed: number
           paid: number
