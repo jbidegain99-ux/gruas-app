@@ -41,6 +41,8 @@ export default function AdminCollectionsPage() {
   });
   const [status, setStatus] = useState<'' | Row['status']>('');
   const [rows, setRows] = useState<Row[] | null>(null);
+  // Si la consulta falla, se dice en la tabla (antes quedaba "Cargando…").
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [action, setAction] = useState<{ id: string; kind: 'void' | 'record'; text: string; method: 'cash' | 'transfer' } | null>(null);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
@@ -49,8 +51,14 @@ export default function AdminCollectionsPage() {
     createClient()
       .rpc('admin_service_payments', { p_from: range.from, p_to: range.to, p_status: status || null } as never)
       .then(({ data, error }) => {
-        if (error) toast.error(error.message);
-        else setRows((data as unknown as Row[]) ?? []);
+        if (error) {
+          toast.error(error.message);
+          setLoadError(error.message);
+          setRows([]);
+        } else {
+          setLoadError(null);
+          setRows((data as unknown as Row[]) ?? []);
+        }
       });
   }, [range, status, refresh, toast]);
 
@@ -118,6 +126,8 @@ export default function AdminCollectionsPage() {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {rows === null ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-500">Cargando…</td></tr>
+            ) : loadError ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-red-600 dark:text-red-400">No se pudieron cargar los cobros: {loadError}</td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-500">Sin cobros en el período.</td></tr>
             ) : rows.map((r) => (

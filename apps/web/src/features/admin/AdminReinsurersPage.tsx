@@ -29,6 +29,8 @@ const input = 'mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 
 export default function AdminReinsurersPage() {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
+  // Si la consulta falla, se dice (antes quedaba "Cargando…" para siempre).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [form, setForm] = useState<{ rea: string; insurer: string; from: string; to: string } | null>(null);
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
@@ -37,8 +39,13 @@ export default function AdminReinsurersPage() {
     createClient()
       .rpc('admin_reinsurers')
       .then(({ data: d, error }) => {
-        if (error) toast.error(error.message);
-        else setData(d as unknown as Data);
+        if (error) {
+          toast.error(error.message);
+          setLoadError(error.message);
+        } else {
+          setLoadError(null);
+          setData(d as unknown as Data);
+        }
       });
   }, [refresh, toast]);
 
@@ -53,7 +60,12 @@ export default function AdminReinsurersPage() {
     reload();
   };
 
-  if (!data) return <p className="text-sm text-zinc-500">Cargando…</p>;
+  if (!data)
+    return loadError ? (
+      <p className="text-sm text-red-600 dark:text-red-400">No se pudo cargar: {loadError}</p>
+    ) : (
+      <p className="text-sm text-zinc-500">Cargando…</p>
+    );
 
   return (
     <div className="space-y-6">

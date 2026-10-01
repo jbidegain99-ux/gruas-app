@@ -383,6 +383,8 @@ export default function InsurerIntegrationsPage() {
 function Deliveries({ hookId }: { hookId: string }) {
   const toast = useToast();
   const [rows, setRows] = useState<Delivery[] | null>(null);
+  // Si la consulta falla, se dice (antes quedaba "Cargando…" para siempre).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
 
@@ -391,8 +393,13 @@ function Deliveries({ hookId }: { hookId: string }) {
       createClient()
         .rpc('portal_webhook_deliveries', { p_webhook: hookId, p_limit: 50 })
         .then(({ data, error }) => {
-          if (error) toast.error(error.message);
-          else setRows(data as unknown as Delivery[]);
+          if (error) {
+            toast.error(error.message);
+            setLoadError(error.message);
+          } else {
+            setLoadError(null);
+            setRows(data as unknown as Delivery[]);
+          }
         });
     load();
     // Lo que está en vuelo se resuelve en segundos: refresco mientras está abierto.
@@ -407,7 +414,12 @@ function Deliveries({ hookId }: { hookId: string }) {
     setRefresh((k) => k + 1);
   };
 
-  if (!rows) return <p className="mt-3 text-xs text-zinc-500">Cargando entregas…</p>;
+  if (!rows)
+    return loadError ? (
+      <p className="mt-3 text-xs text-red-600 dark:text-red-400">No se pudieron cargar las entregas: {loadError}</p>
+    ) : (
+      <p className="mt-3 text-xs text-zinc-500">Cargando entregas…</p>
+    );
   if (rows.length === 0) return <p className="mt-3 text-xs text-zinc-500">Sin entregas todavía. Usa «Enviar prueba».</p>;
 
   return (

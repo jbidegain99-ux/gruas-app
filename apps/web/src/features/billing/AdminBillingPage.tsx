@@ -45,6 +45,8 @@ function DireccionFields({ prefix, value, onChange }: { prefix: string; value: P
 export default function AdminBillingPage() {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
+  // Si la consulta falla, se dice (antes quedaba "Cargando…" para siempre).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
@@ -55,12 +57,22 @@ export default function AdminBillingPage() {
     createClient()
       .rpc('admin_dte_settings')
       .then(({ data: d, error }) => {
-        if (error) toast.error(error.message);
-        else setData(d as unknown as Data);
+        if (error) {
+          toast.error(error.message);
+          setLoadError(error.message);
+        } else {
+          setLoadError(null);
+          setData(d as unknown as Data);
+        }
       });
   }, [refresh, toast]);
 
-  if (!data) return <p className="text-sm text-zinc-500">Cargando…</p>;
+  if (!data)
+    return loadError ? (
+      <p className="text-sm text-red-600 dark:text-red-400">No se pudo cargar: {loadError}</p>
+    ) : (
+      <p className="text-sm text-zinc-500">Cargando…</p>
+    );
   const s = data.settings;
   const e = s.emisor;
   const setS = (patch: Partial<Data['settings']>) => setData({ ...data, settings: { ...s, ...patch } });

@@ -25,6 +25,8 @@ export default function AdminOnboardingPage() {
   const toast = useToast();
   const router = useRouter();
   const [rows, setRows] = useState<Row[] | null>(null);
+  // Si la consulta falla, se dice (antes quedaba "Cargando…" para siempre).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState<{ type: OrgType; name: string; tax: string; contact: string; email: string; phone: string } | null>(null);
   const [saving, setSaving] = useState(false);
   // Aseguradoras en pausa (00153): solo se dan de alta (y se listan) programas MOPT.
@@ -35,8 +37,13 @@ export default function AdminOnboardingPage() {
     createClient()
       .rpc('admin_onboarding_overview')
       .then(({ data, error }) => {
-        if (error) toast.error(error.message);
-        else setRows((data as Row[]) ?? []);
+        if (error) {
+          toast.error(error.message);
+          setLoadError(error.message);
+        } else {
+          setLoadError(null);
+          setRows((data as Row[]) ?? []);
+        }
       });
   }, [toast]);
 
@@ -122,7 +129,7 @@ export default function AdminOnboardingPage() {
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {rows === null ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-500">Cargando…</td></tr>
+              <tr><td colSpan={4} className={`px-4 py-8 text-center ${loadError ? 'text-red-600 dark:text-red-400' : 'text-zinc-500'}`}>{loadError ? `No se pudo cargar: ${loadError}` : 'Cargando…'}</td></tr>
             ) : sorted.length === 0 ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-500">Todavía no hay clientes institucionales.</td></tr>
             ) : sorted.map((r) => (
