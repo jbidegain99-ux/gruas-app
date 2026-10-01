@@ -46,6 +46,13 @@ export function budgetMessage(s: ContractStatus, forBudi = false): string | null
     return s.on_cap === 'charge_user'
       ? `${reached}: los servicios nuevos los paga el Usuario hasta el mes siguiente.`
       : `${reached}: los servicios siguen sin costo para el Usuario y se facturan aparte.`;
+  // 00141: la cortesía se corta contando también lo que está en curso; el
+  // porcentaje de arriba solo mira lo cerrado. Sin esto, el portal decía "80 %"
+  // mientras la app ya le cobraba al Usuario.
+  if (s.organization?.type === 'MOPT' && s.on_cap === 'charge_user' && s.courtesy_now === false)
+    return forBudi
+      ? 'Con los servicios en curso alcanzó el tope del mes: los nuevos los paga el Usuario hasta el mes siguiente.'
+      : 'Con los servicios en curso alcanzaste el tope del mes: los nuevos los paga el Usuario hasta el mes siguiente.';
   if (s.level === 'warning') return forBudi ? 'Va por encima del 80 % del tope de este mes.' : 'Vas por encima del 80 % del tope de este mes.';
   return null;
 }

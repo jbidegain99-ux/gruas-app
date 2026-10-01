@@ -198,6 +198,15 @@ export function StatementDetailView({ id, backHref }: { id: string; backHref: st
         />
       </div>
 
+      {/* 00154: al MOPT, Budi solo le cobra la tarifa; los servicios se los paga a sus socios. */}
+      {isMopt && Number(t.approvable_fee ?? t.fee) > 0 && (
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          {budi ? 'El MOPT le paga a Budi' : 'A Budi le pagas'} solo la tarifa de plataforma:{' '}
+          <span className="font-semibold text-zinc-900 dark:text-white">{money(Number(t.approvable_fee ?? t.fee))}</span>. Los servicios (
+          {money(Number(t.approvable_amount ?? t.amount))}) {budi ? 'se los paga a sus socios' : 'se los pagas a tus socios'} y se registran en Pagos del portal MOPT.
+        </p>
+      )}
+
       {(d.approved_at || d.paid_at || d.void_reason) && (
         <div className="rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
           {d.approved_at && <p>Aprobado el {formatDateTime(d.approved_at)}{d.approved_by ? ` por ${d.approved_by}` : ''}.</p>}
@@ -493,8 +502,11 @@ function BudiActions({ d, run }: { d: StatementDetail; run: Run }) {
             onClick={() => run('admin_mark_statement_paid', { p_id: d.id, p_paid_on: paidOn, p_reference: ref }, 'Marcado como pagado.')}
             className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
           >
-            Marcar pagado
+            {d.organization.type === 'MOPT' ? `Marcar pagada la tarifa (${money(Number(d.totals.approvable_fee ?? d.totals.fee))})` : 'Marcar pagado'}
           </button>
+          <p className="basis-full text-xs text-zinc-500">
+            Queda registrado en el libro como pago {d.organization.type === 'MOPT' ? 'del MOPT a Budi por la tarifa' : 'de la aseguradora a Budi'}.
+          </p>
         </>
       )}
       {(d.status === 'draft' || d.status === 'issued') && (

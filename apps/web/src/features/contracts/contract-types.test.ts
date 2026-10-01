@@ -20,6 +20,9 @@ describe('contract-types', () => {
     expect(budgetMessage({ ...base, level: 'reached' })).toContain('siguen sin costo');
     expect(budgetMessage({ ...base, level: 'reached', on_cap: 'charge_user' })).toContain('los paga el Usuario');
     expect(budgetMessage({ ...base, active: false })).toContain('no está vigente');
+    // Lo cerrado va por 85 %, pero con lo que está en curso ya no hay cortesía.
+    expect(budgetMessage({ ...base, level: 'warning', consumed_pct: 85, on_cap: 'charge_user', courtesy_now: false })).toContain('en curso');
+    expect(budgetMessage({ ...base, level: 'warning', consumed_pct: 85, on_cap: 'keep_courtesy', courtesy_now: true })).toContain('80 %');
     expect(budgetMessage({ ...base, has_contract: false })).toBeNull();
   });
 

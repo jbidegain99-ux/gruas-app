@@ -15,7 +15,11 @@ describe('payouts', () => {
   });
 
   it('sin respuesta, vacío', () => {
-    expect(parseMyPayouts(null)).toEqual({ company: null, pending: 0, payments: [] });
+    expect(parseMyPayouts(null)).toEqual({ company: null, program: null, pending: 0, payments: [] });
+  });
+
+  it('socio de la flota MOPT: dice qué programa le paga', () => {
+    expect(parseMyPayouts({ company: null, program: 'MOPT — Asistencia Vial', pending: 0, payments: [] }).program).toBe('MOPT — Asistencia Vial');
   });
 
   it('suma lo cobrado en el año', () => {

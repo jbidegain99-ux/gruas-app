@@ -33,7 +33,7 @@ type Report = {
   cost: { services: number; platform_fee: number; total: number };
   contract: { reference: string; monthly_cap: number | null; used_pct: number | null } | null;
   annex: {
-    folio: string | null; completed_at: string; service_type: string; zone: string; km: number; cost: number | null;
+    folio: string | null; completed_at: string; service_type: string; zone: string; km: number | null; cost: number | null;
     operator: string | null; assignment_met: boolean | null; arrival_met: boolean | null;
   }[];
 };
@@ -172,7 +172,7 @@ export default function MoptReportPage({ month }: { month: string }) {
                   <td className="py-1.5 pr-2 whitespace-nowrap">{formatDateTime(a.completed_at)}</td>
                   <td className="py-1.5 pr-2">{serviceTypeLabel(a.service_type)}</td>
                   <td className="py-1.5 pr-2">{a.zone}</td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums">{Number(a.km).toLocaleString('es-SV')}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums">{a.km == null ? '—' : Number(a.km).toLocaleString('es-SV')}</td>
                   <td className="py-1.5 pr-2 text-right tabular-nums">{a.cost == null ? '—' : money(a.cost)}</td>
                   <td className="py-1.5 pr-2">{a.operator ?? '—'}</td>
                   <td className="py-1.5 pr-2">{yesNo(a.assignment_met)}</td>

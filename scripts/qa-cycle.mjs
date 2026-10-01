@@ -215,8 +215,17 @@ const setup = sqlJson(`
     update profiles set provider_id = '11111111-1111-1111-1111-111111111111', verification_status = 'approved' where id = '${ids.op}';
     update profiles set provider_id = null, verification_status = 'approved' where id = '${ids.opInd}';
     update profiles set provider_id = '22222222-2222-2222-2222-222222222222', verification_status = 'approved' where id = '${ids.opPipa}';
-    insert into profile_sensitive (profile_id, dui_number) values ('${ids.afiliado}', '01234567-8')
+    -- DUI propio del ciclo: el 01234567-8 del seed lo suele tener usuario1 ya
+    -- vinculado, y la vinculación nunca le roba un afiliado a otra cuenta.
+    insert into profile_sensitive (profile_id, dui_number) values ('${ids.afiliado}', '09876543-2')
       on conflict (profile_id) do update set dui_number = excluded.dui_number;
+    insert into members (policy_id, document_number, full_name, relationship)
+    select policy_id, '09876543-2', 'QA Afiliado', 'holder'
+      from members where id = 'd0000000-0000-0000-0000-000000000001'
+    on conflict do nothing;
+    update members set profile_id = null
+     where member_document_key(document_number) = member_document_key('09876543-2')
+       and profile_id is distinct from '${ids.afiliado}';
     if not exists (select 1 from providers where name = 'QA MOPT') then
       insert into providers (name, is_mopt, is_active, business_type) values ('QA MOPT', true, true, 'roadside');
     end if;

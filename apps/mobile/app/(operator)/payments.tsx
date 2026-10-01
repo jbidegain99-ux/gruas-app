@@ -90,7 +90,9 @@ export default function OperatorPayments() {
             <View style={styles.empty}>
               <Banknote size={36} color={colors.text.secondary} strokeWidth={1.5} />
               <Text style={styles.emptyText}>
-                Todavía no hay pagos. Budi paga por transferencia a la cuenta que registraste, con el detalle de cada servicio.
+                {data.program
+                  ? `Todavía no hay pagos. Tus servicios te los paga ${data.program} y aquí verás cada pago que registre.`
+                  : 'Todavía no hay pagos. Budi paga por transferencia a la cuenta que registraste, con el detalle de cada servicio.'}
               </Text>
             </View>
           ) : (

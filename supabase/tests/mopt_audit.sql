@@ -257,10 +257,11 @@ BEGIN
   RAISE NOTICE 'D. limite anual agotado en zona MOPT: paga el programa: OK';
 END $$;
 
--- E. Tope $150 que corta: $80 cerrado + un servicio en curso (precio base) lo alcanza.
+-- E. Tope $90 que corta: $20 cerrado (el caso de $80 se aprobó ajustado a $20 en C;
+--    00154: el tope cuenta lo aprobado) + un servicio en curso (precio base $75) lo alcanza.
 UPDATE services SET base_price = 75 WHERE slug = 'tow';
 INSERT INTO organization_contracts (organization_id, reference, valid_from, monthly_cap, on_cap)
-SELECT org, 'AU-001', sv_today() - 30, 150, 'charge_user' FROM t;
+SELECT org, 'AU-001', sv_today() - 30, 90, 'charge_user' FROM t;
 DO $$
 BEGIN
   ASSERT mopt_program_for(11.05, -80.95, 'tow') = (SELECT prov FROM t), 'E1: con margen se corto la cortesia';

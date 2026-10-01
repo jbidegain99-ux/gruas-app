@@ -6,7 +6,7 @@
 //     → Budi), con los ajustes que Budi aceptó en las observaciones.
 // A confirmar con el contador (LAN-09).
 import { serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
-import type { StatementDetail } from '@/features/statements/statement-types';
+import { effectiveAmount, effectiveFee, type StatementDetail } from '@/features/statements/statement-types';
 import { round2, type DteItem } from './dte';
 
 const dia = (iso: string) =>
@@ -17,11 +17,11 @@ export function statementItems(s: Pick<StatementDetail, 'organization' | 'lines'
   for (const l of s.lines) {
     const ref = `${serviceTypeLabel(l.service_type)} · ${l.folio ?? 'sin folio'} · ${dia(l.completed_at)}`;
     if (s.organization.type === 'MOPT') {
-      const fee = round2(Number(l.fee) || 0);
+      // Con el ajuste que Budi aceptó: la tarifa en proporción, igual que el libro.
+      const fee = round2(effectiveFee(l) || 0);
       if (fee > 0) items.push({ descripcion: `Tarifa de plataforma Budi · ${ref}`, cantidad: 1, precio: fee, codigo: l.folio });
     } else {
-      const adjusted = l.observation?.status === 'adjusted' && l.observation.adjusted_amount != null;
-      const amount = round2(Number(adjusted ? l.observation!.adjusted_amount : l.amount) || 0);
+      const amount = round2(effectiveAmount(l) || 0);
       if (amount > 0) items.push({ descripcion: `Asistencia vial · ${ref}`, cantidad: 1, precio: amount, codigo: l.folio });
     }
   }

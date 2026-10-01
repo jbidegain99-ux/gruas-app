@@ -124,6 +124,15 @@ describe('DTE: desde el estado de cuenta', () => {
     expect(items[0].descripcion).toBe('Tarifa de plataforma Budi · Grúa · BUDI-000001 · 10/09/2026');
   });
 
+  it('al MOPT, la tarifa del caso ajustado en proporción (igual que el libro)', () => {
+    const items = statementItems({
+      organization: { id: 'o', name: 'MOPT', type: 'MOPT' },
+      lines: [line({ observation: { id: 'x', status: 'adjusted', adjusted_amount: 50, events: [] } })] as unknown as Lines,
+    });
+    // $61 con $3.05 de tarifa, ajustado a $50 → $2.50.
+    expect(items.map((i) => i.precio)).toEqual([2.5]);
+  });
+
   it('a la aseguradora, lo cubierto con los ajustes aceptados', () => {
     const items = statementItems({
       organization: { id: 'o', name: 'Seguros', type: 'INSURER' },

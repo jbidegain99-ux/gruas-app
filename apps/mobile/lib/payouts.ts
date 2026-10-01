@@ -3,9 +3,10 @@
 
 export type PayoutService = { folio: string | null; completed_at: string; service_type: string; amount: number };
 export type Payout = { id: string; paid_on: string; amount: number; reference: string | null; payer: string; services: PayoutService[] };
-export type MyPayouts = { company: string | null; pending: number; payments: Payout[] };
+// `program`: el socio es de la flota de un programa MOPT y le paga el programa (00154).
+export type MyPayouts = { company: string | null; program: string | null; pending: number; payments: Payout[] };
 
-const EMPTY: MyPayouts = { company: null, pending: 0, payments: [] };
+const EMPTY: MyPayouts = { company: null, program: null, pending: 0, payments: [] };
 
 export function parseMyPayouts(data: unknown): MyPayouts {
   if (!data || typeof data !== 'object') return EMPTY;
@@ -13,6 +14,7 @@ export function parseMyPayouts(data: unknown): MyPayouts {
   const payments = Array.isArray(d.payments) ? (d.payments as Payout[]) : [];
   return {
     company: typeof d.company === 'string' ? d.company : null,
+    program: typeof d.program === 'string' ? d.program : null,
     pending: Number(d.pending ?? 0) || 0,
     payments: payments.map((p) => ({
       ...p,
