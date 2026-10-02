@@ -25,6 +25,7 @@ import {
   Truck,
 } from 'lucide-react-native';
 import { SERVICE_ICONS } from '@/lib/serviceIcons';
+import { pinErrorMessage } from '@/lib/pinVerification';
 import { usePayerInfo } from '@/features/coverage/hooks/usePayerInfo';
 import { PayerBadge } from '@/features/coverage/components/PayerBadge';
 import { supabase } from '@/lib/supabase';
@@ -421,7 +422,7 @@ export default function ActiveService() {
           'PIN incorrecto'
         );
       } else {
-        toast.error(data?.error ?? 'El PIN no coincide. Verifica con el Usuario.', 'PIN incorrecto');
+        toast.error(pinErrorMessage(data?.error), 'PIN incorrecto');
       }
       return;
     }
