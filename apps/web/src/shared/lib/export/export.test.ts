@@ -38,6 +38,10 @@ describe('xlsx', () => {
 });
 
 describe('csv', () => {
+  it('un monto negativo en texto sigue siendo número; una fórmula disfrazada no', () => {
+    expect(toCsv([['-12.00', '-1+1', '+50370000001', '@SUMA(A1)']])).toBe("-12.00,'-1+1,'+50370000001,'@SUMA(A1)");
+  });
+
   it('comillas, comas y fórmulas', () => {
     const rows = tableRows([{ a: 'San Salvador, Centro', b: '=HYPERLINK("x")', n: 5 }], [
       { header: 'Lugar', value: (r) => r.a },

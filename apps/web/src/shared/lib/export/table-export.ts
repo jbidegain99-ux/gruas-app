@@ -13,8 +13,11 @@ export function tableRows<T>(rows: T[], columns: ExportColumn<T>[]): Cell[][] {
 function csvCell(v: Cell): string {
   if (v === null || v === undefined) return '';
   const s = String(v);
-  // Fórmulas: una celda que empieza con = + - @ se ejecutaría en Excel.
-  const safe = /^[=+\-@\t\r]/.test(s) && typeof v !== 'number' ? `'${s}` : s;
+  // Fórmulas: una celda que empieza con = + - @ se ejecutaría en Excel. Un
+  // monto que llega como texto ("-12.00", un saldo negativo) no es fórmula:
+  // con el apóstrofo Excel lo dejaría como texto y no sumaría.
+  const esNumero = typeof v === 'number' || /^-?\d+(\.\d+)?$/.test(s);
+  const safe = !esNumero && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return /[",\n\r;]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

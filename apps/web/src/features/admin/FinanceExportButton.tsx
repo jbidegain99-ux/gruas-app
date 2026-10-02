@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
+import { toCsv } from '@/shared/lib/export/table-export';
 
 type Fila = {
   folio: string | null;
@@ -52,10 +53,9 @@ export function FinanceExportButton({ desde, hasta, insurers = true }: { desde: 
     const cabeceras = insurers
       ? ['Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor', 'Aseguradora', 'Bruto', 'Cubre la aseguradora', 'Paga el Usuario']
       : ['Folio', 'Completado', 'Servicio', 'Usuario', 'Socio operador', 'Proveedor', 'Bruto', 'Paga el Usuario'];
-    // Escapa cada celda: comillas alrededor y comillas internas duplicadas, para
-    // que un nombre con comas no corra las columnas.
-    const celda = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = [
+    // toCsv escapa comillas/comas y neutraliza fórmulas (los nombres los
+    // escriben los Usuarios y socios).
+    const csv = toCsv([
       cabeceras,
       ...filas.map((f) => [
         f.folio ?? '',
@@ -66,9 +66,7 @@ export function FinanceExportButton({ desde, hasta, insurers = true }: { desde: 
         f.proveedor ?? '',
         ...(insurers ? [f.aseguradora ?? 'Particular', f.bruto, f.cubierto, f.copago] : [f.bruto, f.copago]),
       ]),
-    ]
-      .map((r) => r.map(celda).join(','))
-      .join('\n');
+    ]);
 
     // El BOM es lo que hace que Excel en español abra el archivo en UTF-8 y no
     // parta los acentos.

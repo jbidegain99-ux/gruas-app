@@ -18,6 +18,7 @@ import { resolveDisplayAddress } from '@/shared/lib/geocoding';
 import { useToast, useConfirm } from '@/shared/components/FeedbackProvider';
 import { money } from '@/shared/lib/format';
 import { Pagination } from '@/shared/components/Pagination';
+import { toCsv } from '@/shared/lib/export/table-export';
 
 const PAGE_SIZE = 20;
 
@@ -357,10 +358,9 @@ export default function AdminRequestsPage() {
       new Date(r.created_at).toISOString(),
     ]);
 
-    // Escapa cada celda: envuelve en comillas y duplica las comillas internas,
-    // para que las direcciones con comas/comillas/saltos no rompan el CSV.
-    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = [headers, ...rows].map((row) => row.map(cell).join(',')).join('\n');
+    // toCsv escapa comillas/comas y neutraliza fórmulas: el nombre y las
+    // direcciones los escribe el Usuario, y "=HYPERLINK(...)" se ejecutaría en Excel.
+    const csv = toCsv([headers, ...rows]);
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
+import { toCsv } from '@/shared/lib/export/table-export';
 
 type Fila = {
   folio: string | null;
@@ -49,14 +50,14 @@ export function SettlementExportButton({ desde, hasta }: { desde: string; hasta:
     }
 
     const cabeceras = ['Folio', 'Completado', 'Servicio', 'Se le paga a', 'Socio operador', 'Comisión %', 'Bruto', 'Comisión', 'A pagar', 'Cobró en efectivo', 'Saldo'];
-    const celda = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const csv = [
+    // toCsv escapa y neutraliza fórmulas; un saldo negativo sigue siendo número.
+    const csv = toCsv([
       cabeceras,
       ...filas.map((f) => [
         f.folio ?? '', new Date(f.completado).toISOString(), f.servicio,
         f.destinatario, f.operador, f.comision_pct, f.bruto, f.comision, f.a_pagar, f.efectivo, f.saldo,
       ]),
-    ].map((r) => r.map(celda).join(',')).join('\n');
+    ]);
 
     const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a');
