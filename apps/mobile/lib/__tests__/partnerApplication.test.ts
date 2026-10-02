@@ -10,6 +10,7 @@ import {
   isFutureIso,
   docDisplayStatus,
   missingLabel,
+  pauseInfo,
   rpcErrorMessage,
   partnerStateFromProfile,
   type PartnerDocument,
@@ -104,5 +105,24 @@ describe('partnerStateFromProfile', () => {
     expect(partnerStateFromProfile('approved', null)).toBe('approved');
     expect(partnerStateFromProfile('rejected', '2026-09-01T00:00:00Z')).toBe('rejected');
     expect(partnerStateFromProfile('suspended', null)).toBe('suspended');
+  });
+});
+
+describe('pauseInfo', () => {
+  it('documento vencido: se resuelve subiendo la renovación', () => {
+    const p = pauseInfo('Documento vencido: licencia de conducir');
+    expect(p.byDocuments).toBe(true);
+    expect(p.cta).toBe('Subir la renovación');
+  });
+
+  it('pausa de Budi: se resuelve con soporte, no con documentos', () => {
+    const p = pauseInfo('Reportes de cobros por fuera de la app.');
+    expect(p.byDocuments).toBe(false);
+    expect(p.cta).toBe('Contactar a soporte');
+    expect(p.text).not.toMatch(/document/i);
+  });
+
+  it('sin motivo cuenta como pausa de Budi', () => {
+    expect(pauseInfo(null).byDocuments).toBe(false);
   });
 });

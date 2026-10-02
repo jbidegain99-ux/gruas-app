@@ -49,6 +49,7 @@ import {
   type DocDisplayStatus,
   type DocType,
   type PartnerApplication,
+  pauseInfo,
   type VehicleType,
 } from '@/lib/partnerApplication';
 import { Button, Input, LoadingSpinner, ErrorState, toast } from '@/shared/components/ui';
@@ -661,8 +662,8 @@ export default function PartnerRegistration() {
       case 'suspended':
         return {
           Icon: ShieldAlert, color: colors.error.dark, bg: colors.error.light, border: colors.error.main,
-          title: 'Cuenta suspendida',
-          text: 'No recibirás solicitudes hasta resolverlo. Sube la renovación de los documentos vencidos y vuelve a enviar tu registro a revisión.',
+          title: pauseInfo(app.rejection_reason).title,
+          text: pauseInfo(app.rejection_reason).text,
           reason: app.rejection_reason,
         };
       default:

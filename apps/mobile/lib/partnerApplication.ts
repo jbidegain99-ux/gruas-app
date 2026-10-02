@@ -203,3 +203,36 @@ export function rpcErrorMessage(
   }
   return friendlyError(error, fallback);
 }
+
+/**
+ * Cuenta en pausa: por qué y qué hacer. Hay dos causas y piden cosas
+ * distintas. La automática (check_operator_document_expiry) deja como motivo
+ * "Documento vencido: …" y se resuelve subiendo la renovación. La que pone
+ * Budi a mano (Verificaciones → Pausar cuenta) trae su propio motivo y se
+ * resuelve hablando con soporte: mandarlo a "actualizar documentos" no la
+ * levanta nunca.
+ */
+export type PauseInfo = {
+  title: string;
+  text: string;
+  /** true: el registro (subir la renovación). false: contactar a soporte. */
+  byDocuments: boolean;
+  cta: string;
+};
+
+export function pauseInfo(reason: string | null | undefined): PauseInfo {
+  const byDocuments = /^Documento vencido/i.test((reason ?? '').trim());
+  return byDocuments
+    ? {
+        title: 'Cuenta en pausa',
+        text: 'Venció un documento. Sube la renovación desde tu registro para volver a recibir solicitudes.',
+        byDocuments,
+        cta: 'Subir la renovación',
+      }
+    : {
+        title: 'Cuenta en pausa',
+        text: 'Budi pausó tu cuenta. Escríbenos a soporte para resolverlo.',
+        byDocuments,
+        cta: 'Contactar a soporte',
+      };
+}

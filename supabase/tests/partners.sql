@@ -267,6 +267,33 @@ DO $$ DECLARE r JSONB; BEGIN
 END $$;
 RESET ROLE;
 
+-- 00162: la pausa que pone Budi a mano no la levanta el socio.
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT admin FROM t));
+SELECT admin_set_operator_verification((SELECT socio FROM t), 'suspended', 'Reportes de cobros por fuera de la app');
+SELECT pg_temp.como((SELECT socio FROM t));
+DO $$ DECLARE ok BOOLEAN := false; msg TEXT; BEGIN
+  ASSERT NOT (my_partner_application()->>'can_edit')::boolean, 'D9: con la pausa de Budi el registro quedó editable';
+  BEGIN PERFORM submit_operator_verification(); EXCEPTION WHEN OTHERS THEN ok := true; msg := SQLERRM; END;
+  ASSERT ok, 'D10: el socio salió de la pausa de Budi reenviando su registro';
+  ASSERT msg LIKE '%soporte%', 'D10: el error no dice que hable con soporte: ' || msg;
+  ok := false;
+  BEGIN PERFORM upsert_operator_document('license', 'id-documents', (SELECT socio FROM t)::text || '/license-9.jpg', sv_today() + 365);
+  EXCEPTION WHEN OTHERS THEN ok := true; END;
+  ASSERT ok, 'D11: subió un documento estando pausado por Budi';
+END $$;
+SELECT pg_temp.como((SELECT admin FROM t));
+DO $$ DECLARE r JSONB; BEGIN
+  r := admin_review_document((SELECT socio FROM t), 'insurance', 'approved');
+  ASSERT NOT (r->>'reactivated')::boolean, 'D12: aprobar un documento levantó la pausa de Budi';
+  ASSERT (SELECT verification_status FROM profiles WHERE id = (SELECT socio FROM t)) = 'suspended', 'D12: dejó de estar en pausa';
+  PERFORM admin_set_operator_verification((SELECT socio FROM t), 'approved');
+  ASSERT (SELECT verification_status = 'approved' AND NOT verification_paused_by_staff
+            FROM profiles WHERE id = (SELECT socio FROM t)), 'D13: el admin no pudo reactivarlo';
+  RAISE NOTICE 'D5. la pausa de Budi solo la levanta Budi: OK';
+END $$;
+RESET ROLE;
+
 -- ---------------------------------------------------------------
 -- F. Contrato versionado (00126, AGT-04)
 -- ---------------------------------------------------------------

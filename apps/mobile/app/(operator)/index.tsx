@@ -18,7 +18,8 @@ import { SERVICE_ICONS } from '@/lib/serviceIcons';
 import { usePayerInfo } from '@/features/coverage/hooks/usePayerInfo';
 import { PayerBadge } from '@/features/coverage/components/PayerBadge';
 import { supabase } from '@/lib/supabase';
-import { partnerStateFromProfile, type PartnerState } from '@/lib/partnerApplication';
+import { partnerStateFromProfile, pauseInfo, type PartnerState } from '@/lib/partnerApplication';
+import { openSupportMenu } from '@/lib/support';
 import { useOperatorLocationTracking } from '@/features/tracking/hooks/useOperatorLocationTracking';
 import { haversineKm, estimateMinutes, formatKm } from '@/lib/distance';
 import { fetchOperatorEarnings, money, EMPTY_EARNINGS, type EarningsSummary } from '@/lib/earnings';
@@ -70,6 +71,8 @@ export default function OperatorRequests() {
   const [onlineLoaded, setOnlineLoaded] = useState(false);
   const [verified, setVerified] = useState(true); // hasta cargar el perfil, no bloquear
   const [partnerState, setPartnerState] = useState<PartnerState>('approved');
+  // Motivo de la pausa: decide si se resuelve con documentos o con soporte.
+  const [pauseReason, setPauseReason] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<EarningsSummary>(EMPTY_EARNINGS);
 
   // Transmite ubicación cuando el operador está en línea, aprobado y sin
@@ -92,7 +95,7 @@ export default function OperatorRequests() {
     // Get operator profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, provider_id, verification_status, verification_submitted_at')
+      .select('full_name, provider_id, verification_status, verification_submitted_at, verification_rejection_reason')
       .eq('id', user.id)
       .single();
 
@@ -101,6 +104,7 @@ export default function OperatorRequests() {
     }
     setVerified(profile?.verification_status === 'approved');
     setPartnerState(partnerStateFromProfile(profile?.verification_status, profile?.verification_submitted_at));
+    setPauseReason(profile?.verification_rejection_reason ?? null);
 
     // Ganancias de hoy / esta semana (se muestran siempre, incluso con servicio activo)
     setEarnings(await fetchOperatorEarnings());
@@ -607,7 +611,7 @@ export default function OperatorRequests() {
                 : partnerState === 'rejected'
                   ? 'Registro rechazado'
                   : partnerState === 'suspended'
-                    ? 'Cuenta suspendida'
+                    ? 'Cuenta en pausa'
                     : 'Registro en revisión'}
             </Text>
           </View>
@@ -668,7 +672,7 @@ export default function OperatorRequests() {
               draft: { Icon: ClipboardList, color: colors.warning.main, title: 'Completa tu registro', text: 'Para recibir solicitudes, llena tus datos, tu unidad y tus documentos. Tu avance se guarda.', cta: 'Continuar mi registro' },
               in_review: { Icon: Clock, color: colors.warning.main, title: 'Registro en revisión', text: 'Un administrador está revisando tu registro. Te avisaremos cuando esté aprobado.', cta: 'Ver mi registro' },
               rejected: { Icon: ShieldX, color: colors.error.main, title: 'Registro rechazado', text: 'Revisa el motivo, corrige lo que se indica y vuelve a enviarlo a revisión.', cta: 'Corregir mi registro' },
-              suspended: { Icon: ShieldAlert, color: colors.error.main, title: 'Cuenta suspendida', text: 'No puedes recibir solicitudes por ahora. Actualiza tus documentos vencidos para reactivar tu cuenta.', cta: 'Corregir mi registro' },
+              suspended: { Icon: ShieldAlert, color: colors.error.main, ...pauseInfo(pauseReason) },
               approved: { Icon: ClipboardList, color: colors.warning.main, title: 'Registro pendiente', text: 'Revisa tu registro de socio.', cta: 'Ver mi registro' },
             }[partnerState];
             return (
@@ -676,10 +680,17 @@ export default function OperatorRequests() {
                 <ui.Icon size={56} color={ui.color} strokeWidth={1.5} />
                 <Text style={styles.emptyTitle}>{ui.title}</Text>
                 <Text style={styles.emptyText}>{ui.text}</Text>
+                {partnerState === 'suspended' && pauseReason && (
+                  <Text style={styles.emptyText}>Motivo: {pauseReason}</Text>
+                )}
                 <View style={styles.emptyAction}>
                   <Button
                     title={ui.cta}
-                    onPress={() => router.push('/(operator)/verification' as Href)}
+                    onPress={() =>
+                      partnerState === 'suspended' && !pauseInfo(pauseReason).byDocuments
+                        ? openSupportMenu()
+                        : router.push('/(operator)/verification' as Href)
+                    }
                     size="medium"
                   />
                 </View>

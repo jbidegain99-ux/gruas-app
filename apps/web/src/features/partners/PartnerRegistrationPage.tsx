@@ -166,7 +166,15 @@ function StateBanner({ app }: { app: PartnerApplication }) {
     in_review: { cls: 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200', Icon: Clock, text: 'Estamos revisando tu registro. Mientras tanto no se puede cambiar.' },
     approved: { cls: 'bg-green-50 text-green-900 dark:bg-green-950/40 dark:text-green-200', Icon: CheckCircle2, text: 'Tu cuenta está activa: entra a la app y ponte en línea para recibir solicitudes.' },
     rejected: { cls: 'bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-200', Icon: XCircle, text: 'Corrige lo que te indicamos abajo y vuelve a enviarlo.' },
-    suspended: { cls: 'bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-200', Icon: PauseCircle, text: 'Sube el documento renovado para volver a recibir solicitudes.' },
+    // La pausa automática (documento vencido) se resuelve subiendo la
+    // renovación; la que pone Budi a mano, hablando con soporte.
+    suspended: {
+      cls: 'bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-200',
+      Icon: PauseCircle,
+      text: /^Documento vencido/i.test(app.rejection_reason ?? '')
+        ? 'Sube el documento renovado para volver a recibir solicitudes.'
+        : 'Budi pausó tu cuenta. Escríbenos a soporte para resolverlo.',
+    },
   };
   const s = styles[app.state];
   return (

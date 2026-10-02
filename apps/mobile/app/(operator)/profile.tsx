@@ -19,9 +19,10 @@ import { PartnerGuide } from '@/features/partners/components/PartnerGuide';
 import { supabase, signOut } from '@/lib/supabase';
 import { confirmAction } from '@/lib/confirm';
 import { openSupportMenu } from '@/lib/support';
-import { partnerStateFromProfile } from '@/lib/partnerApplication';
+import { partnerStateFromProfile, pauseInfo } from '@/lib/partnerApplication';
 import { BudiLogo, Button, Card, Input, LoadingSpinner, toast } from '@/shared/components/ui';
 import { colors, typography, spacing, radii } from '@/theme';
+import { formatPhone } from '@gruas-app/shared';
 
 type Profile = {
   id: string;
@@ -33,6 +34,7 @@ type Profile = {
   provider_name: string | null;
   verification_status: string;
   verification_submitted_at: string | null;
+  verification_rejection_reason: string | null;
 };
 
 type Stats = {
@@ -76,7 +78,7 @@ export default function OperatorProfile() {
       const { data, error: profileError } = await supabase
         .from('profiles')
         .select(`
-          id, full_name, phone, role, created_at, verification_status, verification_submitted_at,
+          id, full_name, phone, role, created_at, verification_status, verification_submitted_at, verification_rejection_reason,
           providers (name)
         `)
         .eq('id', user.id)
@@ -99,6 +101,7 @@ export default function OperatorProfile() {
         provider_name: (data.providers as unknown as { name: string } | null)?.name || null,
         verification_status: data.verification_status || 'pending',
         verification_submitted_at: data.verification_submitted_at ?? null,
+        verification_rejection_reason: data.verification_rejection_reason ?? null,
       });
 
       // Fetch operator stats
@@ -159,7 +162,7 @@ export default function OperatorProfile() {
   const openEditModal = () => {
     if (profile) {
       setEditName(profile.full_name);
-      setEditPhone(profile.phone);
+      setEditPhone(formatPhone(profile.phone));
       setEditModalVisible(true);
     }
   };
@@ -309,14 +312,18 @@ export default function OperatorProfile() {
           approved: { Icon: ShieldCheck, color: colors.success.main, bg: colors.success.light, title: 'Cuenta verificada', text: 'Tu cuenta está aprobada. Puedes recibir solicitudes cuando estés en línea.', cta: 'Ver mi registro' },
           in_review: { Icon: Clock, color: colors.warning.dark, bg: colors.warning.light, title: 'Registro en revisión', text: 'Un administrador está revisando tu registro. Te avisaremos cuando esté aprobado.', cta: 'Ver mi registro' },
           rejected: { Icon: ShieldX, color: colors.error.main, bg: colors.error.light, title: 'Registro rechazado', text: 'Revisa el motivo, corrige lo que se indica y vuelve a enviarlo.', cta: 'Corregir mi registro' },
-          suspended: { Icon: ShieldAlert, color: colors.error.main, bg: colors.error.light, title: 'Cuenta suspendida', text: 'No recibes solicitudes por ahora. Revisa el motivo y actualiza tus documentos para reactivarla.', cta: 'Corregir mi registro' },
+          suspended: { Icon: ShieldAlert, color: colors.error.main, bg: colors.error.light, ...pauseInfo(profile.verification_rejection_reason) },
           draft: { Icon: ClipboardList, color: colors.warning.dark, bg: colors.warning.light, title: 'Completa tu registro', text: 'Llena tus datos, tu unidad y tus documentos para poder recibir solicitudes.', cta: 'Continuar mi registro' },
         }[state];
         const cta = config.cta;
         return (
           <Pressable
             style={[styles.verifCard, { backgroundColor: config.bg, borderColor: config.color }]}
-            onPress={() => router.push('/(operator)/verification' as Href)}
+            onPress={() =>
+              state === 'suspended' && !pauseInfo(profile.verification_rejection_reason).byDocuments
+                ? openSupportMenu()
+                : router.push('/(operator)/verification' as Href)
+            }
             accessibilityRole="button"
             accessibilityLabel={`Verificación: ${config.title}. ${cta}`}
           >
@@ -347,7 +354,7 @@ export default function OperatorProfile() {
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Teléfono</Text>
-          <Text style={styles.infoValue}>{profile.phone}</Text>
+          <Text style={styles.infoValue}>{formatPhone(profile.phone)}</Text>
         </View>
 
         {profile.provider_name && (
