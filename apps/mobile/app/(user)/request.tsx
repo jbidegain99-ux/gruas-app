@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -211,9 +211,12 @@ export default function RequestService() {
   // migracion 00049 — antes habia dos tablas con los mismos campos y datos
   // distintos, y esta pantalla leia de la que nadie podia editar.
   // De paso alimenta el catalogo de destinos, asi no hacen falta dos consultas.
-  useEffect(() => {
+  // Se recarga al volver a la pestaña: la pantalla no se desmonta, y si Budi
+  // cambia de tarifa (p. ej. la nocturna) con la app abierta, el "Desde" y el
+  // estimado se quedaban con la anterior. El spinner es solo el de la primera
+  // carga (estado inicial); las recargas no lo vuelven a mostrar.
+  useFocusEffect(useCallback(() => {
     const fetchServicePricing = async () => {
-      setLoadingPricingTypes(true);
       const { data, error } = await supabase
         .from('services')
         .select('id, slug, name_es, description_es, icon, base_price, extra_fee, extra_fee_label, requires_destination, sort_order, is_active, currency')
@@ -249,10 +252,10 @@ export default function RequestService() {
       setLoadingPricingTypes(false);
     };
     fetchServicePricing();
-  }, []);
+  }, []));
 
-  // Fetch tow pricing rules
-  useEffect(() => {
+  // Tarifa activa de la grúa (para el estimado). También al enfocar: ver arriba.
+  useFocusEffect(useCallback(() => {
     const fetchPricing = async () => {
       const { data, error } = await supabase
         .from('pricing_rules')
@@ -265,7 +268,7 @@ export default function RequestService() {
       }
     };
     fetchPricing();
-  }, []);
+  }, []));
 
   // Cargar vehículos guardados para ofrecerlos como acceso rápido.
   useEffect(() => {
