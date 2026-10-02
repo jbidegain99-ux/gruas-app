@@ -144,6 +144,7 @@ export function RatingModal({
           <TextInput
             style={styles.commentInput}
             placeholder="Comentario opcional..."
+            maxLength={500}
             placeholderTextColor={colors.text.tertiary}
             value={comment}
             onChangeText={setComment}

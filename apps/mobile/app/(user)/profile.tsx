@@ -347,6 +347,7 @@ export default function Profile() {
               placeholder="Tu nombre completo"
               value={editName}
               onChangeText={setEditName}
+              maxLength={120}
               autoCapitalize="words"
             />
 

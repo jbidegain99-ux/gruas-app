@@ -1003,6 +1003,7 @@ export default function RequestService() {
         <Input
           label="Notas Adicionales (opcional)"
           placeholder="Información adicional para el socio operador..."
+          maxLength={500}
           value={notes}
           onChangeText={setNotes}
           multiline
@@ -1053,6 +1054,7 @@ export default function RequestService() {
       <Input
         label="Descripción del Vehículo (opcional)"
         placeholder="Ej: Toyota Corolla 2020, color blanco"
+        maxLength={200}
         value={vehicleDescription}
         onChangeText={setVehicleDescription}
       />

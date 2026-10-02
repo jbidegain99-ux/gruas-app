@@ -108,6 +108,7 @@ export default function Register() {
             <Input
               label="Nombre completo"
               placeholder="Juan Pérez"
+              maxLength={120}
               value={fullName}
               onChangeText={setFullName}
             />
