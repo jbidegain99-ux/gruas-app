@@ -47,3 +47,6 @@ supabase/.temp/
 # distinto. Es output reproducible, no evidencia.
 **/test-results/
 **/playwright-report/
+
+# Entorno de demo (scripts/demo-env.mjs): base local aparte y el 2FA del dueño MOPT de la demo
+.demo/
