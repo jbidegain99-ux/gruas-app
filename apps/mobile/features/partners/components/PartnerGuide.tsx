@@ -74,17 +74,19 @@ export function PartnerGuide({
               <View key={k} style={[styles.dot, k === i && styles.dotOn]} />
             ))}
           </View>
+          {/* fullWidth={false}: el Button ocupa el 100% por defecto y, en fila,
+              "Siguiente" quedaba fuera de la pantalla desde el paso 2. */}
           <View style={styles.actions}>
-            {i > 0 && <Button title="Anterior" variant="tertiary" size="medium" onPress={() => setI(i - 1)} />}
+            {i > 0 && <Button title="Anterior" variant="tertiary" size="medium" fullWidth={false} onPress={() => setI(i - 1)} />}
             <View style={{ flex: 1 }} />
             {last ? (
               onPractice ? (
-                <Button title="Hacer servicio de práctica" size="medium" onPress={() => { close(); onPractice(); }} />
+                <Button title="Hacer servicio de práctica" size="medium" fullWidth={false} onPress={() => { close(); onPractice(); }} />
               ) : (
-                <Button title="Entendido" size="medium" onPress={close} />
+                <Button title="Entendido" size="medium" fullWidth={false} onPress={close} />
               )
             ) : (
-              <Button title="Siguiente" size="medium" onPress={() => setI(i + 1)} />
+              <Button title="Siguiente" size="medium" fullWidth={false} onPress={() => setI(i + 1)} />
             )}
           </View>
         </View>
