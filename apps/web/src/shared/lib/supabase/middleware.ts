@@ -101,7 +101,9 @@ export async function updateSession(request: NextRequest) {
 
     if (denied) {
       const url = request.nextUrl.clone();
-      url.pathname = '/';
+      // Soporte en una página solo de ADMIN vuelve a su panel, no a la landing.
+      const staffElsewhere = guard.prefix === '/admin' && !error && !!role && guard.allowedRoles.includes(role);
+      url.pathname = staffElsewhere ? '/admin' : '/';
       url.search = '';
       return NextResponse.redirect(url);
     }

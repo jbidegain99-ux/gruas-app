@@ -18,6 +18,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { BudiLogo } from '@/shared/components/BudiLogo';
+import { insurersOn } from '@/shared/lib/insurers-public';
 
 // Landing pública (backlog LAN-10). Página estática, sin sesión: tres públicos
 // en una sola página — el Usuario (descargar la app), las instituciones (MOPT,
@@ -29,28 +30,6 @@ import { BudiLogo } from '@/shared/components/BudiLogo';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const DESCRIPTION_BASE =
   'Pide grúa o asistencia vial en El Salvador desde tu teléfono: sigue a tu socio operador en vivo y confirma el servicio con tu PIN de confirmación.';
-
-// 00153: aseguradoras y reaseguradoras en pausa hasta que Walter avise. Se lee
-// el mismo interruptor que el panel y la app, con la llave pública y un caché
-// de un minuto (la landing no tiene sesión y sigue siendo rápida).
-async function insurersOn(): Promise<boolean> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return false;
-  try {
-    const res = await fetch(`${url}/rest/v1/rpc/platform_features`, {
-      method: 'POST',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: '{}',
-      next: { revalidate: 60 },
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { insurers?: unknown } | null;
-    return data?.insurers === true;
-  } catch {
-    return false;
-  }
-}
 
 function description(insurers: boolean): string {
   return `${DESCRIPTION_BASE} Soluciones para el MOPT${insurers ? ', aseguradoras y reaseguradoras' : ''}.`;

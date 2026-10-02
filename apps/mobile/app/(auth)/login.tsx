@@ -63,7 +63,7 @@ export default function Login() {
       } else {
         await signOut();
         toast.info(
-          'Las cuentas de administrador y de aseguradora trabajan en el portal web, no en la app.',
+          'Las cuentas de administración e instituciones trabajan en el portal web, no en la app.',
           'Esta cuenta se usa desde la web'
         );
       }

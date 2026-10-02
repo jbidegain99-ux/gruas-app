@@ -11,6 +11,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { BudiLogo } from '@/shared/components/BudiLogo';
+import { insurersOn } from '@/shared/lib/insurers-public';
 import { PartnerLeadForm } from './PartnerLeadForm';
 
 // Landing "Trabaja con Budi" (backlog AGT-01): el embudo de captación de
@@ -18,11 +19,15 @@ import { PartnerLeadForm } from './PartnerLeadForm';
 // Nunca publica el porcentaje de comisión (regla del backlog): el socio lo ve
 // en su liquidación.
 
-const BENEFICIOS = [
+// Aseguradoras en pausa (00153): sin el interruptor, ni beneficios ni respuestas
+// las mencionan.
+const beneficios = (insurers: boolean) => [
   { Icon: MapPin, title: 'Solicitudes cerca de ti', text: 'Te llegan servicios de tu zona. Ves la distancia y el recorrido antes de aceptar.' },
   { Icon: CalendarClock, title: 'Tú decides cuándo', text: 'Te conectas cuando quieres trabajar y te desconectas cuando no. Sin turnos fijos.' },
   { Icon: Wallet, title: 'Pagos claros', text: 'En la app ves lo que cobras por cada servicio y tu liquidación semanal, sin sorpresas.' },
-  { Icon: ShieldCheck, title: 'Clientes que pagan', text: 'Atiendes afiliados de aseguradoras y el programa de asistencia vial del MOPT, además de particulares.' },
+  { Icon: ShieldCheck, title: 'Clientes que pagan', text: insurers
+    ? 'Atiendes afiliados de aseguradoras y el programa de asistencia vial del MOPT, además de particulares.'
+    : 'Atiendes el programa de asistencia vial del MOPT, además de particulares.' },
 ];
 
 const REQUISITOS = [
@@ -43,16 +48,19 @@ const PASOS = [
   { Icon: Truck, title: 'Atiende y cobra', text: 'Confirmas cada servicio con el PIN de confirmación del Usuario y se registra tu pago.' },
 ];
 
-const PREGUNTAS = [
+const preguntas = (insurers: boolean) => [
   { q: '¿Necesito tener una empresa?', a: 'No. Puedes registrarte como socio independiente con tu propia unidad, o como parte de una empresa de grúas que ya trabaja con Budi.' },
   { q: '¿Cómo me pagan?', a: 'Por cada servicio completado, Budi retiene una comisión acordada y te liquida el resto a tu cuenta bancaria. Los servicios del programa del MOPT los paga el programa. Todo el detalle lo ves en la app.' },
-  { q: '¿Le cobro al Usuario?', a: 'Depende del servicio: la app te dice antes de aceptar si es cortesía del MOPT o si lo cubre una aseguradora. En esos casos no le cobras nada al Usuario.' },
+  { q: '¿Le cobro al Usuario?', a: insurers
+    ? 'Depende del servicio: la app te dice antes de aceptar si es cortesía del MOPT o si lo cubre una aseguradora. En esos casos no le cobras nada al Usuario.'
+    : 'Depende del servicio: la app te dice antes de aceptar si es cortesía del MOPT. En ese caso no le cobras nada al Usuario.' },
   { q: '¿Cuánto tarda la aprobación?', a: 'Revisamos tus documentos en pocos días hábiles. Si alguno está borroso o vencido, te decimos cuál y lo corriges desde tu registro.' },
   { q: '¿Qué pasa si se vence mi licencia o mi seguro?', a: 'Te avisamos 15 días antes. Si se vence, tu cuenta queda en pausa hasta que subas el documento nuevo y lo revisemos.' },
   { q: '¿Puedo registrarme sin descargar la app?', a: 'Sí. Completa el registro desde esta página; la app la necesitas para recibir y atender servicios.' },
 ];
 
-export default function PartnersLandingPage() {
+export default async function PartnersLandingPage() {
+  const insurers = await insurersOn();
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800">
@@ -96,7 +104,7 @@ export default function PartnersLandingPage() {
 
         <section className="border-t border-zinc-200 bg-zinc-50 px-4 py-14 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
           <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {BENEFICIOS.map(({ Icon, title, text }) => (
+            {beneficios(insurers).map(({ Icon, title, text }) => (
               <div key={title} className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-budi-primary-50 text-budi-primary-600 dark:bg-budi-primary-900/40 dark:text-budi-primary-300">
                   <Icon className="h-5 w-5" />
@@ -162,7 +170,7 @@ export default function PartnersLandingPage() {
           <div className="mx-auto max-w-3xl">
             <h2 className="font-heading text-2xl font-bold text-zinc-900 dark:text-white">Preguntas frecuentes</h2>
             <div className="mt-6 divide-y divide-zinc-200 dark:divide-zinc-800">
-              {PREGUNTAS.map(({ q, a }) => (
+              {preguntas(insurers).map(({ q, a }) => (
                 <details key={q} className="group py-4">
                   <summary className="cursor-pointer list-none font-medium text-zinc-900 marker:hidden dark:text-white">
                     <span className="mr-2 inline-block transition group-open:rotate-90">›</span>

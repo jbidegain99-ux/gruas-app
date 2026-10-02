@@ -341,7 +341,7 @@ export default function OperatorProfile() {
         </View>
 
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Correo Electronico</Text>
+          <Text style={styles.infoLabel}>Correo Electrónico</Text>
           <Text style={styles.infoValue}>{profile.email}</Text>
         </View>
 
