@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/shared/lib/supabase/client';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { useToast } from '@/shared/components/FeedbackProvider';
@@ -238,6 +239,8 @@ function ServiceForm({
   const [descEn, setDescEn] = useState(service?.description_en || '');
   const [icon, setIcon] = useState(service?.icon || 'wrench');
   const [basePrice, setBasePrice] = useState(service?.base_price || 0);
+  // 00160: el precio de la grúa refleja la tarifa activa; no se edita acá.
+  const isTow = slug === 'tow';
   const [extraFee, setExtraFee] = useState(service?.extra_fee || 0);
   const [extraFeeLabel, setExtraFeeLabel] = useState(service?.extra_fee_label || '');
   const [requiresDestination, setRequiresDestination] = useState(service?.requires_destination || false);
@@ -379,8 +382,15 @@ function ServiceForm({
               value={basePrice}
               onChange={(e) => setBasePrice(parseFloat(e.target.value))}
               required
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+              disabled={isTow}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 px-4 py-2 disabled:bg-zinc-100 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:disabled:bg-zinc-900"
             />
+            {isTow && (
+              <p className="mt-1 text-xs text-zinc-500">
+                La grúa se cobra con la tarifa activa (cargo base + km). Este &quot;desde&quot; la sigue solo: cámbialo en{' '}
+                <Link href="/admin/pricing" className="text-budi-primary-600 hover:underline dark:text-budi-primary-400">Precios</Link>.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">

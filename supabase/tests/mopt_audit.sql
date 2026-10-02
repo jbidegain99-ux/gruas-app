@@ -259,7 +259,8 @@ END $$;
 
 -- E. Tope $90 que corta: $20 cerrado (el caso de $80 se aprobó ajustado a $20 en C;
 --    00154: el tope cuenta lo aprobado) + un servicio en curso (precio base $75) lo alcanza.
-UPDATE services SET base_price = 75 WHERE slug = 'tow';
+-- 00160: el "desde" de la grúa sigue a la tarifa activa; se sube la tarifa.
+UPDATE pricing_rules SET base_exit_fee = 75 WHERE is_active;
 INSERT INTO organization_contracts (organization_id, reference, valid_from, monthly_cap, on_cap)
 SELECT org, 'AU-001', sv_today() - 30, 90, 'charge_user' FROM t;
 DO $$
