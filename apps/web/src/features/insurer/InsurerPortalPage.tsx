@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Inbox } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { ServiceTypeBadge, serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
 import { StatusBadge, STATUS_LABELS } from '@/shared/components/StatusBadge';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
@@ -59,9 +60,16 @@ export default function InsurerPortalPage() {
 
   useEffect(() => {
     let alive = true;
-    createClient()
-      .rpc('portal_insurer_cases', { p_from: filters.from, p_to: filters.to })
-      .then(({ data, error: e }) => {
+    // Por tandas: con más de 1000 casos en el período (max_rows) la lista y el
+    // archivo exportado se quedaban cortos.
+    const supabase = createClient();
+    fetchAll((from, to) =>
+      supabase
+        .rpc('portal_insurer_cases', { p_from: filters.from, p_to: filters.to })
+        .order('created_at', { ascending: false })
+        .order('folio')
+        .range(from, to)
+    ).then(({ data, error: e }) => {
         if (!alive) return;
         setError(e?.message ?? null);
         if (!e) setAllRows((data as Row[]) ?? []);

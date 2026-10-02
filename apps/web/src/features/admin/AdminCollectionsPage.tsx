@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { useConfirm, useToast } from '@/shared/components/FeedbackProvider';
 import { formatDateTime, money } from '@/shared/lib/format';
 import { serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
@@ -48,9 +49,16 @@ export default function AdminCollectionsPage() {
   const reload = useCallback(() => setRefresh((k) => k + 1), []);
 
   useEffect(() => {
-    createClient()
-      .rpc('admin_service_payments', { p_from: range.from, p_to: range.to, p_status: status || null } as never)
-      .then(({ data, error }) => {
+    // Por tandas: con más de 1000 cobros en el período (max_rows) la lista y
+    // sus totales se quedaban cortos.
+    const supabase = createClient();
+    fetchAll((from, to) =>
+      supabase
+        .rpc('admin_service_payments', { p_from: range.from, p_to: range.to, p_status: status || null } as never)
+        .order('completed_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    ).then(({ data, error }) => {
         if (error) {
           toast.error(error.message);
           setLoadError(error.message);

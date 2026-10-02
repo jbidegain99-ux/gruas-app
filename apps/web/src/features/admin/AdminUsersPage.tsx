@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Users, Truck, ShieldCheck, Building2, Search } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { Pagination } from '@/shared/components/Pagination';
 import { useCanConfigure } from './AdminRoleContext';
@@ -94,22 +95,27 @@ export default function AdminUsersPage() {
       const { data: { user: me } } = await supabase.auth.getUser();
       setMyId(me?.id ?? null);
 
-      // Fetch profiles with provider names
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          email,
-          full_name,
-          phone,
-          role,
-          provider_id,
-          verification_status,
-          created_at,
-          providers:provider_id (name),
-          insurers:insurer_id (name)
-        `)
-        .order('created_at', { ascending: false });
+      // Todos los perfiles, por tandas: la búsqueda y los contadores son en el
+      // navegador y antes se quedaban en los primeros 1000 (max_rows).
+      const { data: profilesData, error: profilesError } = await fetchAll((from, to) =>
+        supabase
+          .from('profiles')
+          .select(`
+            id,
+            email,
+            full_name,
+            phone,
+            role,
+            provider_id,
+            verification_status,
+            created_at,
+            providers:provider_id (name),
+            insurers:insurer_id (name)
+          `)
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(from, to)
+      );
 
       // La comision propia del independiente ya no vive en `profiles`: es una
       // tarifa versionada (00102). Aca solo importa la que rige hoy. Soporte no
@@ -126,11 +132,23 @@ export default function AdminUsersPage() {
       // Membresías activas y unidades de los socios (solo el admin las lee; para
       // soporte vuelven vacías y la tabla simplemente no las muestra).
       const [{ data: memberships }, { data: vehicles }] = await Promise.all([
-        supabase
-          .from('organization_members')
-          .select('profile_id, organizations(name, type)')
-          .eq('status', 'active'),
-        supabase.from('operator_vehicles').select('operator_id, plate, vehicle_type, capacity_m3').eq('is_active', true),
+        fetchAll((from, to) =>
+          supabase
+            .from('organization_members')
+            .select('profile_id, organizations(name, type)')
+            .eq('status', 'active')
+            .order('organization_id')
+            .order('profile_id')
+            .range(from, to)
+        ),
+        fetchAll((from, to) =>
+          supabase
+            .from('operator_vehicles')
+            .select('operator_id, plate, vehicle_type, capacity_m3')
+            .eq('is_active', true)
+            .order('id')
+            .range(from, to)
+        ),
       ]);
       const orgByProfile = new Map(
         (memberships ?? []).map((m) => [

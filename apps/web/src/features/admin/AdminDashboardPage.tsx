@@ -17,6 +17,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { DashboardLiveRefresh } from './DashboardLiveRefresh';
 import { duration, money } from '@/shared/lib/format';
+import { fetchAll } from '@/shared/lib/fetch-all';
 
 const STATUSES = ['initiated', 'assigned', 'en_route', 'active', 'completed', 'cancelled'] as const;
 
@@ -72,7 +73,8 @@ export default async function AdminDashboardPage() {
   // para que no se cuele el desfase al restar días.
   const cal = new Date(`${diaSV}T00:00:00Z`);
   cal.setUTCDate(cal.getUTCDate() - ((cal.getUTCDay() + 6) % 7));
-  const weekIso = `${cal.toISOString().slice(0, 10)}T00:00:00-06:00`;
+  const weekDate = cal.toISOString().slice(0, 10);
+  const weekIso = `${weekDate}T00:00:00-06:00`;
   const freshIso = new Date(now - 5 * 60 * 1000).toISOString();
   // Ventana de SLA: 30 días, para tener muestra suficiente aunque el volumen sea bajo.
   const slaWindowIso = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -85,7 +87,7 @@ export default async function AdminDashboardPage() {
     { count: operatorsOnline },
     { count: pendingVerifications },
     { count: activeProviders },
-    { data: completedRows },
+    revenueRows,
     { data: slaRows },
     { data: recentRequests },
   ] = await Promise.all([
@@ -108,11 +110,27 @@ export default async function AdminDashboardPage() {
       .eq('role', 'OPERATOR')
       .eq('verification_status', 'pending'),
     supabase.from('providers').select('id', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('service_requests').select('total_price, completed_at').eq('status', 'completed'),
-    supabase
-      .from('service_requests')
-      .select('created_at, assigned_at, activated_at, completed_at')
-      .gte('created_at', slaWindowIso),
+    // Ingresos de hoy, de la semana e histórico, sumados en la base: antes se
+    // traían todos los servicios completados y PostgREST corta en 1000
+    // (max_rows), así que pasado el servicio 1000 los montos se congelaban y
+    // "hoy" podía salir en cero. Mismo corte de día que Finanzas. Soporte no
+    // ve dinero (00104): ni se pide.
+    showMoney
+      ? Promise.all(
+          [diaSV, weekDate, '2000-01-01'].map((desde) =>
+            supabase.rpc('admin_finance_summary', { p_from: desde, p_to: diaSV })
+          )
+        )
+      : Promise.resolve([]),
+    fetchAll((from, to) =>
+      supabase
+        .from('service_requests')
+        .select('created_at, assigned_at, activated_at, completed_at')
+        .gte('created_at', slaWindowIso)
+        .order('created_at')
+        .order('id')
+        .range(from, to)
+    ),
     supabase
       .from('service_requests')
       .select('id, status, pickup_address, service_type, total_price, created_at, profiles!service_requests_user_id_fkey(full_name)')
@@ -126,14 +144,8 @@ export default async function AdminDashboardPage() {
   });
   const totalRequests = STATUSES.reduce((a, s) => a + counts[s], 0);
   const activeNow = counts.assigned + counts.en_route + counts.active;
-  const completed = completedRows || [];
-  const revenue = completed.reduce((a, r) => a + (r.total_price || 0), 0);
-  const revenueToday = completed
-    .filter((r) => r.completed_at && r.completed_at >= todayIso)
-    .reduce((a, r) => a + (r.total_price || 0), 0);
-  const revenueWeek = completed
-    .filter((r) => r.completed_at && r.completed_at >= weekIso)
-    .reduce((a, r) => a + (r.total_price || 0), 0);
+  const bruto = (i: number) => Number((revenueRows[i]?.data as { bruto?: number } | null)?.bruto ?? 0);
+  const [revenueToday, revenueWeek, revenue] = [bruto(0), bruto(1), bruto(2)];
   const nonZeroStatuses = STATUSES.filter((s) => counts[s] > 0);
 
   // Tiempos de operación (SLA). `activated_at` = verificación del PIN en sitio,

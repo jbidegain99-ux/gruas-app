@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { ServiceTypeBadge } from '@/shared/components/ServiceTypeBadge';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
 import { duration, formatDate } from '@/shared/lib/format';
@@ -88,12 +89,20 @@ export default function MoptKmPage() {
     openRef.current = k;
     setOpen(k);
     setCases({ loading: true, error: null, rows: [] });
-    const { data, error: e } = await createClient().rpc('mopt_vehicle_cases', {
-      p_operator_id: r.operator_id as string,
-      p_plate: r.plate,
-      p_from: desde,
-      p_to: hasta,
-    });
+    // Por tandas (max_rows = 1000): los casos de una unidad en un año pasan de mil.
+    const supabase = createClient();
+    const { data, error: e } = await fetchAll((from, to) =>
+      supabase
+        .rpc('mopt_vehicle_cases', {
+          p_operator_id: r.operator_id as string,
+          p_plate: r.plate,
+          p_from: desde,
+          p_to: hasta,
+        })
+        .order('completed_at', { ascending: false })
+        .order('request_id')
+        .range(from, to)
+    );
     if (openRef.current !== k) return;
     setCases({ loading: false, error: e?.message ?? null, rows: (data as CaseRow[]) ?? [] });
   };

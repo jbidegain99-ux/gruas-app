@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { toCsv } from '@/shared/lib/export/table-export';
 
@@ -33,10 +34,16 @@ export function SettlementExportButton({ desde, hasta }: { desde: string; hasta:
 
   const exportar = async () => {
     setBajando(true);
-    const { data, error } = await createClient().rpc('admin_settlement_detail', {
-      p_from: desde,
-      p_to: hasta,
-    });
+    // Por tandas: la respuesta se corta en 1000 filas (max_rows) y el CSV de
+    // la liquidación salía incompleto sin avisar.
+    const supabase = createClient();
+    const { data, error } = await fetchAll((from, to) =>
+      supabase
+        .rpc('admin_settlement_detail', { p_from: desde, p_to: hasta })
+        .order('completado', { ascending: false })
+        .order('folio')
+        .range(from, to)
+    );
     setBajando(false);
 
     if (error) {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { svToday } from '@/shared/components/LedgerPaymentModals';
 import type { LatLng, MapOperator, MapPoint, MapZone } from './MoptMap';
 import { PORTAL_MAX_ROWS } from '@/shared/components/portal/case-filters';
@@ -87,7 +88,14 @@ export default function MoptMapPage() {
       const supabase = createClient();
       const [f, s, abiertos, z] = await Promise.all([
         supabase.rpc('mopt_fleet'),
-        supabase.rpc('mopt_list_services', { p_from: desde, p_to: svToday() }),
+        // Por tandas (max_rows = 1000): "desde" lo elige el MOPT y puede ser largo.
+        fetchAll((from, to) =>
+          supabase
+            .rpc('mopt_list_services', { p_from: desde, p_to: svToday() })
+            .order('created_at', { ascending: false })
+            .order('id')
+            .range(from, to)
+        ),
         // 00142: lo que está en curso se ve aunque se haya pedido antes de "desde".
         supabase.rpc('mopt_in_progress_services'),
         supabase.rpc('mopt_zones_mine'),

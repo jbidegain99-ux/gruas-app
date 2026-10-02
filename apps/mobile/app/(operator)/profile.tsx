@@ -105,22 +105,27 @@ export default function OperatorProfile() {
       });
 
       // Fetch operator stats
-      const { data: statsData } = await supabase
-        .from('service_requests')
-        .select('status')
-        .eq('operator_id', user.id);
+      // Conteos en la base: traer las filas y medirlas se quedaba en 1000
+      // (max_rows) y los números dejaban de subir pasado ese servicio.
+      const contar = (estados?: string[]) => {
+        let q = supabase
+          .from('service_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('operator_id', user.id);
+        if (estados) q = q.in('status', estados);
+        return q;
+      };
+      const [total, completed, active] = await Promise.all([
+        contar(),
+        contar(['completed']),
+        contar(['assigned', 'en_route', 'active']),
+      ]);
 
-      if (statsData) {
-        const total = statsData.length;
-        const completed = statsData.filter((r) => r.status === 'completed').length;
-        const active = statsData.filter((r) =>
-          ['assigned', 'en_route', 'active'].includes(r.status)
-        ).length;
-
+      if (!total.error) {
         setStats({
-          total_services: total,
-          completed_services: completed,
-          active_services: active,
+          total_services: total.count ?? 0,
+          completed_services: completed.count ?? 0,
+          active_services: active.count ?? 0,
         });
       }
     } catch (err) {

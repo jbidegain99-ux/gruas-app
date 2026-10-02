@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Inbox } from 'lucide-react';
 import { createClient } from '@/shared/lib/supabase/client';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { ServiceTypeBadge, serviceTypeLabel } from '@/shared/components/ServiceTypeBadge';
 import { StatusBadge, STATUS_LABELS } from '@/shared/components/StatusBadge';
 import { CaseFilters } from '@/shared/components/portal/CaseFilters';
@@ -58,7 +59,16 @@ export default function MoptServicesPage() {
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const { data, error: e } = await createClient().rpc('mopt_list_services', { p_from: filters.from, p_to: filters.to });
+      // Por tandas: con más de 1000 servicios en el período (max_rows) la
+      // lista, el total y el archivo exportado se quedaban cortos.
+      const supabase = createClient();
+      const { data, error: e } = await fetchAll((from, to) =>
+        supabase
+          .rpc('mopt_list_services', { p_from: filters.from, p_to: filters.to })
+          .order('created_at', { ascending: false })
+          .order('id')
+          .range(from, to)
+      );
       if (!alive) return;
       setError(e?.message ?? null);
       setRows((data as Row[]) ?? []);

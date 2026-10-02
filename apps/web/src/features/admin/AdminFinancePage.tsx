@@ -3,6 +3,7 @@ import { DollarSign, ShieldCheck, Wallet, Receipt, AlertTriangle, Landmark } fro
 import { createClient } from '@/shared/lib/supabase/server';
 import { getPlatformFeatures } from '@/shared/lib/platform-features';
 import { money } from '@/shared/lib/format';
+import { fetchAll } from '@/shared/lib/fetch-all';
 import { FinanceExportButton } from './FinanceExportButton';
 import { SettlementExportButton } from './SettlementExportButton';
 
@@ -104,14 +105,21 @@ export default async function AdminFinancePage({
     // Salvador (-06:00, sin horario de verano), porque `completed_at` es
     // timestamptz y comparar contra una fecha pelada la interpreta en UTC —
     // el bug que arregló la migración 00082.
-    supabase
-      .from('service_requests')
-      .select(
-        'total_price, completed_at, operator_id, provider_id, operator:profiles!service_requests_operator_id_fkey(full_name), providers(name)'
-      )
-      .eq('status', 'completed')
-      .gte('completed_at', `${desde}T00:00:00-06:00`)
-      .lt('completed_at', `${diaSiguiente(hasta)}T00:00:00-06:00`),
+    // Por tandas: con más de 1000 servicios en el período (max_rows) las tablas
+    // se quedaban cortas y no cerraban contra los KPI.
+    fetchAll((from, to) =>
+      supabase
+        .from('service_requests')
+        .select(
+          'total_price, completed_at, operator_id, provider_id, operator:profiles!service_requests_operator_id_fkey(full_name), providers(name)'
+        )
+        .eq('status', 'completed')
+        .gte('completed_at', `${desde}T00:00:00-06:00`)
+        .lt('completed_at', `${diaSiguiente(hasta)}T00:00:00-06:00`)
+        .order('completed_at')
+        .order('id')
+        .range(from, to)
+    ),
   ]);
 
   const r = (resumenRaw as Resumen | null) ?? {
