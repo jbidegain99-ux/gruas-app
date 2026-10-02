@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -52,6 +53,9 @@ type AvailableRequest = {
   service_type: string;
   service_details: Record<string, unknown>;
 };
+
+// Repaso del pool mientras el socio lo mira (ver el useFocusEffect del intervalo).
+const POOL_REFRESH_MS = 20_000;
 
 export default function OperatorRequests() {
   const router = useRouter();
@@ -157,6 +161,26 @@ export default function OperatorRequests() {
       fetchData();
     }, [fetchData])
   );
+
+  // El realtime respeta RLS: el socio recibe el INSERT de un pedido nuevo
+  // (lo puede ver), pero no el UPDATE cuando el Usuario lo cancela (un
+  // cancelado ajeno ya no es visible para él), y el pedido quedaba pegado en
+  // el pool. Mientras mira el pool en línea, se repasa cada 20 s; también al
+  // volver la app al frente. Si alcanza a tocar uno ya cancelado, el servidor
+  // lo rechaza con su mensaje.
+  useFocusEffect(
+    useCallback(() => {
+      if (!online || hasActiveService) return;
+      const id = setInterval(() => fetchData(), POOL_REFRESH_MS);
+      return () => clearInterval(id);
+    }, [online, hasActiveService, fetchData])
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchData();
+    });
+    return () => sub.remove();
+  }, [fetchData]);
 
   useEffect(() => {
     // Subscribe to real-time updates
@@ -536,113 +560,126 @@ export default function OperatorRequests() {
     return <LoadingSpinner fullScreen />;
   }
 
+  // Con pedidos en el pool, el encabezado (cobro pendiente, ganancias,
+  // interruptor) va dentro de la lista y se desplaza con ella. Fijo arriba,
+  // con letra grande o un cobro por confirmar dejaba una franja de ~300 px
+  // para el pedido: el socio veía "Aceptar" sin ver recogida ni destino.
+  const showPoolList =
+    !hasActiveService && verified && online && !loadError && requests.length > 0;
+  const header = (
+        <View style={[styles.header, { paddingTop: insets.top + spacing.l }]}>
+          <BudiLogo variant="wordmark" height={28} />
+          <Text style={styles.greeting}>Hola{operatorName ? `, ${operatorName}` : ''}</Text>
+          <Text style={styles.subtitle}>
+            {hasActiveService
+              ? 'Tienes un servicio activo'
+              : !online
+                ? 'Estás fuera de línea'
+                : requests.length > 0
+                  ? `${requests.length} solicitud${requests.length !== 1 ? 'es' : ''} disponible${requests.length !== 1 ? 's' : ''}`
+                  : 'No hay solicitudes disponibles'}
+          </Text>
+
+          {/* AGT-05 (00137): guía y servicio de práctica para el socio nuevo. */}
+          <PartnerTrainingCard />
+
+          {/* LAN-07 (00133): efectivo recibido que falta confirmar. */}
+          <OperatorCashCard />
+
+          {/* Ganancias del periodo */}
+          <View style={styles.earningsCard}>
+            <View style={styles.earningsBlock}>
+              <View style={styles.earningsLabelRow}>
+                <Wallet size={13} color={colors.text.tertiary} strokeWidth={2} />
+                <Text style={styles.earningsLabel}>Cobras hoy</Text>
+              </View>
+              <Text style={styles.earningsAmount}>{money(earnings.hoy.aCobrar)}</Text>
+              <Text style={styles.earningsCount}>
+                {earnings.hoy.servicios} servicio{earnings.hoy.servicios === 1 ? '' : 's'}
+              </Text>
+            </View>
+            <View style={styles.earningsDivider} />
+            <View style={styles.earningsBlock}>
+              <Text style={styles.earningsLabel}>Cobras esta semana</Text>
+              <Text style={styles.earningsAmount}>{money(earnings.semana.aCobrar)}</Text>
+              <Text style={styles.earningsCount}>
+                {earnings.semana.servicios} servicio{earnings.semana.servicios === 1 ? '' : 's'}
+              </Text>
+            </View>
+          </View>
+          {/* De donde sale el neto: sin esto el operador ve una cifra menor que la
+              que le cobro al cliente y no tiene como cuadrarla. */}
+          {earnings.semana.bruto > 0 && (
+            <Text style={styles.earningsNote}>
+              Facturado esta semana {money(earnings.semana.bruto)} ·{' '}
+              {/* Servicios MOPT (00098) no pagan comisión: "Budi retiene 0% ($0.00)" no decía nada. */}
+              {earnings.semana.comision <= 0
+                ? 'sin comisión de Budi'
+                : `Budi retiene ${
+                    earnings.semana.comisionPct == null
+                      ? money(earnings.semana.comision)
+                      : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`
+                  }`}
+              {/* LAN-07 (00133): lo que ya tiene en mano no se lo transfiere Budi. */}
+              {earnings.semana.efectivo > 0 &&
+                `\nYa recibiste ${money(earnings.semana.efectivo)} en efectivo · ` +
+                  (earnings.semana.saldo >= 0
+                    ? `Budi te transfiere ${money(earnings.semana.saldo)}`
+                    : `le debes a Budi ${money(-earnings.semana.saldo)} de comisión`)}
+            </Text>
+          )}
+
+          {/* Sin aprobar: indicador corto según en qué va el registro de socio */}
+          {!hasActiveService && !verified && (
+            <View style={[styles.availabilityRow, styles.availabilityOff]}>
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.main : colors.warning.main },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.availabilityText,
+                  { color: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.dark : colors.warning.dark },
+                ]}
+              >
+                {partnerState === 'draft'
+                  ? 'Registro incompleto'
+                  : partnerState === 'rejected'
+                    ? 'Registro rechazado'
+                    : partnerState === 'suspended'
+                      ? 'Cuenta en pausa'
+                      : 'Registro en revisión'}
+              </Text>
+            </View>
+          )}
+
+          {/* Toggle de disponibilidad (oculto durante un servicio activo o sin aprobar) */}
+          {!hasActiveService && verified && (
+            <View style={[styles.availabilityRow, online ? styles.availabilityOn : styles.availabilityOff]}>
+              <View style={[styles.statusDot, { backgroundColor: online ? colors.success.main : colors.text.tertiary }]} />
+              <Text style={[styles.availabilityText, { color: online ? colors.success.dark : colors.text.secondary }]}>
+                {online ? 'En línea' : 'Fuera de línea'}
+              </Text>
+              <Switch
+                value={online}
+                onValueChange={toggleOnline}
+                disabled={!onlineLoaded}
+                trackColor={{ true: colors.success.light, false: colors.border.medium }}
+                thumbColor={online ? colors.success.main : colors.background.primary}
+              />
+            </View>
+          )}
+        </View>
+  );
+
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.l }]}>
-        <BudiLogo variant="wordmark" height={28} />
-        <Text style={styles.greeting}>Hola{operatorName ? `, ${operatorName}` : ''}</Text>
-        <Text style={styles.subtitle}>
-          {hasActiveService
-            ? 'Tienes un servicio activo'
-            : !online
-              ? 'Estás fuera de línea'
-              : requests.length > 0
-                ? `${requests.length} solicitud${requests.length !== 1 ? 'es' : ''} disponible${requests.length !== 1 ? 's' : ''}`
-                : 'No hay solicitudes disponibles'}
-        </Text>
-
-        {/* AGT-05 (00137): guía y servicio de práctica para el socio nuevo. */}
-        <PartnerTrainingCard />
-
-        {/* LAN-07 (00133): efectivo recibido que falta confirmar. */}
-        <OperatorCashCard />
-
-        {/* Ganancias del periodo */}
-        <View style={styles.earningsCard}>
-          <View style={styles.earningsBlock}>
-            <View style={styles.earningsLabelRow}>
-              <Wallet size={13} color={colors.text.tertiary} strokeWidth={2} />
-              <Text style={styles.earningsLabel}>Cobras hoy</Text>
-            </View>
-            <Text style={styles.earningsAmount}>{money(earnings.hoy.aCobrar)}</Text>
-            <Text style={styles.earningsCount}>
-              {earnings.hoy.servicios} servicio{earnings.hoy.servicios === 1 ? '' : 's'}
-            </Text>
-          </View>
-          <View style={styles.earningsDivider} />
-          <View style={styles.earningsBlock}>
-            <Text style={styles.earningsLabel}>Cobras esta semana</Text>
-            <Text style={styles.earningsAmount}>{money(earnings.semana.aCobrar)}</Text>
-            <Text style={styles.earningsCount}>
-              {earnings.semana.servicios} servicio{earnings.semana.servicios === 1 ? '' : 's'}
-            </Text>
-          </View>
-        </View>
-        {/* De donde sale el neto: sin esto el operador ve una cifra menor que la
-            que le cobro al cliente y no tiene como cuadrarla. */}
-        {earnings.semana.bruto > 0 && (
-          <Text style={styles.earningsNote}>
-            Facturado esta semana {money(earnings.semana.bruto)} ·{' '}
-            {/* Servicios MOPT (00098) no pagan comisión: "Budi retiene 0% ($0.00)" no decía nada. */}
-            {earnings.semana.comision <= 0
-              ? 'sin comisión de Budi'
-              : `Budi retiene ${
-                  earnings.semana.comisionPct == null
-                    ? money(earnings.semana.comision)
-                    : `${earnings.semana.comisionPct}% (${money(earnings.semana.comision)})`
-                }`}
-            {/* LAN-07 (00133): lo que ya tiene en mano no se lo transfiere Budi. */}
-            {earnings.semana.efectivo > 0 &&
-              `\nYa recibiste ${money(earnings.semana.efectivo)} en efectivo · ` +
-                (earnings.semana.saldo >= 0
-                  ? `Budi te transfiere ${money(earnings.semana.saldo)}`
-                  : `le debes a Budi ${money(-earnings.semana.saldo)} de comisión`)}
-          </Text>
-        )}
-
-        {/* Sin aprobar: indicador corto según en qué va el registro de socio */}
-        {!hasActiveService && !verified && (
-          <View style={[styles.availabilityRow, styles.availabilityOff]}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.main : colors.warning.main },
-              ]}
-            />
-            <Text
-              style={[
-                styles.availabilityText,
-                { color: partnerState === 'rejected' || partnerState === 'suspended' ? colors.error.dark : colors.warning.dark },
-              ]}
-            >
-              {partnerState === 'draft'
-                ? 'Registro incompleto'
-                : partnerState === 'rejected'
-                  ? 'Registro rechazado'
-                  : partnerState === 'suspended'
-                    ? 'Cuenta en pausa'
-                    : 'Registro en revisión'}
-            </Text>
-          </View>
-        )}
-
-        {/* Toggle de disponibilidad (oculto durante un servicio activo o sin aprobar) */}
-        {!hasActiveService && verified && (
-          <View style={[styles.availabilityRow, online ? styles.availabilityOn : styles.availabilityOff]}>
-            <View style={[styles.statusDot, { backgroundColor: online ? colors.success.main : colors.text.tertiary }]} />
-            <Text style={[styles.availabilityText, { color: online ? colors.success.dark : colors.text.secondary }]}>
-              {online ? 'En línea' : 'Fuera de línea'}
-            </Text>
-            <Switch
-              value={online}
-              onValueChange={toggleOnline}
-              disabled={!onlineLoaded}
-              trackColor={{ true: colors.success.light, false: colors.border.medium }}
-              thumbColor={online ? colors.success.main : colors.background.primary}
-            />
-          </View>
-        )}
-      </View>
+      {/* Con el encabezado dentro de la lista, el contenido pasa por debajo de
+          la barra de estado al desplazar: un fondo fijo la mantiene legible. */}
+      {showPoolList && <View style={[styles.statusBarBackdrop, { height: insets.top }]} />}
+      {!showPoolList && header}
 
       {hasActiveService ? (
         // Va en ScrollView y no en View para que este estado tambien tenga
@@ -741,6 +778,8 @@ export default function OperatorRequests() {
           renderItem={renderRequest}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={header}
+          ListHeaderComponentStyle={styles.listHeader}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent[500]} />
           }
@@ -857,6 +896,19 @@ const styles = StyleSheet.create({
     padding: spacing.l,
     paddingTop: spacing.m,
     gap: spacing.m,
+  },
+  statusBarBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  // El encabezado dentro de la lista ocupa el ancho completo, como fuera de ella.
+  listHeader: {
+    marginHorizontal: -spacing.l,
+    marginTop: -spacing.m,
   },
   requestHeader: {
     flexDirection: 'row',
