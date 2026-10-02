@@ -4087,6 +4087,10 @@ export type Database = {
         }
         Returns: string
       }
+      admin_search_request_ids: {
+        Args: { p_limit?: number; p_q: string }
+        Returns: string[]
+      }
       admin_service_payments: {
         Args: { p_from: string; p_status?: string; p_to: string }
         Returns: {

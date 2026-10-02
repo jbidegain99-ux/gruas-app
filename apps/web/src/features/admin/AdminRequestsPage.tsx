@@ -125,6 +125,22 @@ export default function AdminRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  // 00166: con algo escrito, la búsqueda va a la base (todas las solicitudes,
+  // no solo las 300 cargadas). searchIds null = sin búsqueda (o todavía sin
+  // respuesta): se listan las últimas y se filtra en el navegador mientras tanto.
+  const [foundIds, setFoundIds] = useState<{ q: string; ids: string[] } | null>(null);
+  const searchQ = search.trim();
+  const searchIds = searchQ.length >= 2 && foundIds?.q === searchQ ? foundIds.ids : null;
+  useEffect(() => {
+    const q = searchQ;
+    if (q.length < 2) return;
+    const t = setTimeout(async () => {
+      const { data, error } = await createClient().rpc('admin_search_request_ids', { p_q: q });
+      if (error) console.error('Error buscando solicitudes:', error);
+      setFoundIds({ q, ids: ((data ?? []) as unknown as string[]).map(String) });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQ]);
   const [page, setPage] = useState(0);
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -174,13 +190,22 @@ export default function AdminRequestsPage() {
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as ServiceRequestStatus);
       }
+      if (searchIds) {
+        // Lo que encontró la búsqueda en la base (hasta 100).
+        if (searchIds.length === 0) {
+          setRequests([]);
+          setLoading(false);
+          return;
+        }
+        query = query.in('id', searchIds);
+      }
 
       const { data } = await query.limit(300);
       setRequests(data || []);
       setLoading(false);
     };
     fetchRequests();
-  }, [statusFilter, refreshKey]);
+  }, [statusFilter, refreshKey, searchIds]);
 
   // Refrescar en vivo cuando cambian las solicitudes (ej. un operador acepta)
   useEffect(() => {
@@ -374,7 +399,8 @@ export default function AdminRequestsPage() {
   // que dicta cuando llama a soporte.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return requests;
+    // Con la búsqueda de la base ya aplicada, no se vuelve a filtrar aquí.
+    if (!q || searchIds) return requests;
     return requests.filter((r) =>
       [
         r.cases?.folio,
@@ -386,7 +412,7 @@ export default function AdminRequestsPage() {
         .filter(Boolean)
         .some((f) => (f as string).toLowerCase().includes(q)) || phoneMatches(r.profiles?.phone, q)
     );
-  }, [requests, search]);
+  }, [requests, search, searchIds]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);

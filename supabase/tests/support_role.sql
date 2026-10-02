@@ -48,7 +48,8 @@ DECLARE
     'admin_partner_terms',             -- 00126: qué contrato aceptó el socio (revisión)
     -- 00137 (AGT-05): insignia de verificado y avance de capacitación (sin dinero).
     'request_operator_badge',
-    'admin_partner_training'
+    'admin_partner_training',
+    'admin_search_request_ids'         -- 00166: buscar en Solicitudes (solo ids, sin dinero)
   ];
   v_policies_ok TEXT[] := ARRAY[
     'service_requests/support: lee solicitudes',
