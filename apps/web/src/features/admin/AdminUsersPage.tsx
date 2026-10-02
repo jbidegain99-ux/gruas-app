@@ -9,6 +9,7 @@ import { Pagination } from '@/shared/components/Pagination';
 import { useCanConfigure } from './AdminRoleContext';
 import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import type { UserRole } from '@gruas-app/shared';
+import { formatPhone, phoneMatches } from '@gruas-app/shared';
 
 const PAGE_SIZE = 15;
 
@@ -208,7 +209,7 @@ export default function AdminUsersPage() {
       return (
         (p.full_name || '').toLowerCase().includes(q) ||
         (p.email || '').toLowerCase().includes(q) ||
-        (p.phone || '').toLowerCase().includes(q)
+        phoneMatches(p.phone, q)
       );
     });
   }, [profiles, search, roleFilter]);
@@ -363,7 +364,7 @@ export default function AdminUsersPage() {
                       {profile.email}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                      {profile.phone || '-'}
+                      {formatPhone(profile.phone) || '-'}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${ROLE_COLORS[profile.role]}`}>

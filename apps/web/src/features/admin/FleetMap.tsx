@@ -10,6 +10,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { FleetOperator } from './fleet-data';
 import { OPERATOR_STATE_META } from './fleet-data';
+import { formatPhone } from '@gruas-app/shared';
 
 // Centro por defecto: San Salvador, cuando ningún operador tiene ubicación.
 const DEFAULT_CENTER: [number, number] = [13.6929, -89.2182];
@@ -78,7 +79,7 @@ export default function FleetMap({ operators }: { operators: FleetOperator[] }) 
               {op.activeRequestAddress && (
                 <p className="text-zinc-600">Servicio: {op.activeRequestAddress}</p>
               )}
-              {op.phone && <p className="text-zinc-600">{op.phone}</p>}
+              {op.phone && <p className="text-zinc-600">{formatPhone(op.phone)}</p>}
               <p className="text-xs text-zinc-500">Visto {op.lastSeenLabel}</p>
             </div>
           </Popup>

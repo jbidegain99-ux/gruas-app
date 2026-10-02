@@ -21,6 +21,7 @@ import { openSupportMenu } from '@/lib/support';
 import { BudiLogo, Button, Card, Input, LoadingSpinner, ToastHost, toast } from '@/shared/components/ui';
 import { formatDate as formatAppDate } from '@/lib/dates';
 import { colors, typography, spacing, radii } from '@/theme';
+import { formatPhone } from '@gruas-app/shared';
 
 type Profile = {
   id: string;
@@ -120,7 +121,7 @@ export default function Profile() {
   const openEditModal = () => {
     if (profile) {
       setEditName(profile.full_name);
-      setEditPhone(profile.phone);
+      setEditPhone(formatPhone(profile.phone));
       setEditModalVisible(true);
     }
   };
@@ -262,7 +263,7 @@ export default function Profile() {
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Teléfono</Text>
-          <Text style={styles.infoValue}>{profile.phone}</Text>
+          <Text style={styles.infoValue}>{formatPhone(profile.phone)}</Text>
         </View>
 
         <View style={styles.infoRow}>

@@ -8,6 +8,7 @@ import { RegisterPaymentModal } from '@/shared/components/LedgerPaymentModals';
 import { formatDate, money } from '@/shared/lib/format';
 import { useMoptCanPay } from './MoptShell';
 import { ratingLabel } from './mopt-fleet';
+import { formatPhone } from '@gruas-app/shared';
 
 type Row = {
   operator_id: string;
@@ -135,7 +136,7 @@ export default function MoptOperatorsPage() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-zinc-900 dark:text-white">{r.full_name || 'Sin nombre'}</p>
                       <p className="text-xs text-zinc-500">
-                        {r.phone || '—'}
+                        {formatPhone(r.phone) || '—'}
                         {r.in_program && (r.plate ? <span className="ml-2 font-mono">Grúa {r.plate}</span> : <span className="ml-2">Sin grúa registrada</span>)}
                       </p>
                       <p className="text-xs text-zinc-500">{ratingLabel(r.avg_rating, r.ratings_count)}</p>

@@ -10,6 +10,7 @@ import { Pagination } from '@/shared/components/Pagination';
 import { formatDate } from '@/shared/lib/format';
 import { DOC_LABEL, DOCS, type DocType, type ReviewStatus } from '@/features/partners/partner-application';
 import { PARTNER_SERVICES, PARTNER_VEHICLE_TYPES } from '@/features/partners/partner-options';
+import { formatPhone } from '@gruas-app/shared';
 
 // Verificación de socios operadores (backlog AGT-03, migr. 00114): revisión
 // documento por documento con nota, vencimientos editables, y la decisión
@@ -279,7 +280,7 @@ export default function AdminVerificationsPage() {
                 paged.map((op) => (
                   <tr key={op.id} onClick={() => openOperator(op)} className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
                     <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-900 dark:text-white">{op.full_name || 'Sin nombre'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">{op.phone || '-'}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">{formatPhone(op.phone) || '-'}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">{op.provider_name || 'Independiente'}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-500">{formatDate(op.verification_submitted_at)}</td>
                     <td className="whitespace-nowrap px-6 py-4">
@@ -305,7 +306,7 @@ export default function AdminVerificationsPage() {
                 <h2 className="font-heading text-lg font-bold text-zinc-900 dark:text-white">{selected.full_name || 'Socio operador'}</h2>
                 <p className="text-sm text-zinc-500">
                   <span className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${VERIF_BADGE[stateOf(selected)]}`}>{VERIF_LABEL[stateOf(selected)]}</span>
-                  {selected.phone || 'Sin teléfono'}
+                  {formatPhone(selected.phone) || 'Sin teléfono'}
                 </p>
               </div>
               <button onClick={close} aria-label="Cerrar" className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">

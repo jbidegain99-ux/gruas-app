@@ -7,6 +7,7 @@ export * from './types/geo';
 export * from './types/api';
 export * from './constants/service-types';
 export * from './utils/pin';
+export * from './utils/phone';
 
 // Tipos generados desde el schema de Supabase (pnpm db:types).
 export type { Database, Json } from './database.types';

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { lastSeen } from './mopt-fleet';
+import { formatPhone } from '@gruas-app/shared';
 
 type StaleRow = { operator_id: string; full_name: string | null; phone: string | null; updated_at: string | null; active_request_id: string | null; active_folio?: string | null };
 
@@ -18,7 +19,7 @@ export function StaleAlert({ rows, now }: { rows: StaleRow[]; now: number }) {
               <>
                 {' · '}
                 <a href={`tel:${r.phone.replace(/[^+\d]/g, '')}`} className="font-medium underline">
-                  {r.phone}
+                  {formatPhone(r.phone)}
                 </a>
               </>
             )}

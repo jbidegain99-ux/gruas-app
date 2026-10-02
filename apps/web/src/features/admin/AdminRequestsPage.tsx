@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Inbox, Search } from 'lucide-react';
 import type { ServiceRequestStatus, ServiceType } from '@gruas-app/shared';
-import { requiresDropoff, SERVICE_TYPE_CONFIGS } from '@gruas-app/shared';
+import { SERVICE_TYPE_CONFIGS, formatPhone, phoneMatches, requiresDropoff } from '@gruas-app/shared';
 import { useInsurersEnabled } from '@/shared/lib/use-platform-features';
 import { createClient } from '@/shared/lib/supabase/client';
 import { cargarCatalogoDestinos } from '@/shared/lib/dropoff-catalog';
@@ -369,20 +369,22 @@ export default function AdminRequestsPage() {
     a.click();
   };
 
-  // Búsqueda client-side (cliente, teléfono, direcciones, ID) sobre lo cargado.
+  // Búsqueda client-side (folio, cliente, teléfono, direcciones, ID) sobre lo
+  // cargado. El folio va primero: es el número que el Usuario ve en la app y el
+  // que dicta cuando llama a soporte.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return requests;
     return requests.filter((r) =>
       [
+        r.cases?.folio,
         r.profiles?.full_name,
-        r.profiles?.phone,
         r.pickup_address,
         r.dropoff_address,
         r.id,
       ]
         .filter(Boolean)
-        .some((f) => (f as string).toLowerCase().includes(q))
+        .some((f) => (f as string).toLowerCase().includes(q)) || phoneMatches(r.profiles?.phone, q)
     );
   }, [requests, search]);
 
@@ -419,7 +421,7 @@ export default function AdminRequestsPage() {
             setSearch(e.target.value);
             setPage(0);
           }}
-          placeholder="Buscar por Usuario, teléfono o dirección..."
+          placeholder="Buscar por folio, Usuario, teléfono o dirección..."
           className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-budi-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
         />
       </div>
@@ -506,6 +508,9 @@ export default function AdminRequestsPage() {
                     >
                       <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-zinc-900 dark:text-white">
                         {request.profiles?.full_name || 'N/A'}
+                        {request.cases?.folio && (
+                          <span className="block font-mono text-xs font-normal text-zinc-500">{request.cases.folio}</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <ServiceTypeBadge serviceType={request.service_type || 'tow'} />
@@ -597,7 +602,7 @@ export default function AdminRequestsPage() {
                       href={`tel:${selectedRequest.profiles.phone}`}
                       className="text-sm font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
                     >
-                      {selectedRequest.profiles.phone}
+                      {formatPhone(selectedRequest.profiles.phone)}
                     </a>
                   )}
                 </div>
@@ -612,7 +617,7 @@ export default function AdminRequestsPage() {
                       href={`tel:${selectedRequest.operator.phone}`}
                       className="text-sm font-medium text-budi-primary-600 hover:underline dark:text-budi-primary-400"
                     >
-                      {selectedRequest.operator.phone}
+                      {formatPhone(selectedRequest.operator.phone)}
                     </a>
                   )}
                 </div>

@@ -6,6 +6,7 @@ import { createClient } from '@/shared/lib/supabase/client';
 import { useToast } from '@/shared/components/FeedbackProvider';
 import { formatDate } from '@/shared/lib/format';
 import { PARTNER_SERVICES, PARTNER_VEHICLE_TYPES } from '@/features/partners/partner-options';
+import { formatPhone } from '@gruas-app/shared';
 
 // Interesados en ser socios (backlog AGT-01, migr. 00114): lo que entra por
 // el pre-registro de /socios. La bienvenida queda lista en la bandeja; sin un
@@ -129,7 +130,7 @@ export default function AdminPartnerLeadsPage() {
                     <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[l.status]}`}>{STATUS_LABEL[l.status]}</span>
                   </p>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {l.phone}{l.email ? ` · ${l.email}` : ''} · {l.zone ?? 'Sin zona'} · {veh(l.vehicle_type)}
+                    {formatPhone(l.phone)}{l.email ? ` · ${l.email}` : ''} · {l.zone ?? 'Sin zona'} · {veh(l.vehicle_type)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {l.service_types.map(svc).join(', ')} · llegó el {formatDate(l.created_at)}
