@@ -153,7 +153,7 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.como((SELECT admin FROM t));
 DO $$
-DECLARE s UUID := (SELECT socio FROM t); ok BOOLEAN := false; d TEXT;
+DECLARE s UUID := (SELECT socio FROM t); ok BOOLEAN := false; d TEXT; msg TEXT;
 BEGIN
   FOREACH d IN ARRAY ARRAY['dui_front', 'dui_back', 'license', 'nit', 'circulation', 'insurance'] LOOP
     PERFORM admin_review_document(s, d, 'approved');
@@ -162,10 +162,13 @@ BEGIN
   ASSERT ok, 'C1: rechazó un documento sin decir qué corregir';
   PERFORM admin_review_document(s, 'tow_photo', 'rejected', 'La foto está borrosa, no se ve la placa');
   ok := false;
-  BEGIN PERFORM admin_set_operator_verification(s, 'approved'); EXCEPTION WHEN OTHERS THEN ok := true; END;
+  BEGIN PERFORM admin_set_operator_verification(s, 'approved'); EXCEPTION WHEN OTHERS THEN ok := true; msg := SQLERRM; END;
   ASSERT ok, 'C2: aprobó con un documento rechazado';
+  -- 00158: el admin y el socio leen el nombre del documento, no la clave interna.
+  ASSERT msg LIKE '%Faltan: Foto de tu unidad%', 'C2b: el error no nombra el documento en español: ' || msg;
   PERFORM admin_set_operator_verification(s, 'rejected');
-  ASSERT (SELECT verification_rejection_reason FROM profiles WHERE id = s) LIKE 'tow_photo: La foto está borrosa%', 'C3: el motivo no se armó de las notas';
+  ASSERT (SELECT verification_rejection_reason FROM profiles WHERE id = s) LIKE 'Foto de tu unidad: La foto está borrosa%', 'C3: el motivo no se armó de las notas: '
+    || (SELECT verification_rejection_reason FROM profiles WHERE id = s);
   RAISE NOTICE 'C1. revisión por documento; no aprueba con pendientes; motivo automático: OK';
 END $$;
 RESET ROLE;
