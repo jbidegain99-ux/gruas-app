@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { AppState, Platform } from 'react-native';
 import { chunkedStore } from './secureChunks';
+import { fetchWithTimeout } from './fetchTimeout';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -42,6 +43,8 @@ const ExpoSecureStoreAdapter = {
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  // Tope por llamada: sin señal, un botón no puede quedar girando para siempre.
+  global: { fetch: fetchWithTimeout(fetch) },
   auth: {
     storage: ExpoSecureStoreAdapter,
     autoRefreshToken: true,

@@ -294,9 +294,13 @@ export default function OperatorRequests() {
   const handleAcceptRequest = async (requestId: string) => {
     setAcceptingId(requestId);
 
+    // La sesión guardada, no getUser(): getUser va al servidor y, sin señal,
+    // el socio veía "Debes iniciar sesión" en vez del aviso de conexión.
+    // Los permisos los verifica igual el servidor en la operación.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     if (!user) {
       toast.error('Debes iniciar sesión.');

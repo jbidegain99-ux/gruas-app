@@ -26,6 +26,8 @@ const PATTERNS: { match: string; message: string }[] = [
   { match: 'over_email_send_rate_limit', message: 'Demasiados intentos. Espera un momento e intenta de nuevo.' },
   { match: 'network request failed', message: 'Sin conexión. Revisa tu internet e intenta de nuevo.' },
   { match: 'failed to fetch', message: 'Sin conexión. Revisa tu internet e intenta de nuevo.' },
+  // fetchWithTimeout (lib/fetchTimeout.ts) corta la llamada que no responde.
+  { match: 'abort', message: 'El servidor no respondió. Revisa tu señal e intenta de nuevo.' },
   { match: 'non-2xx', message: 'No se pudo completar la operación. Intenta de nuevo.' },
 ];
 

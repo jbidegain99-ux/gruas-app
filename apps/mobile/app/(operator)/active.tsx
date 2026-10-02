@@ -306,9 +306,13 @@ export default function ActiveService() {
 
     setUpdating(true);
 
+    // La sesión guardada, no getUser(): getUser va al servidor y, sin señal,
+    // el socio veía "Debes iniciar sesión" en vez del aviso de conexión.
+    // Los permisos los verifica igual el servidor en la operación.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     if (!user) {
       toast.error('Debes iniciar sesión.');
@@ -346,7 +350,7 @@ export default function ActiveService() {
     }
 
     if (opError) {
-      toast.error(opError.message || 'No se pudo actualizar el estado.');
+      toast.error(friendlyError(opError, 'No se pudo actualizar el estado. Intenta de nuevo.'));
       setUpdating(false);
       return;
     }
