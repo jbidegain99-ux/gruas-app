@@ -1,5 +1,5 @@
 -- =====================================================
--- Revisión de punta a punta del MOPT (migr. 00154-00156)
+-- Revisión de punta a punta del MOPT (migr. 00154-00157)
 --
 -- Correr contra la base LOCAL:  pnpm db:test
 -- Todo corre en una transacción que se revierte. Con las aseguradoras
@@ -16,6 +16,7 @@
 --   F. (00156) Aviso de casos observados al pagar; el reporte oficial se
 --      rehace al aprobar el estado de cuenta (solo si cambió).
 --   G. (00156) Programa suspendido: la vista previa lo explica.
+--   H. (00157) El vehículo del pedido (nota de la app) llega a las columnas.
 -- =====================================================
 \set ON_ERROR_STOP 1
 BEGIN;
@@ -286,6 +287,45 @@ DO $$
 BEGIN
   ASSERT (preview_mopt_program(11.05, -80.95, 'tow')->>'applies')::boolean, 'G2: reactivado no vuelve la cortesía';
   RAISE NOTICE 'G. programa suspendido: la vista previa lo explica: OK';
+END $$;
+
+-- H. (00157) El vehículo del pedido llega a las columnas del servicio.
+RESET ROLE;
+INSERT INTO vehicles (user_id, make, model, color, plate, is_default)
+SELECT usuario, 'Toyota', 'Corolla', 'Blanco', 'P512883', true FROM t;
+CREATE TEMP TABLE veh ON COMMIT DROP AS
+WITH a AS (
+  INSERT INTO service_requests (user_id, status, service_type, tow_type, pin_hash, pickup_lat, pickup_lng, pickup_address,
+                                dropoff_lat, dropoff_lng, dropoff_address, incident_type, notes, mopt_provider_id)
+  SELECT usuario, 'cancelled', 'tow', 'light', 'x', 11.05, -80.95, 'Zona', 11.06, -80.96, 'Destino', 'Varado',
+         'Vehículo: Toyota Corolla Blanco · P512883' || chr(10) || 'Frente a la gasolinera', prov FROM t
+  RETURNING id
+), b AS (
+  INSERT INTO service_requests (user_id, status, service_type, tow_type, pin_hash, pickup_lat, pickup_lng, pickup_address,
+                                dropoff_lat, dropoff_lng, dropoff_address, incident_type, notes, mopt_provider_id)
+  SELECT usuario, 'cancelled', 'tow', 'light', 'x', 11.05, -80.95, 'Zona', 11.06, -80.96, 'Destino', 'Varado',
+         'Vehículo: Pick-up prestado placa c 401-772', prov FROM t
+  RETURNING id
+)
+SELECT (SELECT id FROM a) AS guardado, (SELECT id FROM b) AS libre;
+GRANT SELECT ON veh TO PUBLIC;
+DO $$
+DECLARE r RECORD;
+BEGIN
+  SELECT * INTO r FROM service_requests WHERE id = (SELECT guardado FROM veh);
+  ASSERT r.vehicle_make = 'Toyota' AND r.vehicle_model = 'Corolla' AND r.vehicle_color = 'Blanco' AND r.vehicle_plate = 'P512883',
+    'H1: el vehículo guardado no pasó a las columnas del servicio';
+  ASSERT (SELECT vehicle_plate FROM service_requests WHERE id = (SELECT libre FROM veh)) = 'C401-772',
+    'H2: del texto libre no se rescató la placa';
+END $$;
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.como((SELECT dueno FROM t), 'aal2');
+DO $$
+BEGIN
+  ASSERT mopt_service_detail((SELECT guardado FROM veh))->>'vehicle' = 'Toyota Corolla Blanco', 'H3: el detalle no muestra el vehículo';
+  ASSERT mopt_service_detail((SELECT libre FROM veh))->>'vehicle' = 'Pick-up prestado placa c 401-772',
+    'H3: sin marca/modelo, el detalle no muestra lo que escribió el Usuario';
+  RAISE NOTICE 'H. el vehículo del pedido llega al portal del MOPT: OK';
 END $$;
 
 DO $$ BEGIN RAISE NOTICE 'TODO VERDE'; END $$;

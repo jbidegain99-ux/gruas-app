@@ -338,14 +338,18 @@ export default function RequestService() {
 
   useEffect(() => {
     const geocodeDropoff = async () => {
-      if (dropoffAddress && dropoffAddress.length >= 5) {
+      // Solo si falta el punto, igual que la recogida. El selector entrega
+      // dirección Y coordenadas: geocodificar el texto pisaba el punto exacto
+      // que marcó la persona con el centro del lugar ("Tepeagua" -> el centro
+      // del pueblo), y la grúa y el precio salían con otro destino.
+      if (dropoffAddress && dropoffAddress.length >= 5 && !dropoffCoords) {
         const coords = await geocodeAddress(dropoffAddress);
         if (coords) setDropoffCoords(coords);
       }
     };
     const timeoutId = setTimeout(geocodeDropoff, 1000);
     return () => clearTimeout(timeoutId);
-  }, [dropoffAddress]);
+  }, [dropoffAddress, dropoffCoords]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();

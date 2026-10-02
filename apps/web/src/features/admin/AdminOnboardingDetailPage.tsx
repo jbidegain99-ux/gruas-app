@@ -152,7 +152,7 @@ function ContractStep({ step, org }: { step: Step<'contract'>; org: OnboardingSt
         SLA: asignación {step.sla_assignment_minutes} min, llegada {step.sla_arrival_minutes} min.
         {org.type === 'MOPT' &&
           (step.fee_set
-            ? ` Tarifa de Budi: ${((step.fee ?? 0) * 100).toLocaleString('es-SV', { maximumFractionDigits: 2 })} % por servicio.`
+            ? ` Tarifa de Budi: ${Number(step.fee ?? 0).toLocaleString('es-SV', { maximumFractionDigits: 2 })} % por servicio.`
             : ' Falta fijar la tarifa de Budi por servicio (en Programas MOPT).')}
       </p>
       <ContractEditor organizationId={org.id} />

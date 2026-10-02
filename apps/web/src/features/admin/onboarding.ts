@@ -9,6 +9,7 @@ export type OnboardingStep =
       key: 'contract';
       done: boolean;
       contract: { reference: string; valid_from: string; valid_to: string | null; monthly_cap: number | null } | null;
+      // Tarifa de Budi en porcentaje (5 = 5 %), tal como la guarda rate_versions.
       fee: number | null;
       fee_set: boolean;
       sla_assignment_minutes: number;

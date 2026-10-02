@@ -226,6 +226,10 @@ const setup = sqlJson(`
     update members set profile_id = null
      where member_document_key(document_number) = member_document_key('09876543-2')
        and profile_id is distinct from '${ids.afiliado}';
+    -- Cada corrida consume servicios del plan; sin esto, a la cuarta el
+    -- afiliado agotaba su límite anual y la grúa salía sin cobertura.
+    delete from coverage_usage
+     where member_id in (select id from members where member_document_key(document_number) = member_document_key('09876543-2'));
     if not exists (select 1 from providers where name = 'QA MOPT') then
       insert into providers (name, is_mopt, is_active, business_type) values ('QA MOPT', true, true, 'roadside');
     end if;

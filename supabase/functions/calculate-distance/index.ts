@@ -87,7 +87,12 @@ function calculateFallback(
   destLat: number,
   destLng: number
 ): DistanceResponse {
-  const distanceKm = haversineDistance(originLat, originLng, destLat, destLng);
+  // Por carretera siempre es más que en línea recta: ×1.3 es la relación
+  // típica en El Salvador (8.7 km por la Carretera al Puerto contra 4.6 km en
+  // recta). Sin el factor, cuando OSRM no respondía, el Usuario veía bastante
+  // menos distancia que el socio. Queda muy debajo del tope de 4× del servidor
+  // (00060).
+  const distanceKm = haversineDistance(originLat, originLng, destLat, destLng) * 1.3;
   // Estimate duration: average 30 km/h in urban El Salvador
   const durationMinutes = Math.round((distanceKm / 30) * 60);
 
