@@ -15,6 +15,7 @@ import { rutaDeInicio } from '@/shared/hooks/useRoleGuard';
 import type { UserRole } from '@gruas-app/shared';
 import { BudiLogo, Button, Input, toast } from '@/shared/components/ui';
 import { colors, typography, spacing } from '@/theme';
+import { LEGAL_CONFIG } from '@/config/legal';
 
 export default function Login() {
   const router = useRouter();
@@ -78,7 +79,7 @@ export default function Login() {
       );
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: LEGAL_CONFIG.RESET_PASSWORD_URL });
     if (error) {
       toast.error(friendlyError(error, 'No se pudo enviar el enlace de recuperación.'));
       return;

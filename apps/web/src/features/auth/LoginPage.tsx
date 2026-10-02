@@ -8,6 +8,7 @@ import { getPlatformFeatures } from '@/shared/lib/platform-features';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { safeNext } from '@/features/org/org-links';
+import { authErrorMessage } from './recovery';
 
 function LoginForm() {
   const router = useRouter();
@@ -32,7 +33,8 @@ function LoginForm() {
     });
 
     if (error) {
-      setError(error.message);
+      // El mensaje de Supabase viene en inglés ("Invalid login credentials").
+      setError(authErrorMessage(error.message));
       setLoading(false);
       return;
     }
@@ -152,6 +154,11 @@ function LoginForm() {
         >
           {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
         </button>
+        <p className="text-center text-sm">
+          <Link href="/recuperar" className="font-medium text-budi-primary-500 hover:text-budi-primary-400">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">

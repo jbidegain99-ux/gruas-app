@@ -55,6 +55,12 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 
+# Correo de recuperación en español (el de Supabase venía en inglés). En
+# producción se carga a mano en el panel; esto solo rige en local.
+[auth.email.template.recovery]
+subject = "Recupera tu contraseña de Budi"
+content_path = "./supabase/templates/recovery.html"
+
 [auth.sms]
 enable_signup = false
 enable_confirmations = false

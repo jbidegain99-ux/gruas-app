@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { BudiLogo } from '@/shared/components/BudiLogo';
 import { insurersOn } from '@/shared/lib/insurers-public';
+import { RecoveryRedirect } from '@/features/auth/RecoveryRedirect';
 
 // Landing pública (backlog LAN-10). Página estática, sin sesión: tres públicos
 // en una sola página — el Usuario (descargar la app), las instituciones (MOPT,
@@ -233,6 +234,8 @@ export default async function LandingPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-zinc-950">
+      {/* Un enlace de recuperación de contraseña que cayó aquí sigue a /recuperar. */}
+      <RecoveryRedirect />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-zinc-900 focus:shadow"

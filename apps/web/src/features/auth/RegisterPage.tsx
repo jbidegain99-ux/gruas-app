@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/shared/lib/supabase/client';
 import { BudiLogo } from '@/shared/components/BudiLogo';
+import { authErrorMessage } from './recovery';
 
 export default function RegisterPage() {
 
@@ -63,7 +64,7 @@ export default function RegisterPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error.message));
       setLoading(false);
       return;
     }
