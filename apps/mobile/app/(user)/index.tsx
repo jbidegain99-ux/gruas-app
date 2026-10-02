@@ -977,7 +977,7 @@ export default function UserHome() {
             </View>
 
             <View style={styles.requestIdRow}>
-              <Text style={styles.requestIdText}>ID: {activeRequest.id.substring(0, 8)}</Text>
+              <Text style={styles.requestIdText}>Folio: {activeRequest.folio ?? activeRequest.id.substring(0, 8)}</Text>
             </View>
           </Card>
         </View>

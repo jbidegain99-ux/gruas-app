@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { caseFolio } from '@/lib/caseFolio';
 import { fetchRequestOperators } from '../lib/requestOperators';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/shared/components/ui';
@@ -25,6 +26,8 @@ export interface ActiveRequest {
   route_polyline: string | null;
   /** Lo paga el programa del MOPT (cortesía): cancelar no le cuesta al Usuario. */
   paid_by_mopt: boolean;
+  /** Folio del caso (BUDI-000123); null si todavía no se generó. */
+  folio: string | null;
 }
 
 export interface PendingRating {
@@ -65,7 +68,8 @@ const BASE_SELECT = `
   service_type,
   mopt_provider_id,
   operator:profiles!service_requests_operator_id_fkey (full_name, phone),
-  providers (name)
+  providers (name),
+  cases (folio)
 `;
 
 /**
@@ -171,6 +175,7 @@ export function useActiveRequest(): UseActiveRequestResult {
         service_type: req.service_type || 'tow',
         route_polyline: (req as Record<string, unknown>).route_polyline as string | null ?? null,
         paid_by_mopt: req.mopt_provider_id != null,
+        folio: caseFolio((req as Record<string, unknown>).cases),
       });
     } else {
       trackedRef.current = null;

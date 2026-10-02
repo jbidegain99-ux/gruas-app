@@ -28,6 +28,7 @@ import type { ServiceType, ServiceRequestStatus } from '@gruas-app/shared';
 import { BudiLogo, Button, Card, StatusBadge, LoadingSpinner, Input, PINInput, ErrorState, ToastHost, toast } from '@/shared/components/ui';
 import { formatDateTime } from '@/lib/dates';
 import { PaymentReceipt } from '@/features/payments/components/PaymentReceipt';
+import { caseFolio } from '@/lib/caseFolio';
 import { fetchRequestOperators } from '@/features/tracking/lib/requestOperators';
 import { useInsurersEnabled } from '@/shared/hooks/usePlatformFeatures';
 import { colors, typography, spacing, radii } from '@/theme';
@@ -63,6 +64,8 @@ type ServiceRequest = {
   coverage_status: string | null;
   /** 00098: lo pago un programa del MOPT; la persona no pago nada. */
   paid_by_mopt: boolean;
+  /** Folio del caso (BUDI-000123): el número que el Usuario le da a soporte. */
+  folio: string | null;
   amount_covered: number | null;
   amount_copay: number | null;
 };
@@ -170,7 +173,8 @@ export default function History() {
         operator_id,
         service_type,
         operator:profiles!service_requests_operator_id_fkey (full_name, phone),
-        providers (name)
+        providers (name),
+        cases (folio)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
@@ -234,6 +238,7 @@ export default function History() {
         operator_phone: (req.operator as unknown as { full_name: string; phone: string } | null)?.phone || ops.get(req.id)?.phone || null,
         provider_name: (req.providers as unknown as { name: string } | null)?.name || null,
         paid_by_mopt: req.mopt_provider_id != null,
+        folio: caseFolio((req as Record<string, unknown>).cases),
         pin: savedPins[req.id] || null,
         service_type: req.service_type || 'tow',
         coverage_status: (req as Record<string, unknown>).coverage_status as string | null ?? null,
@@ -640,8 +645,8 @@ export default function History() {
             </View>
 
             <View style={styles.idSection}>
-              <Text style={styles.idLabel}>ID de Solicitud</Text>
-              <Text style={styles.idValue}>{selectedRequest.id}</Text>
+              <Text style={styles.idLabel}>Folio</Text>
+              <Text style={styles.idValue}>{selectedRequest.folio ?? selectedRequest.id}</Text>
             </View>
 
             {/* Contacto con el operador (chat + llamada) en servicios activos */}
