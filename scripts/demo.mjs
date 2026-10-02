@@ -937,10 +937,15 @@ async function drive() {
   const [caso] = await sel('cases', `request_id=eq.${id}&select=folio`);
   const folio = caso?.folio || id.slice(0, 8);
 
-  // Ctrl+C a mitad: la clienta cancela (misma RPC que la app), para no dejar un
-  // servicio colgado que despues bloquee el siguiente `drive`.
+  // Ctrl+C a mitad: se cancela para no dejar un servicio colgado que despues
+  // bloquee el siguiente `drive`. Lo cancela el admin y no la clienta: desde
+  // 00164 un servicio en curso (PIN verificado) ya no lo cancela el Usuario.
   let terminado = false, cortando = false;
-  const cancelar = (motivo) => rpc(tCliente, 'cancel_service_request', { p_request_id: id, p_reason: motivo });
+  const tAdminDrive = await asegurarAdmin();
+  const cancelar = async (motivo) => {
+    const r = await rpc(tAdminDrive, 'admin_cancel_request', { p_request_id: id, p_reason: motivo });
+    return { success: !!r, error: r ? null : 'sin respuesta' };
+  };
   const alCortar = async () => {
     if (cortando) return;
     cortando = true;
