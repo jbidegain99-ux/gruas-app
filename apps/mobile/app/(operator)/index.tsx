@@ -314,7 +314,12 @@ export default function OperatorRequests() {
     });
 
     if (error) {
-      toast.error('No se pudo aceptar la solicitud. Puede que otro socio ya la haya tomado.');
+      // 00163: si ya tiene un servicio en curso, el servidor lo dice en español.
+      toast.error(
+        error.message?.startsWith('Ya tienes un servicio en curso')
+          ? error.message
+          : 'No se pudo aceptar la solicitud. Puede que otro socio ya la haya tomado.'
+      );
       setAcceptingId(null);
       await fetchData();
       return;
