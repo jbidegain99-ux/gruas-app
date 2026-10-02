@@ -308,6 +308,25 @@ BEGIN
   RAISE NOTICE 'B5. evento de cancelacion: OK';
 END $$;
 
+-- 00159: si cancela Budi con un socio asignado, se enteran los dos.
+DO $$
+DECLARE v_req UUID := (SELECT open_req FROM t_ctx); v_op UUID := (SELECT id FROM t_op);
+BEGIN
+  ASSERT EXISTS (SELECT 1 FROM notification_queue
+                  WHERE data->>'service_request_id' = v_req::text AND data->>'type' = 'service_cancelled'
+                    AND user_id = (SELECT user_id FROM service_requests WHERE id = v_req)),
+    'B6: el Usuario no recibio el aviso de la cancelacion';
+  IF v_op IS NOT NULL THEN
+    ASSERT EXISTS (SELECT 1 FROM notification_queue
+                    WHERE data->>'service_request_id' = v_req::text AND data->>'type' = 'service_cancelled'
+                      AND user_id = v_op AND body LIKE '%Prueba de soporte%'),
+      'B6: el socio asignado no se entero de que soporte cancelo';
+    RAISE NOTICE 'B6. la cancelacion de soporte avisa al Usuario y al socio: OK';
+  ELSE
+    RAISE NOTICE 'B6. sin socio aprobado en la base: solo se probo el aviso al Usuario';
+  END IF;
+END $$;
+
 -- ---------------------------------------------------------------
 -- C. Los agujeros de la 00104
 -- ---------------------------------------------------------------
